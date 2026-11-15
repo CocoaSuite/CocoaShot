@@ -4,7 +4,7 @@
 
 Open an image with **Open image**, by dropping it onto the window, or by pasting from the clipboard. Tools are on the left, grouped by task. The selected tool's settings are on the right. Layers are under the tools.
 
-Hold Space and drag, or use the scroll wheel, to move around. Hold Ctrl (Cmd on a Mac) and scroll to zoom.
+Hold Space and drag, or use the scroll wheel, to move around. Hold Ctrl (Cmd on a Mac) and scroll to zoom. **F11** switches to full screen (Esc leaves it) and **Tab** hides or shows the side panels, so the two together give the image the whole screen.
 
 ## Common tasks
 
@@ -56,6 +56,10 @@ With any brush, hold **Ctrl** (Cmd on a Mac) and drag left or right to change th
 ### Text and annotations
 
 Choose a tool in **Text & Annotations** and click or drag on the image. Click text to edit it. Each annotation is its own layer and can be moved later with **Move**.
+
+## Cut, copy and paste
+
+With a selection, **Ctrl+X** copies the selected part of the current layer to the clipboard and removes it from the layer. Ctrl+C copies, Ctrl+V pastes as a new layer.
 
 ## Updates
 

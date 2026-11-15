@@ -66,6 +66,8 @@ const P: Record<string, string> = {
   flipv: 'M3 12h18M7 8l5-4 5 4zM7 16l5 4 5-4z',
   clip: 'M7 4v10a5 5 0 0 0 5 5h8M17 15l3 4-3 4',
   alpha: 'M4 4h16v16H4zM4 12h16M12 4v16',
+  cut: 'M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12',
+  fullscreen: 'M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3',
   levels: 'M3 20h18M5 20v-3M8 20v-7M11 20V6M14 20V9M17 20v-5M20 20v-2',
   update: 'M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5M12 8v5l3 2',
   wand: 'M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8L19 13M17.8 6.2L19 5M3 21l9-9M12.2 6.2L11 5',

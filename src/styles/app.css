@@ -31,6 +31,9 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 ::-webkit-scrollbar-thumb{background:rgba(128,128,128,.35);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
 
 #top{display:flex;align-items:center;gap:6px;padding:0 10px;background:var(--panel);border-bottom:1px solid var(--line);-webkit-app-region:no-drag}
+.wco #top{-webkit-app-region:drag;padding-right:calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 10px)}
+.wco #top button,.wco #top input,.wco #top select,.wco #top .dd,.wco #top .mn{-webkit-app-region:no-drag}
+.wco.fs #top{padding-right:10px}
 .brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;letter-spacing:-.01em;margin-right:4px}
 .brand svg{width:22px;height:22px}
 .mn{position:relative}

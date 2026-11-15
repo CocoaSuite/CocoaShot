@@ -50,6 +50,7 @@ function createWindow() {
     backgroundColor: '#121212',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     autoHideMenuBar: process.platform !== 'darwin',
+    ...(process.platform === 'darwin' ? {} : { titleBarStyle: 'hidden', titleBarOverlay: { color: '#1a1a1a', symbolColor: '#ececec', height: 41 } }),
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, spellcheck: false }
   })
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/i.test(url)) shell.openExternal(url); return { action: 'deny' } })
@@ -60,6 +61,9 @@ function createWindow() {
     e.preventDefault()
     win.webContents.send('want-close')
   })
+  const fs = v => () => { if (win) win.webContents.send('fullscreen', v) }
+  win.on('enter-full-screen', fs(true))
+  win.on('leave-full-screen', fs(false))
   win.loadURL(process.env.COCOA_DEV_URL || 'app://cocoashot/index.html')
   win.on('closed', () => { win = null })
 }
@@ -91,6 +95,10 @@ else {
 registerUpdates(() => win, () => { stopAI(); if (win) win.forceClose = true; app.quit() })
 
 ipcMain.on('close-now', () => { if (win) { win.forceClose = true; win.close() } })
+ipcMain.handle('toggleFullScreen', () => { if (!win) return false; win.setFullScreen(!win.isFullScreen()); return win.isFullScreen() })
+ipcMain.on('setTitleBar', (_e, color, symbolColor) => {
+  if (win && process.platform !== 'darwin' && win.setTitleBarOverlay) try { win.setTitleBarOverlay({ color: String(color), symbolColor: String(symbolColor), height: 41 }) } catch {}
+})
 ipcMain.on('setTitle', (_e, t) => { if (win) win.setTitle(String(t).slice(0, 200)) })
 
 const IMG_FILTERS = [{ name: 'Images and projects', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'tif', 'tiff', 'gif', 'psd', 'cocoashot'] }]

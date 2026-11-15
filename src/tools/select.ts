@@ -111,7 +111,7 @@ export function makeCopy(doc: any, l: Layer): Layer {
   return n
 }
 
-export function deletePixels(app: App) {
+export function deletePixels(app: App, label = 'Delete pixels') {
   const doc = app.doc!
   const l = app.activeRaster()
   if (!l) return
@@ -121,7 +121,7 @@ export function deletePixels(app: App) {
   const x = ctx2d(l.canvas!)
   x.save(); x.globalCompositeOperation = 'destination-out'; x.drawImage(doc.selection, 0, 0); x.restore()
   touch(l)
-  app.hist!.raster('Delete pixels', l, 'canvas', r, before)
+  app.hist!.raster(label, l, 'canvas', r, before)
   doc.changed()
 }
 

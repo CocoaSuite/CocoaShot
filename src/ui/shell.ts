@@ -24,6 +24,22 @@ export function buildShell(app: App, root: HTMLElement) {
     undo: () => { if (!app.stroke) app.hist?.undo() },
     redo: () => { if (!app.stroke) app.hist?.redo() },
     copy: () => app.copy(),
+    cut: async () => {
+      const d = app.doc
+      if (!d) return
+      if (!d.selection) { toast('Make a selection first'); return }
+      const l = app.activeRaster()
+      if (!l) return
+      await app.copy()
+      deletePixels(app, 'Cut')
+    },
+    fullscreen: () => app.toggleFullscreen(),
+    panels: () => {
+      const s = app.settings
+      const show = !(s.leftOpen || s.rightOpen)
+      s.leftOpen = show; s.rightOpen = show
+      layout()
+    },
     paste: () => app.pasteLayer(),
     selectAll: () => app.doc && selectAll(app),
     deselect: () => app.doc?.selection && applySelection(app, null, 'new', 'Deselect'),
@@ -92,9 +108,9 @@ export function buildShell(app: App, root: HTMLElement) {
   const top = h('header', { id: 'top' },
     h('div', { class: 'brand' }, logo(), 'CocoaShot'),
     menu('File', () => [['Open image', 'open', 'open'], ['Open project', 'openProject', 'folder'], ['New image from clipboard', 'newPaste', 'image'], '-', ['Save project', 'save', 'save'], ['Save project as', 'saveAs'], ['Export image', 'export', 'download'], '-', ['Close image', 'close', 'x']]),
-    menu('Edit', [['Undo', 'undo', 'undo'], ['Redo', 'redo', 'redo'], '-', ['Copy', 'copy', 'copy'], ['Paste as layer', 'paste'], ['Paste as new image', 'newPaste', 'image'], ['Delete', 'delete', 'trash'], '-', ['Select all', 'selectAll'], ['Deselect', 'deselect'], ['Invert selection', 'invert'], '-', ['Settings', 'settings', 'gear']]),
+    menu('Edit', [['Undo', 'undo', 'undo'], ['Redo', 'redo', 'redo'], '-', ['Cut', 'cut', 'cut'], ['Copy', 'copy', 'copy'], ['Paste as layer', 'paste'], ['Paste as new image', 'newPaste', 'image'], ['Delete', 'delete', 'trash'], '-', ['Select all', 'selectAll'], ['Deselect', 'deselect'], ['Invert selection', 'invert'], '-', ['Settings', 'settings', 'gear']]),
     menu('Image', [['Resize', 'resize', 'resize'], ['Crop to selection', 'cropSel', 'crop'], '-', ['Rotate left', 'rotl', 'rotl'], ['Rotate right', 'rotr', 'rotr'], ['Flip horizontal', 'fliph', 'fliph'], ['Flip vertical', 'flipv', 'flipv'], '-', ['Flatten image', 'flattenImg', 'layers']]),
-    menu('View', [['Zoom in', 'zoomIn', 'plus'], ['Zoom out', 'zoomOut', 'minus'], ['Fit to screen', 'fit', 'fit'], ['Actual pixels', 'actual'], ['Before and after', 'compare', 'compare'], '-', ['Show or hide tools', 'toggleLeft'], ['Show or hide properties', 'toggleRight'], ['Restore default layout', 'resetLayout']]),
+    menu('View', () => [['Zoom in', 'zoomIn', 'plus'], ['Zoom out', 'zoomOut', 'minus'], ['Fit to screen', 'fit', 'fit'], ['Actual pixels', 'actual'], ['Before and after', 'compare', 'compare'], '-', [app.fullscreen || document.fullscreenElement ? 'Exit full screen' : 'Full screen', 'fullscreen', 'fullscreen'], ['Show or hide panels', 'panels'], ['Show or hide tools', 'toggleLeft'], ['Show or hide properties', 'toggleRight'], ['Restore default layout', 'resetLayout']]),
     menu('Help', () => [['Quick guide', 'help', 'help'], ...(native ? [['Check for updates', 'updates', 'update'] as [string, string, string]] : []), ['About CocoaShot', 'about']]),
     h('span', { class: 'sep' }), dname, status, h('span', { class: 'sp' }),
     ib('open', 'Open image', 'open'), ib('save', 'Save project', 'save'), h('span', { class: 'sep' }), undoB, redoB, h('span', { class: 'sep' }),
@@ -281,14 +297,21 @@ export function buildShell(app: App, root: HTMLElement) {
     if (c === 'Mod+Shift+=') c = 'Mod+='
     if (c === 'Mod+Y' && !keymap().has(c)) c = 'Mod+Shift+Z'
     const id = keymap().get(c)
-    if (!id) { if (e.key === 'Escape' && app.doc?.selection) run.deselect(); return }
+    if (!id) {
+      if (e.key === 'Escape' && app.fullscreen && native) { app.toggleFullscreen(); return }
+      if (e.key === 'Escape' && app.doc?.selection) run.deselect()
+      return
+    }
     e.preventDefault()
     if (id.startsWith('tool:')) { if (app.doc) app.setTool(id.slice(5)) }
-    else if (app.doc || ['open', 'paste', 'newPaste', 'updates'].includes(id)) run[id]?.()
+    else if (app.doc || ['open', 'paste', 'newPaste', 'updates', 'fullscreen', 'panels'].includes(id)) run[id]?.()
   })
   addEventListener('keyup', e => { if (e.key === ' ') { app.view.space = false; app.view.updateCursor() } })
   addEventListener('blur', () => { app.view.space = false })
 
+  const fsChanged = (on: boolean) => { app.fullscreen = on; document.documentElement.classList.toggle('fs', on); app.view.resize() }
+  native?.onFullScreen(fsChanged)
+  document.addEventListener('fullscreenchange', () => fsChanged(!!document.fullscreenElement))
   native?.onOpenFile(f => app.openFile(f))
   native?.onWantClose(async () => { if (await app.confirmDiscard()) { await native!.clearRecovery(); native!.closeNow() } })
 

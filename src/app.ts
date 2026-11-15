@@ -64,7 +64,20 @@ export class App extends Emitter {
     try { localStorage.setItem('cocoashot.fgbg', JSON.stringify([fg, bg])) } catch {}
     this.emit('colors')
   }
-  applyTheme() { document.documentElement.classList.toggle('light', this.settings.theme === 'light') }
+  applyTheme() {
+    const r = document.documentElement
+    r.classList.toggle('light', this.settings.theme === 'light')
+    r.classList.toggle('wco', !!native && native.platform !== 'darwin')
+    const cs = getComputedStyle(r)
+    native?.setTitleBar(cs.getPropertyValue('--panel').trim(), cs.getPropertyValue('--fg').trim())
+  }
+
+  fullscreen = false
+  async toggleFullscreen() {
+    if (native) this.fullscreen = await native.toggleFullScreen()
+    else if (document.fullscreenElement) await document.exitFullscreen()
+    else await document.documentElement.requestFullscreen().catch(() => {})
+  }
 
   setTool(id: string) {
     if (!this.tools.has(id)) return
