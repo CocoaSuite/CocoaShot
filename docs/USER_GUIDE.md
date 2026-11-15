@@ -79,7 +79,7 @@ With a selection, **Ctrl+X** copies the selected part of the current layer to th
 
 ## Updates
 
-The desktop app looks for a newer version on GitHub when it starts and offers to install it. **Help, Check for updates** checks at any time. The automatic check can be turned off in **Settings, About**.
+The desktop app looks for a newer version on GitHub when it starts and offers to install it. Most updates are under 1 MB and only need a quick restart; occasionally a full installer is needed. **Help, Check for updates** checks at any time. The automatic check can be turned off in **Settings, About**.
 
 ## Saving
 

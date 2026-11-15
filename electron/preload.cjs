@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('cocoaNative', {
   onFullScreen: cb => ipcRenderer.on('fullscreen', (_e, v) => cb(v)),
   setTitleBar: (color, symbolColor, height) => ipcRenderer.send('setTitleBar', color, symbolColor, height),
   appVersion: () => ipcRenderer.invoke('appVersion'),
+  appStarted: () => ipcRenderer.send('appStarted'),
   updateCheck: () => ipcRenderer.invoke('updateCheck').catch(clean),
   updateDownload: onProgress => { updateProgress = onProgress || null; return ipcRenderer.invoke('updateDownload').catch(clean).finally(() => { updateProgress = null }) },
   updateInstall: () => ipcRenderer.invoke('updateInstall').catch(clean),

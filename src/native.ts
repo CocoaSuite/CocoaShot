@@ -30,15 +30,16 @@ interface Native {
   onFullScreen(cb: (on: boolean) => void): void
   setTitleBar(color: string, symbolColor: string, height?: number): void
   appVersion(): Promise<string>
+  appStarted?(): void
   updateCheck(): Promise<UpdateInfo>
-  updateDownload(onProgress?: (p: { loaded: number; total: number }) => void): Promise<{ name: string }>
+  updateDownload(onProgress?: (p: { loaded: number; total: number }) => void): Promise<{ name: string; kind?: 'code' | 'installer' }>
   updateInstall(): Promise<'quitting' | 'restarting' | 'opened'>
   openReleases(): Promise<void>
 }
 
 export interface UpdateInfo {
   current: string; latest: string | null; newer: boolean; page: string
-  name?: string; notes?: string; date?: string; asset?: { name: string; size: number } | null
+  name?: string; notes?: string; date?: string; asset?: { name: string; size: number; kind?: 'code' | 'installer' } | null
 }
 
 export interface RecentItem { name: string; path: string; at: number; thumb?: string }

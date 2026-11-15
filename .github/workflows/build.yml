@@ -30,6 +30,9 @@ jobs:
       - run: npm run ${{ matrix.script }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Pack the code-only update
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run bundle
       - uses: actions/upload-artifact@v4
         with:
           name: CocoaShot-${{ matrix.os }}
@@ -39,6 +42,7 @@ jobs:
             release/*.zip
             release/*.AppImage
             release/*.deb
+            release/cocoashot-app*
           if-no-files-found: ignore
 
   release:
@@ -68,3 +72,4 @@ jobs:
             release/*.zip
             release/*.AppImage
             release/*.deb
+            release/cocoashot-app*

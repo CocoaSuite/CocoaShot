@@ -11,14 +11,15 @@
   "homepage": "https://github.com/CocoaSuite/CocoaShot",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/shell-id.mjs && vite build",
+    "bundle": "node scripts/bundle.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"tests/*.test.mjs\"",
-    "desktop": "vite build && electron .",
-    "dist": "vite build && electron-builder --publish never",
-    "dist:win": "vite build && electron-builder --win --publish never",
-    "dist:mac": "vite build && electron-builder --mac --publish never",
-    "dist:linux": "vite build && electron-builder --linux --publish never"
+    "desktop": "npm run build && electron .",
+    "dist": "npm run build && electron-builder --publish never",
+    "dist:win": "npm run build && electron-builder --win --publish never",
+    "dist:mac": "npm run build && electron-builder --mac --publish never",
+    "dist:linux": "npm run build && electron-builder --linux --publish never"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.0"

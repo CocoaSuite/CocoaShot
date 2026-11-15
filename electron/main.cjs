@@ -4,6 +4,7 @@ const fs = require('fs')
 const fsp = fs.promises
 const { pathToFileURL } = require('url')
 const { registerUpdates } = require('./update.cjs')
+const appcode = require('./appcode.cjs')
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }])
 
@@ -76,11 +77,12 @@ else {
   })
   app.on('open-file', (e, file) => { e.preventDefault(); deliver(file) })
   app.whenReady().then(() => {
+    const ROOT = path.normalize(appcode.chooseDist(DIST).dir)
     protocol.handle('app', req => {
       let p = decodeURIComponent(new URL(req.url).pathname)
       if (p === '/' || !p) p = '/index.html'
-      const file = path.normalize(path.join(DIST, p))
-      if (!file.startsWith(DIST)) return new Response('Not found', { status: 404 })
+      const file = path.normalize(path.join(ROOT, p))
+      if (!file.startsWith(ROOT + path.sep)) return new Response('Not found', { status: 404 })
       return net.fetch(pathToFileURL(file).toString())
     })
     if (process.platform === 'darwin') Menu.setApplicationMenu(Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]))

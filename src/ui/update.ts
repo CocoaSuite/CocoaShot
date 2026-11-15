@@ -29,9 +29,10 @@ export function updateDialog(app: App, info: UpdateInfo) {
     const actions = h('div', { class: 'row' })
     const page = h('button', { onclick: () => native!.openReleases() }, 'Release page')
     const later = h('button', { onclick: close }, info.newer ? 'Later' : 'Close')
-    const go = h('button', { class: 'pri' }, 'Download and install') as HTMLButtonElement
+    const code = info.asset?.kind === 'code'
+    const go = h('button', { class: 'pri' }, code ? 'Update' : 'Download and install') as HTMLButtonElement
     const install = async () => {
-      if (win && !(await app.closeAll())) { go.disabled = false; return }
+      if ((code || win || linux) && !(await app.closeAll())) { go.disabled = false; return }
       try {
         const r = await native!.updateInstall()
         if (r === 'opened') {
@@ -53,15 +54,16 @@ export function updateDialog(app: App, info: UpdateInfo) {
         })
       } catch (e: any) { status.textContent = e.message; go.disabled = false; prog.hidden = true; return }
       bar.style.width = '100%'
-      status.textContent = win ? 'Downloaded. CocoaShot will close and the installer will start.' : 'Downloaded.'
-      go.textContent = win ? 'Install now' : linux ? 'Install and restart' : 'Open update'
+      status.textContent = code ? 'Downloaded. CocoaShot restarts to finish. Open images are closed first, and you are asked about unsaved changes.' : win ? 'Downloaded. CocoaShot will close and the installer will start.' : 'Downloaded.'
+      go.textContent = code ? 'Restart now' : win ? 'Install now' : linux ? 'Install and restart' : 'Open update'
       go.onclick = () => { go.disabled = true; install() }
       go.disabled = false
     }
     if (!info.latest) status.textContent = `You have version ${info.current}. No releases have been published yet.`
     else if (!info.newer) status.textContent = `You have the latest version, ${info.current}.`
     else if (!info.asset) status.textContent = `Version ${info.latest} is out, but it has no download for this computer yet. Use the release page.`
-    else status.textContent = `You have ${info.current}. The download is ${mb(info.asset.size)}.`
+    else if (code) status.textContent = `You have ${info.current}. This is a small update to CocoaShot itself, ${mb(info.asset.size)}, applied with a quick restart.`
+    else status.textContent = `You have ${info.current}. The download is ${mb(info.asset.size)}, the full installer, because this version also updates the parts CocoaShot runs on.`
     actions.append(page, h('span', { class: 'sp' }), later)
     if (info.newer && info.asset) actions.append(go)
     return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },

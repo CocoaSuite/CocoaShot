@@ -18,5 +18,6 @@ for (const t of [...selectTools(app), ...cropTools(app), ...bgTools(app), ...hig
 buildShell(app, document.getElementById('app')!)
 app.setTool('move')
 if (native && !app.settings.gpu) native.ai('setGpu', { on: false })
+setTimeout(() => native?.appStarted?.(), 3000)
 if (native && app.settings.checkUpdates) setTimeout(() => checkForUpdates(app, true), 5000)
 ;(window as any).cocoashot = app

@@ -30,4 +30,4 @@ Run `npm run desktop` and work through this list with a photo of a person and a 
 14. Close without saving and check the recovery offer on the next start.
 15. Open a 6000 by 4000 px photo and check the app stays responsive.
 16. Switch Interface between Classic, Photoshop style and SAI style in dark and light. In each, pick tools, paint, change layers and open two images in tabs. In Photoshop style open a tool group by holding and by right-click, and cycle a group with its key. In SAI style use the Navigator, rotate and flip the view and paint while rotated, and click size presets.
-17. Install an older build, publish a newer tagged release, and check Help, Check for updates downloads and installs it.
+17. Install an older build, publish a newer tagged release, and check Help, Check for updates downloads and installs it. With only `src/` changed it should offer the small update and restart into the new version; with a change in `electron/` it should offer the full installer.

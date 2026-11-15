@@ -52,13 +52,17 @@ Installers can only be built for the system you are on. The GitHub workflow in `
 
 ## Updates
 
-The desktop app checks the latest GitHub release when it starts (this can be turned off in Settings, About) and from **Help, Check for updates**. It downloads the installer for the current system, checks it against the release, and then:
+The desktop app checks the latest GitHub release when it starts (this can be turned off in Settings, About) and from **Help, Check for updates**.
+
+Most releases only change CocoaShot's own code. Each release therefore also carries a small code-only update (`cocoashot-app-<version>.json.gz`, under 1 MB) and a description of it (`cocoashot-app.json`). The update is built for one exact version of the parts CocoaShot runs on: Electron, the files in `electron/` and the packages. `scripts/shell-id.mjs` fingerprints those at build time. When an installed copy has the same fingerprint, it downloads only the small update, checks it against the release, unpacks it into its data folder and restarts. If the new code does not start, the next start goes back to the code that came with the installer. Installing a newer full version removes any downloaded code.
+
+When those parts change (a new Electron, a changed package, or any edit in `electron/`), the fingerprint changes and the app downloads the full installer instead:
 
 - Windows: closes CocoaShot and runs the new installer.
 - Linux AppImage: replaces the AppImage and restarts. The deb package opens in the system installer.
 - macOS: opens the new disk image to drag into Applications.
 
-To publish an update, raise `version` in `package.json` (for example `npm version minor`), then push the matching tag (`git push --follow-tags`). The workflow builds all three systems and attaches the installers to a GitHub release with that version. It refuses a tag that does not match `package.json`.
+To publish an update, raise `version` in `package.json` (for example `npm version minor`), then push the matching tag (`git push --follow-tags`). The workflow builds all three systems, packs the code-only update and attaches everything to a GitHub release with that version. It refuses a tag that does not match `package.json`.
 
 ## Development
 
@@ -78,7 +82,7 @@ npm test
 | Part | Location |
 | --- | --- |
 | Desktop app, file access, recovery | `electron/main.cjs`, `electron/preload.cjs` |
-| Updates from GitHub releases | `electron/update.cjs`, `src/ui/update.ts` |
+| Updates from GitHub releases | `electron/update.cjs`, `electron/appcode.cjs`, `scripts/`, `src/ui/update.ts` |
 | AI processing (separate process) | `electron/ai.mjs` |
 | User interface | `src/ui/` |
 | Rendering engine (viewport) | `src/view/viewport.ts` |
