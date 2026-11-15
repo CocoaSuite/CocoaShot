@@ -23,17 +23,22 @@ if (env) {
 }
 
 export const MODELS = {
-  isnet: { repo: 'isnet', files: ['isnet-general-use.onnx'], url: 'https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-general-use.onnx', size: 179e6, name: 'ISNet', use: 'Background removal for products, animals, people and objects', license: 'Apache-2.0', raw: true },
-  birefnet: { repo: 'onnx-community/BiRefNet_lite-ONNX', files: ['onnx/model.onnx'], size: 224e6, name: 'BiRefNet Lite', use: 'Maximum hair and edge detail. Needs a dedicated GPU or 16 GB of memory', license: 'MIT' },
-  modnet: { repo: 'Xenova/modnet', files: ['onnx/model.onnx'], size: 26e6, name: 'MODNet', use: 'Fast background removal for portraits', license: 'Apache-2.0' },
-  sam: { repo: 'Xenova/slimsam-77-uniform', files: ['onnx/vision_encoder.onnx', 'onnx/prompt_encoder_mask_decoder.onnx'], size: 52e6, name: 'SlimSAM', use: 'Click to select objects', license: 'Apache-2.0' },
-  detr: { repo: 'Xenova/detr-resnet-50', files: ['onnx/model.onnx'], size: 167e6, name: 'DETR ResNet-50', use: 'Finds people, animals, vehicles and products', license: 'Apache-2.0' },
-  lama: { repo: 'Carve/LaMa-ONNX', files: ['lama.onnx'], url: 'https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama.onnx', size: 208e6, name: 'LaMa', use: 'Object removal and repair', license: 'Apache-2.0', raw: true },
-  sr2: { repo: 'Xenova/swin2SR-classical-sr-x2-64', files: ['onnx/model.onnx'], size: 4.5e6, name: 'Swin2SR 2x', use: 'Upscale to twice the size', license: 'Apache-2.0' },
-  sr4: { repo: 'Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr', files: ['onnx/model.onnx'], size: 17e6, name: 'Swin2SR 4x', use: 'Upscale to four times the size, for photos', license: 'Apache-2.0' }
+  isnet: { repo: 'isnet', files: ['isnet-general-use.onnx'], url: 'https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-general-use.onnx', size: 178648008, bytes: 178648008, name: 'ISNet', use: 'Background removal for products, animals, people and objects', license: 'Apache-2.0', raw: true },
+  birefnet: { repo: 'onnx-community/BiRefNet_lite-ONNX', files: ['onnx/model.onnx'], size: 224005088, bytes: 224005088, name: 'BiRefNet Lite', use: 'Maximum hair and edge detail. Needs a dedicated GPU or 16 GB of memory', license: 'MIT' },
+  modnet: { repo: 'Xenova/modnet', files: ['onnx/model.onnx'], size: 25888640, bytes: 25888640, name: 'MODNet', use: 'Fast background removal for portraits', license: 'Apache-2.0' },
+  sam: { repo: 'Xenova/slimsam-77-uniform', files: ['onnx/vision_encoder.onnx', 'onnx/prompt_encoder_mask_decoder.onnx'], size: 39833906, bytes: 39833906, name: 'SlimSAM', use: 'Click to select objects', license: 'Apache-2.0' },
+  detr: { repo: 'Xenova/detr-resnet-50', files: ['onnx/model.onnx'], size: 166789212, bytes: 166789212, name: 'DETR ResNet-50', use: 'Finds people, animals, vehicles and products', license: 'Apache-2.0' },
+  lama: { repo: 'Carve/LaMa-ONNX', files: ['lama.onnx'], url: 'https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama.onnx', size: 207479252, bytes: 207479252, name: 'LaMa', use: 'Object removal and repair', license: 'Apache-2.0', raw: true },
+  sr2: { repo: 'Xenova/swin2SR-classical-sr-x2-64', files: ['onnx/model.onnx'], size: 54428699, bytes: 54428699, name: 'Swin2SR 2x', use: 'Upscale to twice the size', license: 'Apache-2.0' },
+  sr4: { repo: 'Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr', files: ['onnx/model.onnx'], size: 52772645, bytes: 52772645, name: 'Swin2SR 4x', use: 'Upscale to four times the size, for photos', license: 'Apache-2.0' }
 }
 
-const has = k => MODELS[k].files.every(f => fs.existsSync(path.join(DIR, MODELS[k].repo, f)))
+const fileSize = f => { try { return fs.statSync(f).size } catch { return -1 } }
+const has = k => {
+  const m = MODELS[k]
+  const sizes = m.files.map(f => fileSize(path.join(DIR, m.repo, f)))
+  return sizes.every(x => x > 0) && (!m.bytes || sizes.reduce((a, b) => a + b, 0) === m.bytes)
+}
 
 export async function status() {
   const out = {}
@@ -54,6 +59,7 @@ async function tryDevices(fn) {
 
 async function download(k, progress) {
   const m = MODELS[k]
+  if (!has(k)) await fsp.rm(path.join(DIR, m.repo), { recursive: true, force: true })
   if (m.raw) {
     const file = path.join(DIR, m.repo, m.files[0])
     await fsp.mkdir(path.dirname(file), { recursive: true })
@@ -89,6 +95,16 @@ async function remove(k) {
 async function get(k) {
   if (loaded.has(k)) return loaded.get(k)
   if (!has(k)) throw new Error('MODEL_MISSING:' + k)
+  try { return await load(k) }
+  catch (e) {
+    if (!/protobuf|parsing|load model|invalid model|corrupt/i.test(String(e?.message || e))) throw e
+    console.error('Damaged model files, removing', k, e?.message || e)
+    await remove(k)
+    throw new Error('MODEL_MISSING:' + k)
+  }
+}
+
+async function load(k) {
   const m = MODELS[k]
   let v
   if (m.raw) {

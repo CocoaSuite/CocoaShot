@@ -30,10 +30,10 @@ Everything runs on your computer. There is no account, no subscription, no telem
 | ISNet | Background removal | 179 MB | Apache-2.0 |
 | BiRefNet Lite | Background removal, maximum detail | 224 MB | MIT |
 | MODNet | Background removal for people | 26 MB | Apache-2.0 |
-| SlimSAM | Click to select objects | 52 MB | Apache-2.0 |
+| SlimSAM | Click to select objects | 40 MB | Apache-2.0 |
 | DETR ResNet-50 | Finding objects | 167 MB | Apache-2.0 |
 | LaMa | Object removal and repair | 208 MB | Apache-2.0 |
-| Swin2SR | Upscaling | 5 to 17 MB | Apache-2.0 |
+| Swin2SR | Upscaling | 53 MB each for 2x and 4x | Apache-2.0 |
 
 On Windows the AI tools use the graphics card through DirectML. Elsewhere they run on the CPU. BiRefNet needs a dedicated graphics card or about 16 GB of memory.
 
