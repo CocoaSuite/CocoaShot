@@ -24,7 +24,7 @@
     "@huggingface/transformers": "^3.8.0"
   },
   "devDependencies": {
-    "ag-psd": "^24.0.0",
+    "ag-psd": "^34.2.0",
     "electron": "^45.3.2",
     "electron-builder": "^26.0.0",
     "fflate": "^0.8.2",
@@ -120,5 +120,8 @@
       ]
     },
     "publish": null
+  },
+  "overrides": {
+    "sharp": "^0.35.5"
   }
 }
