@@ -4,6 +4,7 @@ import { createRequire, Module } from 'node:module'
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
 import { createHash } from 'node:crypto'
 
@@ -12,7 +13,7 @@ const user = mkdtempSync(join(tmpdir(), 'cocoa-'))
 let installed = '1.2.0'
 const load = Module._load
 Module._load = function (r, ...a) { return r === 'electron' ? { app: { getPath: () => user, getVersion: () => installed } } : load.call(this, r, ...a) }
-const shellFile = join(new URL('../electron/', import.meta.url).pathname, 'shell-id.json')
+const shellFile = fileURLToPath(new URL('../electron/shell-id.json', import.meta.url))
 const hadShell = existsSync(shellFile) && readFileSync(shellFile, 'utf8')
 writeFileSync(shellFile, JSON.stringify({ shell: 'abc' }))
 const ac = require('../electron/appcode.cjs')
