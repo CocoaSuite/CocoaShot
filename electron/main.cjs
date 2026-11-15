@@ -3,6 +3,7 @@ const path = require('path')
 const fs = require('fs')
 const fsp = fs.promises
 const { pathToFileURL } = require('url')
+const { registerUpdates } = require('./update.cjs')
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }])
 
@@ -86,6 +87,8 @@ else {
   })
   app.on('window-all-closed', () => { stopAI(); app.quit() })
 }
+
+registerUpdates(() => win, () => { stopAI(); if (win) win.forceClose = true; app.quit() })
 
 ipcMain.on('close-now', () => { if (win) { win.forceClose = true; win.close() } })
 ipcMain.on('setTitle', (_e, t) => { if (win) win.setTitle(String(t).slice(0, 200)) })

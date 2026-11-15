@@ -196,3 +196,6 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.2)}
 .rec button:hover{background:var(--panel2)}
 .textedit{position:absolute;z-index:6;background:transparent;border:1px dashed var(--sel);outline:0;resize:none;overflow:hidden;padding:0;margin:0;white-space:pre;line-height:1.25}
 #layersBox .sl{grid-template-columns:48px minmax(0,1fr) 50px}
+
+.lvg{width:100%;height:75px;display:block;background:var(--panel2);border:1px solid var(--line);border-radius:6px}
+.notes{margin:0;max-height:220px;overflow:auto;white-space:pre-wrap;font:12px/1.5 var(--sans);color:var(--mute);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px 10px}

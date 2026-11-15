@@ -70,3 +70,34 @@ test('mask pipeline feathers edges', () => {
   const m = maskPipeline(a, w, w, { feather: 2, smooth: 0, shift: 0 })
   assert.ok(m[10 * w + 9] < 1 && m[10 * w + 9] > 0.3 && m[10 * w + 10] > 0 && m[10 * w + 10] < 0.7)
 })
+
+import { levelsLUT, levelsIdentity, histograms, autoRange, editAlpha, ALPHA0 } from '../src/core/px.ts'
+
+test('levels map input and output ranges with gamma', () => {
+  const id = levelsLUT([0, 255, 1, 0, 255])
+  assert.ok(Math.abs(id[128] - 128 / 255) < 1e-6)
+  assert.ok(levelsIdentity([0, 255, 1, 0, 255]) && !levelsIdentity([10, 255, 1, 0, 255]))
+  const lut = levelsLUT([50, 200, 1, 0, 255])
+  assert.equal(lut[50], 0); assert.equal(lut[200], 1); assert.equal(lut[10], 0); assert.equal(lut[250], 1)
+  const out = levelsLUT([0, 255, 1, 64, 191])
+  assert.ok(Math.abs(out[0] - 64 / 255) < 1e-6 && Math.abs(out[255] - 191 / 255) < 1e-6)
+  assert.ok(levelsLUT([0, 255, 2, 0, 255])[128] > 0.6)
+})
+
+test('histograms count alpha for every pixel and colour only for visible ones', () => {
+  const d = new Uint8ClampedArray([255, 0, 0, 255, 0, 0, 0, 0])
+  const [l, r, , , a] = histograms(d, 1)
+  assert.equal(a[255], 1); assert.equal(a[0], 1); assert.equal(r[255], 1); assert.equal(r[0], 0)
+  assert.equal(l.reduce((s, v) => s + v, 0), 1)
+  const h = new Uint32Array(256); h[20] = 50; h[230] = 50
+  assert.deepEqual(autoRange(h), [20, 230])
+})
+
+test('alpha edits apply levels, hard edges, invert and selection limits', () => {
+  const a = new Uint8Array([0, 64, 128, 255])
+  assert.deepEqual([...editAlpha(a, 4, 1, ALPHA0)], [0, 64, 128, 255])
+  assert.deepEqual([...editAlpha(a, 4, 1, { ...ALPHA0, invert: true })], [255, 191, 127, 0])
+  assert.deepEqual([...editAlpha(a, 4, 1, { ...ALPHA0, hard: true })], [0, 0, 255, 255])
+  assert.deepEqual([...editAlpha(a, 4, 1, { ...ALPHA0, lv: [0, 128, 1, 0, 255] })], [0, 128, 255, 255])
+  assert.deepEqual([...editAlpha(a, 4, 1, { ...ALPHA0, lv: [0, 255, 1, 255, 255] }, new Uint8Array([255, 0, 255, 0]))], [255, 64, 255, 255])
+})

@@ -62,6 +62,10 @@ export function highlightTools(app: App): Tool[] {
   const highlight: Tool = {
     id: 'highlight', label: 'Highlight', icon: 'hl',
     cursor: () => (ho.shape === 'brush' ? 'none' : 'crosshair'),
+    brush: () => ho.shape !== 'brush' ? null : {
+      getSize: () => bo.size, setSize: v => { bo.size = v }, getOpacity: () => ho.opacity, setOpacity: v => { ho.opacity = v },
+      color: () => app.fg, minSize: 2, maxSize: 600, minOpacity: 0.05
+    },
     down(p) {
       if (ho.shape === 'brush') {
         const l = hlLayer()

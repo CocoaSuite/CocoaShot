@@ -1,5 +1,17 @@
 import type { Pt, Viewport } from '../view/viewport'
 
+export interface BrushHandle {
+  getSize(): number
+  setSize(v: number): void
+  getOpacity?(): number
+  setOpacity?(v: number): void
+  color?(): string | undefined
+  minSize?: number
+  maxSize?: number
+  minOpacity?: number
+  altClick?: boolean
+}
+
 export interface Tool {
   id: string
   label: string
@@ -14,6 +26,7 @@ export interface Tool {
   activate?(): void
   deactivate?(): void
   key?(e: KeyboardEvent): boolean
+  brush?(): BrushHandle | null
 }
 
 export interface Group { id: string; name: string; icon: string; tools: string[] }
@@ -24,7 +37,7 @@ export const GROUPS: Group[] = [
   { id: 'bg', name: 'Background', icon: 'bg', tools: ['bg-remove', 'bg-refine', 'bg-replace'] },
   { id: 'hl', name: 'Highlight & Outline', icon: 'outline', tools: ['highlight', 'spotlight', 'outline'] },
   { id: 'paint', name: 'Paint & Erase', icon: 'paint', tools: ['brush', 'pencil', 'eraser', 'fill', 'picker', 'clone', 'blur', 'sharpen', 'smudge'] },
-  { id: 'adjust', name: 'Adjustments', icon: 'adjust', tools: ['adjust'] },
+  { id: 'adjust', name: 'Adjustments', icon: 'adjust', tools: ['adjust', 'levels', 'alpha'] },
   { id: 'ai', name: 'AI Tools', icon: 'ai', tools: ['ai-remove', 'ai-cleanup', 'ai-upscale', 'ai-enhance', 'ai-detect'] },
   { id: 'text', name: 'Text & Annotations', icon: 'text', tools: ['text', 'arrow', 'line', 'rect', 'ellipse', 'callout', 'label', 'marker'] }
 ]

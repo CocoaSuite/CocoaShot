@@ -41,9 +41,25 @@ Remove the background first, or select the object. In **Outline**, choose **Outl
 
 **Paint & Erase** has a brush, pencil, eraser, fill, colour picker, clone, blur, sharpen and smudge. Painting on the photo creates a new paint layer so the photo stays untouched. **Lock transparency** paints only where the layer already has pixels. **Clip to layer below** shows the layer only inside the one beneath it.
 
+### Brush size and opacity
+
+With any brush, hold **Ctrl** (Cmd on a Mac) and drag left or right to change the size, or hold **Alt** and drag to change the opacity. The brush preview shows the new value as you drag. With Clone, a plain Alt-click still sets the source. In Refine edges, Alt still swaps Keep and Remove, so only Ctrl-drag applies there. `[` and `]` also change the size.
+
+### Levels
+
+**Adjustments, Levels** (Ctrl+L) sets the black point, white point and midtones of the image below the adjustment layer, for all colours together or for Red, Green or Blue alone. Output black and white compress the range. The **Alpha** channel does the same for transparency. **Auto** stretches the selected channel to its histogram.
+
+### Layer alpha
+
+**Adjustments, Layer alpha** (Ctrl+Shift+A, or the alpha button above the layers) edits the transparency of the selected image or paint layer: alpha levels, grow or shrink, feather, hard edges and invert. **Show alpha as black and white** shows the layer's transparency directly. With a selection, only the selected area changes. Changes preview live; **Apply** keeps them as one undo step, **Cancel** puts them back. Switching tools also applies them.
+
 ### Text and annotations
 
 Choose a tool in **Text & Annotations** and click or drag on the image. Click text to edit it. Each annotation is its own layer and can be moved later with **Move**.
+
+## Updates
+
+The desktop app looks for a newer version on GitHub when it starts and offers to install it. **Help, Check for updates** checks at any time. The automatic check can be turned off in **Settings, About**.
 
 ## Saving
 

@@ -3,6 +3,9 @@ const { contextBridge, ipcRenderer } = require('electron')
 let seq = 0
 const progress = new Map()
 ipcRenderer.on('ai-progress', (_e, p) => { const f = progress.get(p.id); if (f) f(p) })
+let updateProgress = null
+ipcRenderer.on('update-progress', (_e, p) => { if (updateProgress) updateProgress(p) })
+const clean = e => { throw new Error(String(e.message).replace(/^Error invoking remote method '\w+': (Error: )?/, '')) }
 
 contextBridge.exposeInMainWorld('cocoaNative', {
   platform: process.platform,
@@ -35,5 +38,10 @@ contextBridge.exposeInMainWorld('cocoaNative', {
   onOpenFile: cb => ipcRenderer.on('open-file', (_e, f) => cb(f)),
   onWantClose: cb => ipcRenderer.on('want-close', () => cb()),
   closeNow: () => ipcRenderer.send('close-now'),
-  setTitle: t => ipcRenderer.send('setTitle', t)
+  setTitle: t => ipcRenderer.send('setTitle', t),
+  appVersion: () => ipcRenderer.invoke('appVersion'),
+  updateCheck: () => ipcRenderer.invoke('updateCheck').catch(clean),
+  updateDownload: onProgress => { updateProgress = onProgress || null; return ipcRenderer.invoke('updateDownload').catch(clean).finally(() => { updateProgress = null }) },
+  updateInstall: () => ipcRenderer.invoke('updateInstall').catch(clean),
+  openReleases: () => ipcRenderer.invoke('openReleases')
 })

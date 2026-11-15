@@ -326,3 +326,60 @@ export function histogramStats(rgba: Uint8ClampedArray) {
   const pct = (h: Uint32Array, p: number) => { let c = 0; const t = n * p; for (let i = 0; i < 256; i++) { c += h[i]; if (c >= t) return i } return 255 }
   return { n, mean: [sr / n, sg / n, sb / n], lo: [pct(hr, 0.004), pct(hg, 0.004), pct(hb, 0.004)], hi: [pct(hr, 0.996), pct(hg, 0.996), pct(hb, 0.996)], llo: pct(hl, 0.004), lhi: pct(hl, 0.996), lmid: pct(hl, 0.5) }
 }
+
+export function levelsLUT(p: ArrayLike<number>, o = 0): Float32Array {
+  const lo = p[o] / 255, hi = p[o + 1] / 255, g = Math.max(0.01, p[o + 2]), olo = p[o + 3] / 255, ohi = p[o + 4] / 255
+  const lut = new Float32Array(256)
+  for (let i = 0; i < 256; i++) {
+    const t = Math.min(1, Math.max(0, (i / 255 - lo) / Math.max(1 / 255, hi - lo)))
+    lut[i] = olo + (ohi - olo) * Math.pow(t, 1 / g)
+  }
+  return lut
+}
+
+export const levelsIdentity = (p: ArrayLike<number>, o = 0) => p[o] === 0 && p[o + 1] === 255 && p[o + 2] === 1 && p[o + 3] === 0 && p[o + 4] === 255
+
+export function histograms(rgba: Uint8ClampedArray, step = 4) {
+  const H = [0, 1, 2, 3, 4].map(() => new Uint32Array(256))
+  const [hl, hr, hg, hb, ha] = H
+  for (let i = 0; i < rgba.length; i += 4 * step) {
+    const a = rgba[i + 3]
+    ha[a]++
+    if (!a) continue
+    const r = rgba[i], g = rgba[i + 1], b = rgba[i + 2]
+    hr[r]++; hg[g]++; hb[b]++; hl[(r * 0.299 + g * 0.587 + b * 0.114) | 0]++
+  }
+  return H
+}
+
+export function autoRange(h: Uint32Array, clip = 0.002): [number, number] {
+  let n = 0
+  for (let i = 0; i < 256; i++) n += h[i]
+  if (!n) return [0, 255]
+  let lo = 0, hi = 255, c = 0
+  for (let i = 0; i < 256; i++) { c += h[i]; if (c > n * clip) { lo = i; break } }
+  c = 0
+  for (let i = 255; i >= 0; i--) { c += h[i]; if (c > n * clip) { hi = i; break } }
+  return hi - lo < 2 ? [0, 255] : [lo, hi]
+}
+
+export interface AlphaOpts { lv: number[]; grow: number; feather: number; hard: boolean; invert: boolean }
+export const ALPHA0: AlphaOpts = { lv: [0, 255, 1, 0, 255], grow: 0, feather: 0, hard: false, invert: false }
+
+export function editAlpha(alpha: Uint8Array | Uint8ClampedArray, w: number, h: number, o: AlphaOpts, limit?: Uint8Array | Uint8ClampedArray | null): Uint8Array {
+  const n = w * h
+  let f: F = new Float32Array(n)
+  for (let i = 0; i < n; i++) f[i] = alpha[i] / 255
+  if (o.grow) f = morph(f, w, h, o.grow)
+  if (o.feather > 0) f = gauss(f, w, h, o.feather)
+  const lut = levelsLUT(o.lv)
+  const out = new Uint8Array(n)
+  for (let i = 0; i < n; i++) {
+    let a = lut[Math.round(Math.min(1, Math.max(0, f[i])) * 255)]
+    if (o.hard) a = a >= 0.5 ? 1 : 0
+    if (o.invert) a = 1 - a
+    const v = a * 255
+    out[i] = limit ? Math.round(alpha[i] + (v - alpha[i]) * (limit[i] / 255)) : Math.round(v)
+  }
+  return out
+}

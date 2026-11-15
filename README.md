@@ -39,7 +39,7 @@ On Windows the AI tools use the graphics card through DirectML. Elsewhere they r
 
 ## Install
 
-Download the installer for your system from the latest build (Actions, Build installers, artifacts), or build it yourself:
+Download the installer for your system from the [latest release](https://github.com/CocoaSuite/CocoaShot/releases/latest), or build it yourself:
 
 ```sh
 npm install
@@ -49,6 +49,16 @@ npm run dist:linux   # Linux AppImage and deb
 ```
 
 Installers can only be built for the system you are on. The GitHub workflow in `.github/workflows/build.yml` builds all three. Run it from the Actions tab or by pushing a tag such as `v1.0.0`.
+
+## Updates
+
+The desktop app checks the latest GitHub release when it starts (this can be turned off in Settings, About) and from **Help, Check for updates**. It downloads the installer for the current system, checks it against the release, and then:
+
+- Windows: closes CocoaShot and runs the new installer.
+- Linux AppImage: replaces the AppImage and restarts. The deb package opens in the system installer.
+- macOS: opens the new disk image to drag into Applications.
+
+To publish an update, raise `version` in `package.json` (for example `npm version minor`), then push the matching tag (`git push --follow-tags`). The workflow builds all three systems and attaches the installers to a GitHub release with that version. It refuses a tag that does not match `package.json`.
 
 ## Development
 
@@ -68,6 +78,7 @@ npm test
 | Part | Location |
 | --- | --- |
 | Desktop app, file access, recovery | `electron/main.cjs`, `electron/preload.cjs` |
+| Updates from GitHub releases | `electron/update.cjs`, `src/ui/update.ts` |
 | AI processing (separate process) | `electron/ai.mjs` |
 | User interface | `src/ui/` |
 | Rendering engine (viewport) | `src/view/viewport.ts` |

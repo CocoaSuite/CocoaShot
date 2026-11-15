@@ -7,6 +7,7 @@ import { native, downloadLocal, isMac } from '../native'
 import { h, icon, logo, modal, toast } from './dom'
 import { hint, sec, seg, select, slider, toggle, numField } from './controls'
 import { mb } from '../tools/common'
+import { checkForUpdates } from './update'
 import { ACTIONS, comboOf, fmtCombo } from './keys'
 
 const EXT: Record<ExportFormat, string> = { png: 'png', jpg: 'jpg', webp: 'webp', tiff: 'tif', bmp: 'bmp' }
@@ -156,7 +157,9 @@ export function settingsDialog(app: App, page = 'general') {
       return [h('div', { class: 'fr' }, hint('Click a shortcut, then press the new keys.'), h('span', { class: 'sp' }), h('button', { onclick: () => { app.settings.shortcuts = {}; app.saveSettings(); show('keys') } }, 'Restore defaults')), ...rows]
     }],
     ['about', 'About', () => [
-      h('div', { class: 'fr', style: { gap: '12px' } }, h('span', { style: { width: '40px', height: '40px', display: 'block' } }, logo()), h('div', {}, h('b', { style: { fontSize: '15px' } }, 'CocoaShot'), h('div', { class: 'hint' }, 'Version 1.0.0. Image editing without the complexity.'))),
+      h('div', { class: 'fr', style: { gap: '12px' } }, h('span', { style: { width: '40px', height: '40px', display: 'block' } }, logo()), h('div', {}, h('b', { style: { fontSize: '15px' } }, 'CocoaShot'), (() => { const v = h('div', { class: 'hint' }, 'Image editing without the complexity.'); native?.appVersion().then(n => { v.textContent = `Version ${n}. Image editing without the complexity.` }); return v })())),
+      native && h('div', { class: 'fr' }, h('button', { onclick: () => checkForUpdates(app) }, 'Check for updates'), h('span', { class: 'sp' })),
+      native && toggle('Check for updates when CocoaShot starts', () => app.settings.checkUpdates, v => { app.settings.checkUpdates = v; app.saveSettings() }),
       hint('Part of the Cocoa suite. Everything runs on this computer. No account, no subscription and no uploads.'),
       hint('Open source components: ONNX Runtime (MIT), Transformers.js (Apache-2.0), fflate (MIT), UTIF (MIT), ag-psd (MIT), Inter (OFL). AI models are listed with their licences under AI models.')
     ]]

@@ -26,6 +26,16 @@ interface Native {
   onWantClose(cb: () => void): void
   closeNow(): void
   setTitle(t: string): void
+  appVersion(): Promise<string>
+  updateCheck(): Promise<UpdateInfo>
+  updateDownload(onProgress?: (p: { loaded: number; total: number }) => void): Promise<{ name: string }>
+  updateInstall(): Promise<'quitting' | 'restarting' | 'opened'>
+  openReleases(): Promise<void>
+}
+
+export interface UpdateInfo {
+  current: string; latest: string | null; newer: boolean; page: string
+  name?: string; notes?: string; date?: string; asset?: { name: string; size: number } | null
 }
 
 export interface RecentItem { name: string; path: string; at: number; thumb?: string }

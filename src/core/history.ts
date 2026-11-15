@@ -9,6 +9,7 @@ const LIMIT_COUNT = 150
 export class History {
   past: Entry[] = []
   future: Entry[] = []
+  pending: (() => void) | null = null
   constructor(public doc: Doc) {}
 
   push(e: Entry) {
@@ -19,8 +20,9 @@ export class History {
     this.doc.emit('history')
   }
 
-  undo() { const e = this.past.pop(); if (!e) return; e.undo(); this.future.push(e); this.after() }
-  redo() { const e = this.future.pop(); if (!e) return; e.redo(); this.past.push(e); this.after() }
+  flush() { const f = this.pending; this.pending = null; f?.() }
+  undo() { this.flush(); const e = this.past.pop(); if (!e) return; e.undo(); this.future.push(e); this.after() }
+  redo() { this.flush(); const e = this.future.pop(); if (!e) return; e.redo(); this.past.push(e); this.after() }
   jump(i: number) {
     while (this.past.length > i + 1) this.undo()
     while (this.past.length < i + 1 && this.future.length) this.redo()
@@ -33,6 +35,7 @@ export class History {
   }
 
   async op(label: string, fn: () => void | Promise<void>) {
+    this.flush()
     const before = snapshot(this.doc)
     await fn()
     this.structural(label, before)

@@ -110,6 +110,7 @@ export function aiTools(app: App): Tool[] {
   const remove: Tool = {
     id: 'ai-remove', label: 'Remove object', icon: 'sparkle',
     cursor: () => 'none',
+    brush: () => ({ getSize: () => rm.size.v, setSize: v => { rm.size.v = v }, minSize: 4, maxSize: 600 }),
     down: p => rmBrush.down(p), move: (p, pr) => rmBrush.move(p, pr), up: () => rmBrush.up(),
     overlay: (x, v) => rmBrush.overlay(x, v),
     panel: () => h('div', { class: 'ib' }, sec('Remove object'),
@@ -130,6 +131,7 @@ export function aiTools(app: App): Tool[] {
   const cleanup: Tool = {
     id: 'ai-cleanup', label: 'Cleanup', icon: 'heal',
     cursor: () => 'none',
+    brush: () => ({ getSize: () => cl.size.v, setSize: v => { cl.size.v = v }, minSize: 2, maxSize: 300 }),
     down: p => healBrush.down(p), move: (p, pr) => healBrush.move(p, pr), up: () => healBrush.up(),
     overlay: (x, v) => healBrush.overlay(x, v),
     panel: () => h('div', { class: 'ib' },

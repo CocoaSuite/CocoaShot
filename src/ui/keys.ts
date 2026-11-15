@@ -38,6 +38,8 @@ export const ACTIONS: Action[] = [
   { id: 'tool:text', label: 'Text', key: 'T' },
   { id: 'tool:arrow', label: 'Arrow', key: 'A' },
   { id: 'tool:adjust', label: 'Adjustments', key: 'J' },
+  { id: 'tool:levels', label: 'Levels', key: 'Mod+L' },
+  { id: 'tool:alpha', label: 'Layer alpha', key: 'Mod+Shift+A' },
   { id: 'tool:bg-remove', label: 'Remove background', key: 'K' }
 ]
 

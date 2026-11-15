@@ -1,7 +1,7 @@
 import { strFromU8, strToU8, unzipSync, zipSync, zlibSync, unzlibSync } from 'fflate'
 import UTIF from 'utif'
 import { readPsd } from 'ag-psd'
-import { Doc, Layer, makeLayer } from './doc'
+import { cloneAdjust, Doc, Layer, makeLayer } from './doc'
 import { canvas, ctx2d, getData, putData, mkID } from './util'
 
 export const IMAGE_EXT = /\.(png|jpe?g|webp|bmp|tiff?|gif|psd)$/i
@@ -173,6 +173,7 @@ export async function loadProject(data: ArrayBuffer, fileName: string): Promise<
   for (const o of p.layers) {
     const l: Layer = makeLayer(o.kind, o.name, p.w, p.h, o.kind !== 'adjust')
     for (const k of LAYER_KEYS) if (o[k] !== undefined) (l as any)[k] = o[k]
+    if (l.adjust) l.adjust = cloneAdjust(l.adjust)
     if (z[`layers/${o.id}.png`]) l.canvas = await fromPng(z[`layers/${o.id}.png`])
     if (z[`masks/${o.id}.png`]) l.mask = await fromPng(z[`masks/${o.id}.png`])
     if (z[`masksai/${o.id}.png`]) l.maskAI = await fromPng(z[`masksai/${o.id}.png`])

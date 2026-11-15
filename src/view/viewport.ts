@@ -1,4 +1,4 @@
-import { compose, effectiveMask } from '../core/compose'
+import { compose, effectiveMask, layerFull } from '../core/compose'
 import { contours } from '../core/px'
 import { alphaOf, canvas, ctx2d, Rect, rectUnion } from '../core/util'
 import type { App } from '../app'
@@ -15,6 +15,8 @@ export class Viewport {
   showOriginal = false
   maskView: 'normal' | 'mask' | 'overlay' = 'normal'
   hover: { x: number; y: number } | null = null
+  alphaView = false
+  private alphaTmp: HTMLCanvasElement | null = null
   private pending: Rect | null | true = null
   private raf = 0
   private ants: Path2D | null = null
@@ -24,6 +26,7 @@ export class Viewport {
   private panning: { x: number; y: number; ox: number; oy: number } | null = null
   space = false
   private splitDrag = false
+  gesture: { kind: 'size' | 'opacity'; sx: number; sy: number; v0: number; at: { x: number; y: number }; click: Pt | null; moved: boolean } | null = null
 
   constructor(public app: App, public desk: HTMLElement) {
     this.el = document.createElement('canvas')
@@ -103,6 +106,17 @@ export class Viewport {
       if (Math.abs(p.sx - sx) < 10) { this.splitDrag = true; return }
     }
     if (e.button === 2) return
+    const b = this.app.tool?.brush?.()
+    if (b && e.button === 0) {
+      const kind = e.ctrlKey || e.metaKey ? 'size' : e.altKey && b.setOpacity && b.getOpacity ? 'opacity' : null
+      if (kind) {
+        const p = this.pt(e)
+        this.gesture = { kind, sx: p.sx, sy: p.sy, v0: kind === 'size' ? b.getSize() : b.getOpacity!(), at: { x: p.x, y: p.y }, click: kind === 'opacity' && b.altClick ? p : null, moved: false }
+        this.hover = this.gesture.at
+        this.draw()
+        return
+      }
+    }
     this.app.tool?.down?.(this.pt(e))
   }
   private move(e: PointerEvent) {
@@ -113,6 +127,19 @@ export class Viewport {
       return
     }
     const p = this.pt(e)
+    const g = this.gesture
+    if (g) {
+      const b = this.app.tool?.brush?.()
+      const dx = p.sx - g.sx
+      if (b && (g.moved || Math.abs(dx) > 3 || Math.abs(p.sy - g.sy) > 3)) {
+        g.moved = true
+        if (g.kind === 'size') b.setSize(Math.round(Math.min(b.maxSize ?? 1000, Math.max(b.minSize ?? 1, g.v0 * Math.pow(2, dx / 120)))))
+        else b.setOpacity!(Math.round(Math.min(1, Math.max(b.minOpacity ?? 0.01, g.v0 + dx / 250)) * 100) / 100)
+      }
+      this.hover = g.at
+      this.draw()
+      return
+    }
     if (this.splitDrag && this.doc) { this.split = Math.max(0, Math.min(1, p.x / this.doc.w)); this.draw(); return }
     this.hover = { x: p.x, y: p.y }
     if (this.el.hasPointerCapture(e.pointerId)) {
@@ -127,6 +154,14 @@ export class Viewport {
     if (this.el.hasPointerCapture(e.pointerId)) this.el.releasePointerCapture(e.pointerId)
     if (this.panning) { this.panning = null; this.updateCursor(); return }
     if (this.splitDrag) { this.splitDrag = false; return }
+    const g = this.gesture
+    if (g) {
+      this.gesture = null
+      if (g.moved) this.app.emit('panel')
+      else if (g.click) { this.app.tool?.down?.(g.click); this.app.tool?.up?.(g.click) }
+      this.draw()
+      return
+    }
     this.app.tool?.up?.(this.pt(e))
     this.draw()
   }
@@ -226,6 +261,15 @@ export class Viewport {
     if (this.maskView === 'mask' && active?.mask) {
       x.fillStyle = '#000'; x.fillRect(0, 0, W, H)
       x.drawImage(effectiveMask(active)!, 0, 0, W, H)
+    } else if (this.alphaView && active?.canvas && !this.showOriginal) {
+      const src = layerFull(doc, active)!
+      if (!this.alphaTmp || this.alphaTmp.width !== doc.w || this.alphaTmp.height !== doc.h) this.alphaTmp = canvas(doc.w, doc.h)
+      const tx = ctx2d(this.alphaTmp)
+      tx.globalCompositeOperation = 'copy'; tx.drawImage(src, 0, 0)
+      tx.globalCompositeOperation = 'source-in'; tx.fillStyle = '#fff'; tx.fillRect(0, 0, doc.w, doc.h)
+      tx.globalCompositeOperation = 'source-over'
+      x.fillStyle = '#000'; x.fillRect(0, 0, W, H)
+      x.drawImage(this.alphaTmp, 0, 0, W, H)
     } else {
       if (this.showOriginal) x.drawImage(doc.original, 0, 0, W, H)
       else x.drawImage(doc.comp, 0, 0, W, H)
@@ -268,5 +312,26 @@ export class Viewport {
       x.restore()
     }
     this.app.tool?.overlay?.(x, this)
+    if (this.gesture) this.gestureOverlay(x)
+  }
+
+  private gestureOverlay(x: CanvasRenderingContext2D) {
+    const g = this.gesture!, b = this.app.tool?.brush?.()
+    if (!b) return
+    const p = this.toScreen(g.at.x, g.at.y)
+    const r = Math.max(1.5, (b.getSize() * this.zoom) / 2)
+    x.save()
+    if (g.kind === 'opacity') {
+      x.globalAlpha = b.getOpacity!()
+      x.fillStyle = b.color?.() || '#888'
+      x.beginPath(); x.arc(p.x, p.y, r, 0, Math.PI * 2); x.fill()
+      x.globalAlpha = 1
+    }
+    const t = g.kind === 'size' ? `Size ${b.getSize()} px` : `Opacity ${Math.round(b.getOpacity!() * 100)}%`
+    x.font = '500 11px Inter, sans-serif'
+    const w = x.measureText(t).width + 14, ty = Math.max(4, p.y - r - 30)
+    x.fillStyle = 'rgba(18,18,18,.8)'; x.beginPath(); x.roundRect(p.x - w / 2, ty, w, 20, 4); x.fill()
+    x.fillStyle = '#fff'; x.textAlign = 'center'; x.fillText(t, p.x, ty + 14)
+    x.restore()
   }
 }

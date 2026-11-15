@@ -33,6 +33,10 @@ export function paintTools(app: App): Tool[] {
     const t: Tool = {
       id, label, icon: ic,
       cursor: () => 'none',
+      brush: () => ({
+        getSize: () => o.size, setSize: v => { o.size = v }, getOpacity: () => o.opacity, setOpacity: v => { o.opacity = v },
+        color: () => (mode === 'paint' ? app.fg : undefined), altClick: mode === 'clone'
+      }),
       down(p) {
         if (mode === 'clone' && (p.e.altKey || setting)) { src = { x: p.x, y: p.y }; setting = false; app.emit('panel'); return }
         if (mode === 'clone' && !src) { toast('Set the clone source first'); return }

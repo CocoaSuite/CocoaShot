@@ -1,5 +1,5 @@
 import type { App } from '../app'
-import { ADJUST0, Layer, makeLayer, snapshot } from '../core/doc'
+import { cloneAdjust, freshAdjust, Layer, makeLayer, snapshot } from '../core/doc'
 import { layerFull, touch } from '../core/compose'
 import { copyCanvas, ctx2d, uid } from '../core/util'
 import { h, icon, tip, toast } from './dom'
@@ -13,8 +13,9 @@ export function layersPanel(app: App, box: HTMLElement) {
   const addBtn = tip(h('button', { class: 'ic', onclick: () => newLayer(app) }, icon('plus')), 'New paint layer')
   const dupBtn = tip(h('button', { class: 'ic', onclick: () => duplicate(app) }, icon('copy')), 'Duplicate layer')
   const adjBtn = tip(h('button', { class: 'ic', onclick: () => newAdjust(app) }, icon('sliders')), 'New adjustment layer')
+  const alphaBtn = tip(h('button', { class: 'ic', onclick: () => app.setTool('alpha') }, icon('alpha')), 'Edit layer alpha')
   const delBtn = tip(h('button', { class: 'ic', onclick: () => removeLayer(app) }, icon('trash')), 'Delete layer')
-  box.append(h('div', { class: 'ph' }, h('span', 'Layers'), h('span', { style: { display: 'flex', gap: '1px' } }, addBtn, adjBtn, dupBtn, delBtn)), list, opac)
+  box.append(h('div', { class: 'ph' }, h('span', 'Layers'), h('span', { style: { display: 'flex', gap: '1px' } }, addBtn, adjBtn, alphaBtn, dupBtn, delBtn)), list, opac)
   app.on('new-layer', () => newLayer(app))
 
   const thumbs = new Map<string, HTMLCanvasElement>()
@@ -116,7 +117,7 @@ export function newAdjust(app: App) {
   if (!doc) return
   app.hist!.op('New adjustment layer', () => {
     const l = makeLayer('adjust', 'Adjustments', doc.w, doc.h, false)
-    l.adjust = { ...ADJUST0, levels: [...ADJUST0.levels] }
+    l.adjust = freshAdjust()
     doc.add(l, doc.activeId)
   })
   app.setTool('adjust')
@@ -130,7 +131,7 @@ export function duplicate(app: App) {
     const cp = (c: HTMLCanvasElement | null) => c && copyCanvas(c)
     const n: Layer = {
       ...a, id: uid(), name: a.name + ' copy', canvas: cp(a.canvas), mask: cp(a.mask), maskAI: cp(a.maskAI), cache: null, maskCache: null, dirty: true, maskDirty: true,
-      maskOpts: { ...a.maskOpts }, shape: a.shape && { ...a.shape }, outline: a.outline && { ...a.outline }, adjust: a.adjust && { ...a.adjust, levels: [...a.adjust.levels] }, bg: a.bg && { ...a.bg }
+      maskOpts: { ...a.maskOpts }, shape: a.shape && { ...a.shape }, outline: a.outline && { ...a.outline }, adjust: a.adjust && cloneAdjust(a.adjust), bg: a.bg && { ...a.bg }
     }
     doc.add(n, a.id)
   })

@@ -106,6 +106,7 @@ export function bgTools(app: App): Tool[] {
   const refine: Tool = {
     id: 'bg-refine', label: 'Refine edges', icon: 'brush',
     cursor: () => 'none',
+    brush: () => ({ getSize: () => bo.size, setSize: v => { bo.size = v } }),
     down(p) {
       const l = targetLayer(app)
       if (!l) return

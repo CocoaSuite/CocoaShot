@@ -23,11 +23,12 @@ export interface Settings {
   rightW: number
   leftOpen: boolean
   rightOpen: boolean
+  checkUpdates: boolean
 }
 
 const DEFAULTS: Settings = {
   theme: 'dark', exportFormat: 'png', exportQuality: 92, openLimit: 0, bgModel: 'isnet', gpu: true, autosave: 3,
-  shortcuts: {}, exportFolder: '', leftW: 220, rightW: 288, leftOpen: true, rightOpen: true
+  shortcuts: {}, exportFolder: '', leftW: 220, rightW: 288, leftOpen: true, rightOpen: true, checkUpdates: true
 }
 
 export interface Job { label: string; progress: number | null; detail: string; cancel?: () => void }

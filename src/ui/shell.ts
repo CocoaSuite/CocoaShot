@@ -12,6 +12,7 @@ import { snapshot } from '../core/doc'
 import { flatten } from '../core/compose'
 import { loadProject } from '../core/io'
 import { jobBox } from '../tools/common'
+import { checkForUpdates } from './update'
 
 export function buildShell(app: App, root: HTMLElement) {
   const run: Record<string, () => void> = {
@@ -37,6 +38,7 @@ export function buildShell(app: App, root: HTMLElement) {
     settings: () => settingsDialog(app),
     help: () => helpDialog(),
     about: () => settingsDialog(app, 'about'),
+    updates: () => checkForUpdates(app),
     rotl: () => app.doc && (rotate90(app.doc, app.hist!, -1), app.view.fit()),
     rotr: () => app.doc && (rotate90(app.doc, app.hist!, 1), app.view.fit()),
     fliph: () => app.doc && flip(app.doc, app.hist!, true),
@@ -93,7 +95,7 @@ export function buildShell(app: App, root: HTMLElement) {
     menu('Edit', [['Undo', 'undo', 'undo'], ['Redo', 'redo', 'redo'], '-', ['Copy', 'copy', 'copy'], ['Paste as layer', 'paste'], ['Paste as new image', 'newPaste', 'image'], ['Delete', 'delete', 'trash'], '-', ['Select all', 'selectAll'], ['Deselect', 'deselect'], ['Invert selection', 'invert'], '-', ['Settings', 'settings', 'gear']]),
     menu('Image', [['Resize', 'resize', 'resize'], ['Crop to selection', 'cropSel', 'crop'], '-', ['Rotate left', 'rotl', 'rotl'], ['Rotate right', 'rotr', 'rotr'], ['Flip horizontal', 'fliph', 'fliph'], ['Flip vertical', 'flipv', 'flipv'], '-', ['Flatten image', 'flattenImg', 'layers']]),
     menu('View', [['Zoom in', 'zoomIn', 'plus'], ['Zoom out', 'zoomOut', 'minus'], ['Fit to screen', 'fit', 'fit'], ['Actual pixels', 'actual'], ['Before and after', 'compare', 'compare'], '-', ['Show or hide tools', 'toggleLeft'], ['Show or hide properties', 'toggleRight'], ['Restore default layout', 'resetLayout']]),
-    menu('Help', [['Quick guide', 'help', 'help'], ['About CocoaShot', 'about']]),
+    menu('Help', () => [['Quick guide', 'help', 'help'], ...(native ? [['Check for updates', 'updates', 'update'] as [string, string, string]] : []), ['About CocoaShot', 'about']]),
     h('span', { class: 'sep' }), dname, status, h('span', { class: 'sp' }),
     ib('open', 'Open image', 'open'), ib('save', 'Save project', 'save'), h('span', { class: 'sep' }), undoB, redoB, h('span', { class: 'sep' }),
     ib('minus', 'Zoom out', 'zoomOut'), zoomLbl, ib('plus', 'Zoom in', 'zoomIn'), ib('fit', 'Fit to screen', 'fit'), cmpB, ib('gear', 'Settings', 'settings'), exportB)
@@ -282,7 +284,7 @@ export function buildShell(app: App, root: HTMLElement) {
     if (!id) { if (e.key === 'Escape' && app.doc?.selection) run.deselect(); return }
     e.preventDefault()
     if (id.startsWith('tool:')) { if (app.doc) app.setTool(id.slice(5)) }
-    else if (app.doc || ['open', 'paste', 'newPaste'].includes(id)) run[id]?.()
+    else if (app.doc || ['open', 'paste', 'newPaste', 'updates'].includes(id)) run[id]?.()
   })
   addEventListener('keyup', e => { if (e.key === ' ') { app.view.space = false; app.view.updateCursor() } })
   addEventListener('blur', () => { app.view.space = false })

@@ -11,13 +11,22 @@ export interface Adjust {
   saturation: number; vibrance: number; hue: number; sharpness: number; clarity: number
   grayscale: boolean; sepia: boolean; invert: boolean
   levels: number[]
+  lv: number[]
 }
+
+export const LV_CH = ['rgb', 'r', 'g', 'b', 'a'] as const
+export type LvChannel = typeof LV_CH[number]
+export const LV1 = [0, 255, 1, 0, 255]
+export const LV0 = [...LV1, ...LV1, ...LV1, ...LV1, ...LV1]
 
 export const ADJUST0: Adjust = {
   exposure: 0, brightness: 0, contrast: 0, highlights: 0, shadows: 0, whites: 0, blacks: 0, gamma: 0,
   temperature: 0, tint: 0, saturation: 0, vibrance: 0, hue: 0, sharpness: 0, clarity: 0,
-  grayscale: false, sepia: false, invert: false, levels: [0, 255, 0, 255, 0, 255]
+  grayscale: false, sepia: false, invert: false, levels: [0, 255, 0, 255, 0, 255], lv: LV0
 }
+
+export const cloneAdjust = (a: Adjust): Adjust => ({ ...a, levels: [...a.levels], lv: a.lv && a.lv.length === LV0.length ? [...a.lv] : [...LV0] })
+export const freshAdjust = () => cloneAdjust(ADJUST0)
 
 export type ShapeType = 'text' | 'arrow' | 'line' | 'rect' | 'ellipse' | 'callout' | 'label' | 'marker'
 export interface Shape {
@@ -121,7 +130,7 @@ export function snapshot(doc: Doc) {
         name: l.name, visible: l.visible, locked: l.locked, opacity: l.opacity, blend: l.blend, alphaLock: l.alphaLock,
         clip: l.clip, canvas: l.canvas, mask: l.mask, maskAI: l.maskAI, maskOpts: { ...l.maskOpts },
         shape: l.shape && { ...l.shape }, outline: l.outline && { ...l.outline },
-        adjust: l.adjust && { ...l.adjust, levels: [...l.adjust.levels] }, bg: l.bg && { ...l.bg }, bgFor: l.bgFor
+        adjust: l.adjust && cloneAdjust(l.adjust), bg: l.bg && { ...l.bg }, bgFor: l.bgFor
       }
     }))
   }
@@ -133,7 +142,7 @@ export function restore(doc: Doc, s: Snap) {
   if (doc.comp.width !== s.w || doc.comp.height !== s.h) doc.comp = canvas(s.w, s.h)
   doc.selection = s.selection
   doc.layers = s.layers.map(({ ref, p }) => {
-    Object.assign(ref, p, { maskOpts: { ...p.maskOpts }, shape: p.shape && { ...p.shape }, outline: p.outline && { ...p.outline }, adjust: p.adjust && { ...p.adjust, levels: [...p.adjust.levels] }, bg: p.bg && { ...p.bg } })
+    Object.assign(ref, p, { maskOpts: { ...p.maskOpts }, shape: p.shape && { ...p.shape }, outline: p.outline && { ...p.outline }, adjust: p.adjust && cloneAdjust(p.adjust), bg: p.bg && { ...p.bg } })
     ref.dirty = true; ref.maskDirty = true; ref.cache = null; ref.maskCache = null
     return ref
   })
