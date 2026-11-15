@@ -29,6 +29,7 @@ export function paintTools(app: App): Tool[] {
     let st: Stroke | null = null
     let src: { x: number; y: number } | null = null
     let setting = false
+    let lastPt: { x: number; y: number; l: any } | null = null
     const t: Tool = {
       id, label, icon: ic,
       cursor: () => 'none',
@@ -44,11 +45,13 @@ export function paintTools(app: App): Tool[] {
         o.color = app.fg
         st = new Stroke(app.doc!, l, mode, o, app.hist!, mode === 'clone' ? src : null, label)
         app.stroke = st
-        st.begin(p.x, p.y, p.p)
+        if (p.e.shiftKey && lastPt && lastPt.l === l) { st.begin(lastPt.x, lastPt.y, p.p); st.move(p.x, p.y, p.p) }
+        else st.begin(p.x, p.y, p.p)
       },
       move(p, pressed) { if (pressed && st) st.move(p.x, p.y, p.p) },
       up() {
         if (!st) return
+        if (st.last) lastPt = { x: st.last.x, y: st.last.y, l: st.layer }
         st.end()
         if (mode === 'clone' && src && st.cloneOff) src = { x: (st.last?.x || 0) + st.cloneOff.x, y: (st.last?.y || 0) + st.cloneOff.y }
         st = null; app.stroke = null

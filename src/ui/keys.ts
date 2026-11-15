@@ -25,6 +25,7 @@ export const ACTIONS: Action[] = [
   { id: 'tool:move', label: 'Move tool', key: 'V' },
   { id: 'tool:marquee', label: 'Rectangle select', key: 'M' },
   { id: 'tool:lasso', label: 'Lasso', key: 'L' },
+  { id: 'tool:poly', label: 'Polygon select', key: 'P' },
   { id: 'tool:wand', label: 'Magic wand', key: 'W' },
   { id: 'tool:crop', label: 'Crop', key: 'C' },
   { id: 'tool:brush', label: 'Brush', key: 'B' },

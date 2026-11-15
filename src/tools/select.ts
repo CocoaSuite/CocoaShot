@@ -333,7 +333,54 @@ export function selectTools(app: App): Tool[] {
     shapeSelTool(app, 'marquee', 'Rectangle', 'rect', 'rect'),
     shapeSelTool(app, 'ellipse-sel', 'Ellipse', 'ellipse', 'ellipse'),
     shapeSelTool(app, 'lasso', 'Lasso', 'lasso', 'lasso'),
-    wand, obj, subject]
+    polyTool(app), wand, obj, subject]
+}
+
+function polyTool(app: App): Tool {
+  let pts: number[] = [], hover: { x: number; y: number } | null = null, mode: Mode = 'new'
+  const close = () => {
+    const doc = app.doc!
+    if (pts.length >= 6) {
+      const m = canvas(doc.w, doc.h), x = ctx2d(m)
+      x.fillStyle = '#fff'; x.beginPath(); x.moveTo(pts[0], pts[1])
+      for (let i = 2; i < pts.length; i += 2) x.lineTo(pts[i], pts[i + 1])
+      x.closePath(); x.fill()
+      applySelection(app, m, mode, 'Polygon select')
+    }
+    pts = []; app.view.draw()
+  }
+  const snap = (p: Pt) => {
+    if (!p.e.shiftKey || !pts.length) return { x: p.x, y: p.y }
+    const lx = pts[pts.length - 2], ly = pts[pts.length - 1]
+    const a = Math.round(Math.atan2(p.y - ly, p.x - lx) / (Math.PI / 4)) * (Math.PI / 4), d = Math.hypot(p.x - lx, p.y - ly)
+    return { x: lx + Math.cos(a) * d, y: ly + Math.sin(a) * d }
+  }
+  return {
+    id: 'poly', label: 'Polygon', icon: 'persp',
+    cursor: () => 'crosshair',
+    down(p) {
+      const q = snap(p)
+      if (!pts.length) mode = p.e.altKey ? 'sub' : sel.mode
+      if (pts.length >= 6 && Math.hypot(q.x - pts[0], q.y - pts[1]) * app.view.zoom < 8) return close()
+      pts.push(q.x, q.y)
+    },
+    move(p) { hover = snap(p) },
+    dbl: () => close(),
+    key(e) { if (e.key === 'Enter') { close(); return true } if (e.key === 'Escape' && pts.length) { pts = []; app.view.draw(); return true } return false },
+    deactivate() { pts = [] },
+    overlay(x, v) {
+      if (!pts.length) return
+      x.save(); x.translate(v.ox, v.oy); x.scale(v.zoom, v.zoom)
+      x.beginPath(); x.moveTo(pts[0], pts[1])
+      for (let i = 2; i < pts.length; i += 2) x.lineTo(pts[i], pts[i + 1])
+      if (hover) x.lineTo(hover.x, hover.y)
+      x.lineWidth = 1 / v.zoom; x.setLineDash([4 / v.zoom, 4 / v.zoom]); x.strokeStyle = '#fff'; x.stroke()
+      x.strokeStyle = '#000'; x.lineDashOffset = 4 / v.zoom; x.stroke()
+      x.restore()
+    },
+    panel: () => h('div', { class: 'ib' }, sec('Polygon'), hint('Click to place corners. Click the first corner or double-click to finish.'), modeSeg(),
+      slider('Feather', () => sel.feather, v => (sel.feather = v), { min: 0, max: 100, unit: 'px', def: 0 }), ...selectionOps(app))
+  }
 }
 
 export async function selectSubject(app: App) {
