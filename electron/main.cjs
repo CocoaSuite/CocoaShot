@@ -124,12 +124,22 @@ ipcMain.handle('saveRecovery', (_e, data) => writeAtomic(RECOVERY(), Buffer.from
 ipcMain.handle('loadRecovery', async () => { try { return ab(await fsp.readFile(RECOVERY())) } catch { return null } })
 ipcMain.handle('clearRecovery', () => fsp.rm(RECOVERY(), { force: true }))
 
-ipcMain.handle('clipboardImage', () => {
-  const img = clipboard.readImage()
-  if (img.isEmpty()) return null
-  return ab(img.toPNG())
+ipcMain.handle('clipboardImage', async () => {
+  if (clipboard.readImage) {
+    const img = clipboard.readImage()
+    return img.isEmpty() ? null : ab(img.toPNG())
+  }
+  for (const item of await clipboard.read()) {
+    const t = item.types.find(t => t.startsWith('image/'))
+    if (t) return await (await item.getType(t)).arrayBuffer()
+  }
+  return null
 })
-ipcMain.handle('copyImage', (_e, png) => { clipboard.writeImage(nativeImage.createFromBuffer(Buffer.from(png))) })
+ipcMain.handle('copyImage', async (_e, png) => {
+  if (clipboard.writeImage) return clipboard.writeImage(nativeImage.createFromBuffer(Buffer.from(png)))
+  const { ClipboardItem } = require('electron')
+  await clipboard.write([new ClipboardItem({ 'image/png': new Blob([Buffer.from(png)], { type: 'image/png' }) })])
+})
 
 async function dirSize(p) {
   let s = 0
