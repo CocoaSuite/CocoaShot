@@ -31,7 +31,7 @@ export function updateDialog(app: App, info: UpdateInfo) {
     const later = h('button', { onclick: close }, info.newer ? 'Later' : 'Close')
     const go = h('button', { class: 'pri' }, 'Download and install') as HTMLButtonElement
     const install = async () => {
-      if (win && !(await app.confirmDiscard())) { go.disabled = false; return }
+      if (win && !(await app.closeAll())) { go.disabled = false; return }
       try {
         const r = await native!.updateInstall()
         if (r === 'opened') {

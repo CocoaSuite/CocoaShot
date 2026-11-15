@@ -47,11 +47,30 @@ export function brushControls(app: App, o: BrushOpts, which: { hardness?: boolea
   if (which.hardness !== false) out.push(slider('Hardness', () => Math.round(o.hardness * 100), v => (o.hardness = v / 100), { min: 0, max: 100 }))
   if (which.flow) out.push(slider('Flow', () => Math.round(o.flow * 100), v => (o.flow = v / 100), { min: 1, max: 100 }))
   if (which.strength) out.push(slider('Strength', () => Math.round(o.strength * 100), v => (o.strength = v / 100), { min: 1, max: 100 }))
-  out.push(toggle('Pen pressure', () => o.pressure, v => (o.pressure = v)))
+  out.push(toggle('Pen pressure changes size', () => o.pressure, v => (o.pressure = v)))
+  out.push(slider('Minimum size', () => Math.round((o.minSize ?? 0) * 100), v => (o.minSize = v / 100), { min: 0, max: 100, def: 0, unit: '%' }))
+  out.push(toggle('Pen pressure changes opacity', () => o.pressureOpacity ?? o.pressure, v => (o.pressureOpacity = v)))
   return out
 }
 
-export function colorPanel(app: App, alpha = false, onAlpha?: (a: number) => void, getAlpha?: () => number) {
+export const SIZE_PRESETS = [1, 2, 3, 4, 5, 7, 10, 15, 20, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400, 500]
+
+/** Smooths pointer positions for steadier strokes. Level 0 is off, 7 is strongest. */
+export function stabilizer(level: () => number) {
+  let s: { x: number; y: number; p: number } | null = null
+  return {
+    start(x: number, y: number, p: number) { s = { x, y, p }; return s },
+    step(x: number, y: number, p: number) {
+      const L = level()
+      if (!s || !L) { s = { x, y, p }; return s }
+      const k = 1 / (1 + L * L * 0.9)
+      s = { x: s.x + (x - s.x) * k, y: s.y + (y - s.y) * k, p: s.p + (p - s.p) * k }
+      return s
+    }
+  }
+}
+
+export function colorPanel(app: App, alpha = false, onAlpha?: (a: number) => void, getAlpha?: () => number, size?: number) {
   const st = { hex: app.fg, alpha: getAlpha ? getAlpha() : 1 }
   const fgB = h('button', { class: 'fg', style: { background: app.fg }, 'aria-label': 'Foreground colour' })
   const bgB = h('button', { class: 'bgc', style: { background: app.bgc }, 'aria-label': 'Background colour' })
@@ -62,7 +81,7 @@ export function colorPanel(app: App, alpha = false, onAlpha?: (a: number) => voi
     if (alpha && onAlpha) onAlpha(s.alpha)
     fgB.style.background = app.fg; bgB.style.background = app.bgc
     if (fin) app.view.draw()
-  }, { alpha, pick: () => { app.emit('pick-once') } })
+  }, { alpha, size, pick: () => { app.emit('pick-once') } })
   fgB.addEventListener('click', () => { editing = 'fg'; (wheel as any).set(app.fg); fgB.style.outlineColor = 'var(--sel)'; bgB.style.outlineColor = '' })
   bgB.addEventListener('click', () => { editing = 'bg'; (wheel as any).set(app.bgc); bgB.style.outlineColor = 'var(--sel)'; fgB.style.outlineColor = '' })
   const swap = tip(h('button', { class: 'ic', onclick: () => { app.setColors(app.bgc, app.fg); fgB.style.background = app.fg; bgB.style.background = app.bgc; (wheel as any).set(editing === 'fg' ? app.fg : app.bgc) } }, icon('swap')), 'Swap colours')

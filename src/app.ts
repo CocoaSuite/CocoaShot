@@ -24,11 +24,14 @@ export interface Settings {
   leftOpen: boolean
   rightOpen: boolean
   checkUpdates: boolean
+  uiStyle: 'classic' | 'ps' | 'sai'
+  toolCols: 1 | 2
+  stabilizer: number
 }
 
 const DEFAULTS: Settings = {
   theme: 'dark', exportFormat: 'png', exportQuality: 92, openLimit: 0, bgModel: 'isnet', gpu: true, autosave: 3,
-  shortcuts: {}, exportFolder: '', leftW: 220, rightW: 288, leftOpen: true, rightOpen: true, checkUpdates: true
+  shortcuts: {}, exportFolder: '', leftW: 220, rightW: 288, leftOpen: true, rightOpen: true, checkUpdates: true, uiStyle: 'classic', toolCols: 1, stabilizer: 0
 }
 
 export interface Job { label: string; progress: number | null; detail: string; cancel?: () => void }
@@ -69,7 +72,7 @@ export class App extends Emitter {
     r.classList.toggle('light', this.settings.theme === 'light')
     r.classList.toggle('wco', !!native && native.platform !== 'darwin')
     const cs = getComputedStyle(r)
-    native?.setTitleBar(cs.getPropertyValue('--panel').trim(), cs.getPropertyValue('--fg').trim())
+    native?.setTitleBar(cs.getPropertyValue('--panel').trim(), cs.getPropertyValue('--fg').trim(), this.settings.uiStyle === 'sai' ? 31 : 41)
   }
 
   fullscreen = false
@@ -90,26 +93,75 @@ export class App extends Emitter {
     this.view?.draw()
   }
 
+  docs: Doc[] = []
+  private hists = new Map<Doc, History>()
+  private views = new Map<Doc, { zoom: number; ox: number; oy: number; angle: number; flip: boolean }>()
+
+  /** Opens d in a new tab (or switches to it), or closes the current tab when d is null. */
   setDoc(d: Doc | null) {
-    this.doc = d
-    this.hist = d ? new History(d) : null
-    if (d) {
-      d.on('change', r => this.view.dirty(r))
-      d.on('layers', () => this.emit('layers'))
-      d.on('history', () => this.emit('history'))
-      d.on('selection', () => { this.view.selectionChanged(); this.emit('selection') })
-      d.on('selection-live', r => this.view.dirty(r))
+    if (!d) { if (this.doc) this.dropDoc(this.doc); return }
+    if (!this.docs.includes(d)) {
+      this.docs.push(d)
+      this.hists.set(d, new History(d))
+      d.on('change', r => { if (this.doc === d) this.view.dirty(r) })
+      d.on('layers', () => { if (this.doc === d) this.emit('layers') })
+      d.on('history', () => { if (this.doc === d) this.emit('history'); this.emit('tabs') })
+      d.on('selection', () => { if (this.doc === d) { this.view.selectionChanged(); this.emit('selection') } })
+      d.on('selection-live', r => { if (this.doc === d) this.view.dirty(r) })
     }
+    this.activate(d)
+  }
+
+  activate(d: Doc | null) {
+    if (d === this.doc && d) { this.emit('tabs'); return }
+    this.tool?.deactivate?.()
+    if (this.doc) this.views.set(this.doc, { zoom: this.view.zoom, ox: this.view.ox, oy: this.view.oy, angle: this.view.angle, flip: this.view.flip })
+    this.stroke = null
+    this.doc = d
+    this.hist = d ? this.hists.get(d)! : null
     this.view.compare = 'off'
     this.view.maskView = 'normal'
+    this.view.alphaView = false
     this.view.selectionChanged()
     this.view.dirty(null)
-    this.view.fit()
+    const vs = d && this.views.get(d)
+    if (vs) { Object.assign(this.view, vs); this.emit('zoom'); this.view.draw() }
+    else { this.view.angle = 0; this.view.flip = false; this.view.fit() }
+    this.tool?.activate?.()
     this.emit('doc')
     this.emit('layers')
     this.emit('history')
     this.emit('tool')
+    this.emit('tabs')
+    this.emit('view')
     this.title()
+  }
+
+  private dropDoc(d: Doc) {
+    const i = this.docs.indexOf(d)
+    if (i < 0) return
+    if (this.doc === d) this.tool?.deactivate?.()
+    this.docs.splice(i, 1)
+    this.hists.delete(d)
+    this.views.delete(d)
+    if (this.doc === d) { this.doc = null; this.activate(this.docs[Math.min(i, this.docs.length - 1)] || null) }
+    else this.emit('tabs')
+  }
+
+  async closeDoc(d = this.doc) {
+    if (!d) return false
+    if (d.modified) {
+      this.activate(d)
+      if (!(await this.confirmDiscard())) return false
+    }
+    this.dropDoc(d)
+    if (!this.docs.length) native?.clearRecovery()
+    return true
+  }
+
+  async closeAll() {
+    for (const d of [...this.docs]) if (!(await this.closeDoc(d))) return false
+    return true
   }
 
   title() { native?.setTitle(this.doc ? `${this.doc.name} - CocoaShot` : 'CocoaShot') }
@@ -128,7 +180,8 @@ export class App extends Emitter {
   }
 
   async openFile(f: OpenedFile) {
-    if (!(await this.confirmDiscard())) return
+    const open = f.path && this.docs.find(d => d.path === f.path || d.projectPath === f.path)
+    if (open) { this.activate(open); return }
     try {
       this.busy('Opening ' + f.name)
       if (/\.cocoashot$/i.test(f.name)) {
@@ -186,7 +239,7 @@ export class App extends Emitter {
 
   async newFromClipboard() {
     const c = await this.fromClipboard()
-    if (!c || !(await this.confirmDiscard())) return
+    if (!c) return
     const d = new Doc(c, 'Pasted image')
     this.setDoc(d)
     d.modified = true
@@ -244,6 +297,7 @@ export class App extends Emitter {
       doc.modified = false
       this.lastSave = Date.now()
       this.emit('doc')
+      this.emit('tabs')
       this.title()
       toast('Project saved')
       return true

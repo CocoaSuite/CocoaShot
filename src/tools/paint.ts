@@ -7,7 +7,7 @@ import { flood } from '../core/px'
 import { canvasFromAlpha, ctx2d, getData, rgba } from '../core/util'
 import { h, toast } from '../ui/dom'
 import { btn, hint, sec, select, slider, toggle } from '../ui/controls'
-import { brushControls, colorPanel, drawBrushCursor } from './common'
+import { brushControls, colorPanel, drawBrushCursor, stabilizer } from './common'
 
 export const BLENDS: [Blend, string][] = [['source-over', 'Normal'], ['multiply', 'Multiply'], ['screen', 'Screen'], ['overlay', 'Overlay'], ['soft-light', 'Soft light'], ['hard-light', 'Hard light'], ['darken', 'Darken'], ['lighten', 'Lighten'], ['color-dodge', 'Colour dodge'], ['color-burn', 'Colour burn'], ['difference', 'Difference'], ['color', 'Colour'], ['luminosity', 'Luminosity']]
 
@@ -30,12 +30,13 @@ export function paintTools(app: App): Tool[] {
     let src: { x: number; y: number } | null = null
     let setting = false
     let lastPt: { x: number; y: number; l: any } | null = null
+    const stab = stabilizer(() => app.settings.stabilizer || 0)
     const t: Tool = {
       id, label, icon: ic,
       cursor: () => 'none',
       brush: () => ({
         getSize: () => o.size, setSize: v => { o.size = v }, getOpacity: () => o.opacity, setOpacity: v => { o.opacity = v },
-        color: () => (mode === 'paint' ? app.fg : undefined), altClick: mode === 'clone'
+        color: () => (mode === 'paint' ? app.fg : undefined), altClick: mode === 'clone', opts: o
       }),
       down(p) {
         if (mode === 'clone' && (p.e.altKey || setting)) { src = { x: p.x, y: p.y }; setting = false; app.emit('panel'); return }
@@ -51,8 +52,9 @@ export function paintTools(app: App): Tool[] {
         app.stroke = st
         if (p.e.shiftKey && lastPt && lastPt.l === l) { st.begin(lastPt.x, lastPt.y, p.p); st.move(p.x, p.y, p.p) }
         else st.begin(p.x, p.y, p.p)
+        stab.start(p.x, p.y, p.p)
       },
-      move(p, pressed) { if (pressed && st) st.move(p.x, p.y, p.p) },
+      move(p, pressed) { if (pressed && st) { const q = stab.step(p.x, p.y, p.p); st.move(q.x, q.y, q.p) } },
       up() {
         if (!st) return
         if (st.last) lastPt = { x: st.last.x, y: st.last.y, l: st.layer }

@@ -92,6 +92,8 @@ export function settingsDialog(app: App, page = 'general') {
   const pages: [string, string, () => any[]][] = [
     ['general', 'General', () => [
       seg([['dark', 'Dark'], ['light', 'Light']], () => app.settings.theme, v => { app.settings.theme = v as any; app.saveSettings(); app.applyTheme(); app.view.resize() }, 'Theme'),
+      seg([['classic', 'Classic'], ['ps', 'Photoshop style'], ['sai', 'SAI style']], () => app.settings.uiStyle || 'classic', v => { app.settings.uiStyle = v as any; app.saveSettings(); app.emit('style') }, 'Interface'),
+      hint('Classic lists tools by task. Photoshop style has a slim grouped toolbar and an options bar. SAI style puts navigator, layers, colour and named tool buttons in two side columns.'),
       select('Autosave', [['0', 'Off'], ['1', 'Every minute'], ['3', 'Every 3 minutes'], ['10', 'Every 10 minutes']], () => String(app.settings.autosave) as any, v => { app.settings.autosave = +v; app.saveSettings() }),
       hint('Autosave keeps a recovery copy of unsaved work so it can be restored after a crash.'),
       select('Large images', [['0', 'Keep full resolution'], ['4096', 'Reduce to 4096 px'], ['2048', 'Reduce to 2048 px']], () => String(app.settings.openLimit) as any, v => { app.settings.openLimit = +v; app.saveSettings() }),

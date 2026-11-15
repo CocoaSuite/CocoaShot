@@ -6,6 +6,22 @@ Open an image with **Open image**, by dropping it onto the window, or by pasting
 
 Hold Space and drag, or use the scroll wheel, to move around. Hold Ctrl (Cmd on a Mac) and scroll to zoom. **F11** switches to full screen (Esc leaves it) and **Tab** hides or shows the side panels, so the two together give the image the whole screen.
 
+## Interface styles
+
+**Settings, General, Interface** switches between three layouts. Each works with the dark and light theme.
+
+- **Classic**: tools listed by task on the left, settings and layers on the right.
+- **Photoshop style**: a slim icon toolbar on the left. A small triangle marks a group of tools: hold the button or right-click it to pick another. The last tool used becomes the button's face, and pressing a tool's key again cycles through its group. The options bar along the top holds the brush size, hardness, opacity, flow, pressure and smoothing; drag a label sideways to change its value. The icons on the right open Properties, History, Adjustments, Levels, Layer alpha and Background. The grip above the tools switches to two columns.
+- **SAI style**: two compact columns. The first holds the Navigator (drag in it to move around, with zoom and rotation sliders) and Layers. The second holds the colour wheel, the tools as named buttons (pick a group with the small icons above them), the tool's settings and brush size presets.
+
+Several images can be open at once. Each has a tab with its own layers and undo history. Middle-click a tab to close it.
+
+## View rotation, zoom and smoothing
+
+**View, Rotate view** turns the canvas on screen without changing the image, and **Flip view** mirrors it, which helps when drawing. The SAI toolbar and Navigator also rotate it. The **Zoom** tool zooms in on a click and out on Alt-click; **Hand** drags the view.
+
+**Smoothing** (Stabilizer in SAI style) steadies brush strokes; higher numbers smooth more. **Minimum size** sets how thin a pressure stroke can get, and pen pressure can control size, opacity or both.
+
 ## Common tasks
 
 ### Remove a background

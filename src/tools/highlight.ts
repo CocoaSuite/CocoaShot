@@ -6,7 +6,7 @@ import { Stroke, BrushOpts } from '../core/brush'
 import { copyCanvas, ctx2d, getData, rgba } from '../core/util'
 import { h, icon, toast } from '../ui/dom'
 import { btn, hint, sec, seg, select, slider, toggle } from '../ui/controls'
-import { colorPanel, drawBrushCursor, jobBox } from './common'
+import { colorPanel, drawBrushCursor, jobBox, stabilizer } from './common'
 import { selectSubject } from './select'
 import { colorWheel } from '../ui/color'
 
@@ -30,6 +30,7 @@ export function highlightTools(app: App): Tool[] {
   const ho = { shape: 'brush' as Shape, opacity: 0.35, soft: 0, marker: false }
   const bo: BrushOpts = { size: 40, opacity: 0.35, hardness: 0.8, flow: 1, spacing: 0.1, color: '#ffcc00', pressure: false, pencil: false, strength: 0.5 }
   let a: any = null, b: any = null, stroke: Stroke | null = null
+  const stab = stabilizer(() => app.settings.stabilizer || 0)
 
   const hlLayer = () => {
     const l = app.ensurePaintLayer('highlight', 'Highlight')
@@ -74,11 +75,12 @@ export function highlightTools(app: App): Tool[] {
         stroke = new Stroke(app.doc!, l, 'paint', bo, app.hist!, null, 'Highlight')
         app.stroke = stroke
         stroke.begin(p.x, p.y, p.p)
+        stab.start(p.x, p.y, p.p)
       } else { a = { x: p.x, y: p.y }; b = a }
     },
     move(p, pressed) {
       if (!pressed) return
-      if (stroke) stroke.move(p.x, p.y, p.p)
+      if (stroke) { const q = stab.step(p.x, p.y, p.p); stroke.move(q.x, q.y, q.p) }
       else if (a) b = { x: p.x, y: p.y }
     },
     up() {

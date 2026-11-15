@@ -1,4 +1,5 @@
 import type { Pt, Viewport } from '../view/viewport'
+import type { BrushOpts } from '../core/brush'
 
 export interface BrushHandle {
   getSize(): number
@@ -10,6 +11,7 @@ export interface BrushHandle {
   maxSize?: number
   minOpacity?: number
   altClick?: boolean
+  opts?: BrushOpts
 }
 
 export interface Tool {
@@ -39,7 +41,8 @@ export const GROUPS: Group[] = [
   { id: 'paint', name: 'Paint & Erase', icon: 'paint', tools: ['brush', 'pencil', 'eraser', 'fill', 'picker', 'clone', 'blur', 'sharpen', 'smudge'] },
   { id: 'adjust', name: 'Adjustments', icon: 'adjust', tools: ['adjust', 'levels', 'alpha'] },
   { id: 'ai', name: 'AI Tools', icon: 'ai', tools: ['ai-remove', 'ai-cleanup', 'ai-upscale', 'ai-enhance', 'ai-detect'] },
-  { id: 'text', name: 'Text & Annotations', icon: 'text', tools: ['text', 'arrow', 'line', 'rect', 'ellipse', 'callout', 'label', 'marker'] }
+  { id: 'text', name: 'Text & Annotations', icon: 'text', tools: ['text', 'arrow', 'line', 'rect', 'ellipse', 'callout', 'label', 'marker'] },
+  { id: 'view', name: 'View', icon: 'hand', tools: ['hand', 'zoom'] }
 ]
 
 export const groupOf = (tool: string) => GROUPS.find(g => g.tools.includes(tool))

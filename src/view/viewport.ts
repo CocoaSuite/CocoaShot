@@ -3,7 +3,7 @@ import { contours } from '../core/px'
 import { alphaOf, canvas, ctx2d, Rect, rectUnion } from '../core/util'
 import type { App } from '../app'
 
-export interface Pt { x: number; y: number; p: number; sx: number; sy: number; e: PointerEvent }
+export interface Pt { x: number; y: number; p: number; sx: number; sy: number; rx: number; ry: number; e: PointerEvent }
 
 export class Viewport {
   el: HTMLCanvasElement
@@ -16,6 +16,9 @@ export class Viewport {
   maskView: 'normal' | 'mask' | 'overlay' = 'normal'
   hover: { x: number; y: number } | null = null
   alphaView = false
+  angle = 0
+  flip = false
+  showAnts = true
   private alphaTmp: HTMLCanvasElement | null = null
   private pending: Rect | null | true = null
   private raf = 0
@@ -84,12 +87,36 @@ export class Viewport {
     this.setZoom(n || z)
   }
 
+  get rotated() { return !!(this.angle % 360) || this.flip }
+  /** Maps unrotated screen space to what is drawn: rotation and flip about the middle of the view. */
+  rot(): DOMMatrix {
+    const { w, h } = this.size()
+    const m = new DOMMatrix().translate(w / 2, h / 2).rotate(this.angle)
+    if (this.flip) m.scaleSelf(-1, 1)
+    return m.translate(-w / 2, -h / 2)
+  }
+  unrotate(x: number, y: number) { if (!this.rotated) return { x, y }; const q = this.rot().inverse().transformPoint({ x, y }); return { x: q.x, y: q.y } }
+  /** Real on-screen position of a document point, rotation included. */
+  screenOf(x: number, y: number) { const s = this.toScreen(x, y); if (!this.rotated) return s; const q = this.rot().transformPoint(s); return { x: q.x, y: q.y } }
+  unrotateVec(dx: number, dy: number) { if (!this.rotated) return { x: dx, y: dy }; const m = this.rot().inverse(); return { x: m.a * dx + m.c * dy, y: m.b * dx + m.d * dy } }
+
   pt(e: PointerEvent): Pt {
     const r = this.el.getBoundingClientRect()
-    const sx = e.clientX - r.left, sy = e.clientY - r.top
-    return { x: (sx - this.ox) / this.zoom, y: (sy - this.oy) / this.zoom, p: e.pointerType === 'pen' ? e.pressure || 0.5 : 1, sx, sy, e }
+    const rx = e.clientX - r.left, ry = e.clientY - r.top
+    const u = this.unrotate(rx, ry)
+    return { x: (u.x - this.ox) / this.zoom, y: (u.y - this.oy) / this.zoom, p: e.pointerType === 'pen' ? e.pressure || 0.5 : 1, sx: u.x, sy: u.y, rx, ry, e }
   }
   toScreen(x: number, y: number) { return { x: x * this.zoom + this.ox, y: y * this.zoom + this.oy } }
+
+  setAngle(a: number) {
+    a = ((Math.round(a) % 360) + 540) % 360 - 180
+    this.angle = a
+    this.app.emit('view')
+    this.draw()
+  }
+  setFlip(v: boolean) { this.flip = v; this.app.emit('view'); this.draw() }
+  /** Zooms keeping the given screen point (real, rotated) still. */
+  zoomAt(z: number, rx: number, ry: number) { const u = this.unrotate(rx, ry); this.setZoom(z, u.x, u.y) }
 
   private down(e: PointerEvent) {
     this.el.focus()
@@ -111,7 +138,7 @@ export class Viewport {
       const kind = e.ctrlKey || e.metaKey ? 'size' : e.altKey && b.setOpacity && b.getOpacity ? 'opacity' : null
       if (kind) {
         const p = this.pt(e)
-        this.gesture = { kind, sx: p.sx, sy: p.sy, v0: kind === 'size' ? b.getSize() : b.getOpacity!(), at: { x: p.x, y: p.y }, click: kind === 'opacity' && b.altClick ? p : null, moved: false }
+        this.gesture = { kind, sx: p.rx, sy: p.ry, v0: kind === 'size' ? b.getSize() : b.getOpacity!(), at: { x: p.x, y: p.y }, click: kind === 'opacity' && b.altClick ? p : null, moved: false }
         this.hover = this.gesture.at
         this.draw()
         return
@@ -121,8 +148,9 @@ export class Viewport {
   }
   private move(e: PointerEvent) {
     if (this.panning) {
-      this.ox = this.panning.ox + e.clientX - this.panning.x
-      this.oy = this.panning.oy + e.clientY - this.panning.y
+      const d = this.unrotateVec(e.clientX - this.panning.x, e.clientY - this.panning.y)
+      this.ox = this.panning.ox + d.x
+      this.oy = this.panning.oy + d.y
       this.draw()
       return
     }
@@ -130,8 +158,8 @@ export class Viewport {
     const g = this.gesture
     if (g) {
       const b = this.app.tool?.brush?.()
-      const dx = p.sx - g.sx
-      if (b && (g.moved || Math.abs(dx) > 3 || Math.abs(p.sy - g.sy) > 3)) {
+      const dx = p.rx - g.sx
+      if (b && (g.moved || Math.abs(dx) > 3 || Math.abs(p.ry - g.sy) > 3)) {
         g.moved = true
         if (g.kind === 'size') b.setSize(Math.round(Math.min(b.maxSize ?? 1000, Math.max(b.minSize ?? 1, g.v0 * Math.pow(2, dx / 120)))))
         else b.setOpacity!(Math.round(Math.min(1, Math.max(b.minOpacity ?? 0.01, g.v0 + dx / 250)) * 100) / 100)
@@ -168,11 +196,12 @@ export class Viewport {
   private wheel(e: WheelEvent) {
     e.preventDefault()
     const r = this.el.getBoundingClientRect()
-    if (e.ctrlKey || e.metaKey) this.setZoom(this.zoom * Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0025)), e.clientX - r.left, e.clientY - r.top)
+    if (e.ctrlKey || e.metaKey) this.zoomAt(this.zoom * Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0025)), e.clientX - r.left, e.clientY - r.top)
     else {
       const k = e.deltaMode ? 30 : 1
-      this.ox -= (e.shiftKey ? e.deltaY : e.deltaX) * k
-      this.oy -= (e.shiftKey ? 0 : e.deltaY) * k
+      const d = this.unrotateVec((e.shiftKey ? e.deltaY : e.deltaX) * k, (e.shiftKey ? 0 : e.deltaY) * k)
+      this.ox -= d.x
+      this.oy -= d.y
       this.draw()
     }
   }
@@ -201,6 +230,7 @@ export class Viewport {
   }
 
   draw() { this.schedule() }
+  setShowAnts(v: boolean) { this.showAnts = v; this.draw() }
 
   selectionChanged() {
     const s = this.doc?.selection
@@ -246,6 +276,7 @@ export class Viewport {
     const doc = this.doc
     if (!doc) return
     x.setTransform(d, 0, 0, d, 0, 0)
+    if (this.rotated) { const m = this.rot(); x.transform(m.a, m.b, m.c, m.d, m.e, m.f) }
     const z = this.zoom, W = doc.w * z, H = doc.h * z
     x.save()
     x.shadowColor = 'rgba(0,0,0,.35)'; x.shadowBlur = 24; x.shadowOffsetY = 6
@@ -302,7 +333,7 @@ export class Viewport {
       }
     }
     x.restore()
-    if (this.ants) {
+    if (this.ants && this.showAnts) {
       x.save()
       x.translate(this.ox, this.oy); x.scale(z, z)
       x.lineWidth = 1 / z
@@ -313,6 +344,7 @@ export class Viewport {
     }
     this.app.tool?.overlay?.(x, this)
     if (this.gesture) this.gestureOverlay(x)
+    this.app.emit('view')
   }
 
   private gestureOverlay(x: CanvasRenderingContext2D) {

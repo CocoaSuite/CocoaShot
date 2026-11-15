@@ -8,7 +8,12 @@ export type BrushMode = 'paint' | 'erase' | 'clone' | 'blur' | 'sharpen' | 'smud
 export interface BrushOpts {
   size: number; opacity: number; hardness: number; flow: number; spacing: number
   color: string; pressure: boolean; pencil: boolean; strength: number
+  minSize?: number
+  pressureOpacity?: boolean
 }
+
+export const pressSize = (o: BrushOpts, p: number) => (o.pressure ? Math.max(0.05, (o.minSize ?? 0) + (1 - (o.minSize ?? 0)) * p) : 1)
+const pressAlpha = (o: BrushOpts, p: number) => ((o.pressureOpacity ?? o.pressure) ? Math.max(0.1, p) : 1)
 
 const stamps = new Map<string, HTMLCanvasElement>()
 function stamp(d: number, hard: number, pencil: boolean): HTMLCanvasElement {
@@ -99,7 +104,7 @@ export class Stroke {
     if (!this.last) return this.begin(x, y, p)
     const l = this.last
     const dist = Math.hypot(x - l.x, y - l.y)
-    const step = Math.max(1, this.o.size * this.o.spacing * (this.o.pressure ? Math.max(0.2, p) : 1))
+    const step = Math.max(1, this.o.size * this.o.spacing * Math.max(0.2, pressSize(this.o, p)))
     let t = step - this.rem
     while (t <= dist) {
       const f = t / dist
@@ -112,7 +117,7 @@ export class Stroke {
 
   private dab(x: number, y: number, p: number) {
     const o = this.o, doc = this.doc
-    const sz = Math.max(1, o.size * (o.pressure ? Math.max(0.05, p) : 1))
+    const sz = Math.max(1, o.size * pressSize(o, p))
     const d = Math.max(1, Math.round(sz)), r = d / 2
     const left = Math.round(x - r), top = Math.round(y - r)
     const dr = rectClip({ x: left, y: top, w: d, h: d }, doc.w, doc.h)
@@ -126,7 +131,7 @@ export class Stroke {
       mx.drawImage(doc.selection, left, top, d, d, 0, 0, d, d)
       mx.globalCompositeOperation = 'source-over'
     }
-    const a = o.flow * (o.pressure ? Math.max(0.1, p) : 1)
+    const a = o.flow * pressAlpha(o, p)
     const tx = ctx2d(this.target)
     tx.save()
     switch (this.mode) {

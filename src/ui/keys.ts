@@ -43,7 +43,11 @@ export const ACTIONS: Action[] = [
   { id: 'tool:adjust', label: 'Adjustments', key: 'J' },
   { id: 'tool:levels', label: 'Levels', key: 'Mod+L' },
   { id: 'tool:alpha', label: 'Layer alpha', key: 'Mod+Shift+A' },
-  { id: 'tool:bg-remove', label: 'Remove background', key: 'K' }
+  { id: 'tool:bg-remove', label: 'Remove background', key: 'K' },
+  { id: 'tool:hand', label: 'Hand', key: '' },
+  { id: 'tool:zoom', label: 'Zoom', key: 'Z' },
+  { id: 'tool:ai-remove', label: 'Remove object', key: 'R' },
+  { id: 'tool:outline', label: 'Outline', key: 'O' }
 ]
 
 export function comboOf(e: KeyboardEvent) {

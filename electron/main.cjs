@@ -96,8 +96,8 @@ registerUpdates(() => win, () => { stopAI(); if (win) win.forceClose = true; app
 
 ipcMain.on('close-now', () => { if (win) { win.forceClose = true; win.close() } })
 ipcMain.handle('toggleFullScreen', () => { if (!win) return false; win.setFullScreen(!win.isFullScreen()); return win.isFullScreen() })
-ipcMain.on('setTitleBar', (_e, color, symbolColor) => {
-  if (win && process.platform !== 'darwin' && win.setTitleBarOverlay) try { win.setTitleBarOverlay({ color: String(color), symbolColor: String(symbolColor), height: 41 }) } catch {}
+ipcMain.on('setTitleBar', (_e, color, symbolColor, height) => {
+  if (win && process.platform !== 'darwin' && win.setTitleBarOverlay) try { win.setTitleBarOverlay({ color: String(color), symbolColor: String(symbolColor), height: Math.max(24, Math.min(60, +height || 41)) }) } catch {}
 })
 ipcMain.on('setTitle', (_e, t) => { if (win) win.setTitle(String(t).slice(0, 200)) })
 

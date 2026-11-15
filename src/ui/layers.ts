@@ -3,19 +3,43 @@ import { cloneAdjust, freshAdjust, Layer, makeLayer, snapshot } from '../core/do
 import { layerFull, touch } from '../core/compose'
 import { copyCanvas, ctx2d, uid } from '../core/util'
 import { h, icon, tip, toast } from './dom'
-import { slider } from './controls'
+import { select, slider, toggle } from './controls'
+import { BLENDS } from '../tools/paint'
 
 const KIND_ICON: Record<string, string> = { text: 'text', shape: 'shape', adjust: 'sliders', outline: 'outline' }
 
 export function layersPanel(app: App, box: HTMLElement) {
   const list = h('div', { id: 'layers' })
-  const opac = h('div', { style: { padding: '6px 12px 10px' } })
-  const addBtn = tip(h('button', { class: 'ic', onclick: () => newLayer(app) }, icon('plus')), 'New paint layer')
-  const dupBtn = tip(h('button', { class: 'ic', onclick: () => duplicate(app) }, icon('copy')), 'Duplicate layer')
-  const adjBtn = tip(h('button', { class: 'ic', onclick: () => newAdjust(app) }, icon('sliders')), 'New adjustment layer')
-  const alphaBtn = tip(h('button', { class: 'ic', onclick: () => app.setTool('alpha') }, icon('alpha')), 'Edit layer alpha')
-  const delBtn = tip(h('button', { class: 'ic', onclick: () => removeLayer(app) }, icon('trash')), 'Delete layer')
-  box.append(h('div', { class: 'ph' }, h('span', 'Layers'), h('span', { style: { display: 'flex', gap: '1px' } }, addBtn, adjBtn, alphaBtn, dupBtn, delBtn)), list, opac)
+  const opac = h('div', { class: 'lopac' })
+  const btns = () => {
+    const doc = app.doc
+    const del = tip(h('button', { class: 'ic', onclick: () => removeLayer(app) }, icon('trash')), 'Delete layer')
+    del.toggleAttribute('disabled', !doc || doc.layers.length < 2)
+    return [tip(h('button', { class: 'ic', onclick: () => newLayer(app) }, icon('plus')), 'New paint layer'),
+      tip(h('button', { class: 'ic', onclick: () => newAdjust(app) }, icon('sliders')), 'New adjustment layer'),
+      tip(h('button', { class: 'ic', onclick: () => app.setTool('alpha') }, icon('alpha')), 'Edit layer alpha'),
+      tip(h('button', { class: 'ic', onclick: () => duplicate(app) }, icon('copy')), 'Duplicate layer'), del]
+  }
+  const controls = () => {
+    const a = app.doc?.active
+    if (!a) return null
+    const ch = (label: string, fn: () => void) => app.hist!.op(label, fn)
+    let snap: any = null
+    return h('div', { class: 'lctl' },
+      select('Mode', BLENDS, () => a.blend, v => ch('Blend mode', () => { a.blend = v })),
+      slider('Opacity', () => Math.round(a.opacity * 100), v => { if (!snap) snap = snapshot(app.doc!); a.opacity = v / 100; app.doc!.changed() }, { min: 0, max: 100, onEnd: () => { if (snap) { app.hist!.structural('Layer opacity', snap); snap = null } } }),
+      a.canvas ? h('div', { class: 'lchk' },
+        toggle('Lock transparency', () => a.alphaLock, v => ch(v ? 'Lock transparency' : 'Unlock transparency', () => { a.alphaLock = v })),
+        toggle('Clip to layer below', () => a.clip, v => ch(v ? 'Clip to layer below' : 'Release clipping', () => { a.clip = v })),
+        toggle('Lock layer', () => a.locked, v => ch(v ? 'Lock layer' : 'Unlock layer', () => { a.locked = v }))) : null)
+  }
+  const arrange = () => {
+    const st = app.settings.uiStyle
+    box.innerHTML = ''
+    if (st === 'classic') box.append(h('div', { class: 'ph' }, h('span', 'Layers'), h('span', { style: { display: 'flex', gap: '1px' } }, ...btns())), list, opac)
+    else if (st === 'ps') box.append(h('div', { class: 'ph' }, h('span', 'Layers')), controls() || '', list, h('div', { class: 'lbar' }, ...btns()))
+    else box.append(h('div', { class: 'pt' }, h('span', 'Layers')), h('div', { class: 'pb' }, controls() || '', h('div', { class: 'lbar' }, ...btns())), list)
+  }
   app.on('new-layer', () => newLayer(app))
 
   const thumbs = new Map<string, HTMLCanvasElement>()
@@ -35,12 +59,13 @@ export function layersPanel(app: App, box: HTMLElement) {
     opac.innerHTML = ''
     thumbs.clear()
     const doc = app.doc
+    arrange()
     if (!doc) return
     for (const l of [...doc.layers].reverse()) {
       const th = h('span', { class: 'thumb' + (l.canvas ? ' chk' : '') })
       if (l.canvas && l.kind !== 'text' && l.kind !== 'shape') { const c = h('canvas'); drawThumb(l, c); th.appendChild(c); thumbs.set(l.id, c) }
       else th.appendChild(icon(KIND_ICON[l.kind] || 'layers'))
-      const nm = h('span', { class: 'nm' }, l.name + (l.mask ? '' : ''))
+      const nm = h('span', { class: 'nm' }, h('span', { class: 'nmt' }, l.name), h('span', { class: 'lsub' }, (BLENDS.find(b => b[0] === l.blend)?.[1] || 'Normal') + ' · ' + Math.round(l.opacity * 100) + '%'))
       nm.addEventListener('dblclick', () => {
         const i = h('input', { type: 'text', value: l.name }) as HTMLInputElement
         nm.innerHTML = ''; nm.appendChild(i); i.focus(); i.select()
@@ -94,8 +119,8 @@ export function layersPanel(app: App, box: HTMLElement) {
       let snap: any = null
       opac.appendChild(slider('Opacity', () => Math.round(a.opacity * 100), v => { if (!snap) snap = snapshot(doc); a.opacity = v / 100; doc.changed() }, { min: 0, max: 100, onEnd: () => { if (snap) { app.hist!.structural('Layer opacity', snap); snap = null } } }))
     }
-    delBtn.disabled = doc.layers.length < 2
   }
+  app.on('style', render)
   let tt = 0
   app.on('layers', render)
   app.on('doc', render)

@@ -28,7 +28,7 @@ interface Native {
   setTitle(t: string): void
   toggleFullScreen(): Promise<boolean>
   onFullScreen(cb: (on: boolean) => void): void
-  setTitleBar(color: string, symbolColor: string): void
+  setTitleBar(color: string, symbolColor: string, height?: number): void
   appVersion(): Promise<string>
   updateCheck(): Promise<UpdateInfo>
   updateDownload(onProgress?: (p: { loaded: number; total: number }) => void): Promise<{ name: string }>

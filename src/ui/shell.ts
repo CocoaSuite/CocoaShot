@@ -1,7 +1,7 @@
 import type { App } from '../app'
 import { GROUPS, groupOf } from '../tools/types'
 import { h, icon, logo, tip, toast, confirmBox } from './dom'
-import { layersPanel, removeLayer } from './layers'
+import { duplicate, layersPanel, newAdjust, removeLayer } from './layers'
 import { exportDialog, helpDialog, settingsDialog } from './dialogs'
 import { ACTIONS, comboOf } from './keys'
 import { Viewport } from '../view/viewport'
@@ -12,6 +12,7 @@ import { snapshot } from '../core/doc'
 import { flatten } from '../core/compose'
 import { loadProject } from '../core/io'
 import { jobBox } from '../tools/common'
+import { groupKey, noteTool, psDock, psOptions, psStrip, saiBar, saiColor, saiNavigator, saiSizes, saiTools } from './styles'
 import { checkForUpdates } from './update'
 
 export function buildShell(app: App, root: HTMLElement) {
@@ -34,6 +35,16 @@ export function buildShell(app: App, root: HTMLElement) {
       deletePixels(app, 'Cut')
     },
     fullscreen: () => app.toggleFullscreen(),
+    newLayer: () => app.emit('new-layer'),
+    newAdjust: () => app.doc && newAdjust(app),
+    dupLayer: () => app.doc && duplicate(app),
+    delLayer: () => app.doc && removeLayer(app),
+    editAlpha: () => app.setTool('alpha'),
+    levels: () => app.setTool('levels'),
+    viewRotL: () => app.view.setAngle(app.view.angle - 15),
+    viewRotR: () => app.view.setAngle(app.view.angle + 15),
+    viewRot0: () => app.view.setAngle(0),
+    viewFlip: () => app.view.setFlip(!app.view.flip),
     panels: () => {
       const s = app.settings
       const show = !(s.leftOpen || s.rightOpen)
@@ -73,7 +84,7 @@ export function buildShell(app: App, root: HTMLElement) {
       })
     },
     newPaste: () => app.newFromClipboard(),
-    close: async () => { if (await app.confirmDiscard()) { app.setDoc(null); native?.clearRecovery() } },
+    close: () => app.closeDoc(),
     toggleLeft: () => { app.settings.leftOpen = !app.settings.leftOpen; layout() },
     toggleRight: () => { app.settings.rightOpen = !app.settings.rightOpen; layout() },
     resetLayout: () => { Object.assign(app.settings, { leftW: 220, rightW: 288, leftOpen: true, rightOpen: true }); layout() }
@@ -110,26 +121,85 @@ export function buildShell(app: App, root: HTMLElement) {
     menu('File', () => [['Open image', 'open', 'open'], ['Open project', 'openProject', 'folder'], ['New image from clipboard', 'newPaste', 'image'], '-', ['Save project', 'save', 'save'], ['Save project as', 'saveAs'], ['Export image', 'export', 'download'], '-', ['Close image', 'close', 'x']]),
     menu('Edit', [['Undo', 'undo', 'undo'], ['Redo', 'redo', 'redo'], '-', ['Cut', 'cut', 'cut'], ['Copy', 'copy', 'copy'], ['Paste as layer', 'paste'], ['Paste as new image', 'newPaste', 'image'], ['Delete', 'delete', 'trash'], '-', ['Select all', 'selectAll'], ['Deselect', 'deselect'], ['Invert selection', 'invert'], '-', ['Settings', 'settings', 'gear']]),
     menu('Image', [['Resize', 'resize', 'resize'], ['Crop to selection', 'cropSel', 'crop'], '-', ['Rotate left', 'rotl', 'rotl'], ['Rotate right', 'rotr', 'rotr'], ['Flip horizontal', 'fliph', 'fliph'], ['Flip vertical', 'flipv', 'flipv'], '-', ['Flatten image', 'flattenImg', 'layers']]),
-    menu('View', () => [['Zoom in', 'zoomIn', 'plus'], ['Zoom out', 'zoomOut', 'minus'], ['Fit to screen', 'fit', 'fit'], ['Actual pixels', 'actual'], ['Before and after', 'compare', 'compare'], '-', [app.fullscreen || document.fullscreenElement ? 'Exit full screen' : 'Full screen', 'fullscreen', 'fullscreen'], ['Show or hide panels', 'panels'], ['Show or hide tools', 'toggleLeft'], ['Show or hide properties', 'toggleRight'], ['Restore default layout', 'resetLayout']]),
+    menu('Layer', [['New layer', 'newLayer', 'plus'], ['New adjustment layer', 'newAdjust', 'sliders'], ['Duplicate layer', 'dupLayer', 'copy'], ['Delete layer', 'delLayer', 'trash'], '-', ['Edit layer alpha', 'editAlpha', 'alpha'], ['Levels', 'levels', 'levels'], '-', ['Flatten image', 'flattenImg', 'layers']]),
+    menu('Select', [['Select all', 'selectAll'], ['Deselect', 'deselect'], ['Invert selection', 'invert'], '-', ['Cut', 'cut', 'cut'], ['Copy', 'copy', 'copy'], ['Delete pixels', 'delete', 'trash']]),
+    menu('View', () => [['Zoom in', 'zoomIn', 'plus'], ['Zoom out', 'zoomOut', 'minus'], ['Fit to screen', 'fit', 'fit'], ['Actual pixels', 'actual'], ['Before and after', 'compare', 'compare'], '-', ['Rotate view left', 'viewRotL', 'rotl'], ['Rotate view right', 'viewRotR', 'rotr'], ['Reset rotation', 'viewRot0'], ['Flip view', 'viewFlip', 'fliph'], '-', [app.fullscreen || document.fullscreenElement ? 'Exit full screen' : 'Full screen', 'fullscreen', 'fullscreen'], ['Show or hide panels', 'panels'], ['Show or hide tools', 'toggleLeft'], ['Show or hide properties', 'toggleRight'], ['Restore default layout', 'resetLayout']]),
     menu('Help', () => [['Quick guide', 'help', 'help'], ...(native ? [['Check for updates', 'updates', 'update'] as [string, string, string]] : []), ['About CocoaShot', 'about']]),
     h('span', { class: 'sep' }), dname, status, h('span', { class: 'sp' }),
-    ib('open', 'Open image', 'open'), ib('save', 'Save project', 'save'), h('span', { class: 'sep' }), undoB, redoB, h('span', { class: 'sep' }),
-    ib('minus', 'Zoom out', 'zoomOut'), zoomLbl, ib('plus', 'Zoom in', 'zoomIn'), ib('fit', 'Fit to screen', 'fit'), cmpB, ib('gear', 'Settings', 'settings'), exportB)
+    h('span', { class: 'topc' }, ib('open', 'Open image', 'open'), ib('save', 'Save project', 'save'), h('span', { class: 'sep' }), undoB, redoB, h('span', { class: 'sep' }),
+      ib('minus', 'Zoom out', 'zoomOut'), zoomLbl, ib('plus', 'Zoom in', 'zoomIn'), ib('fit', 'Fit to screen', 'fit'), cmpB, ib('gear', 'Settings', 'settings')), exportB)
 
   const tools = h('div', { id: 'tools' })
   const layersBox = h('div', { id: 'layersBox' })
-  const left = h('aside', { id: 'left' }, h('div', { class: 'ph' }, 'Tools'), tools, layersBox)
+  const toolsHead = h('div', { class: 'ph' }, 'Tools')
+  const left = h('aside', { id: 'left' })
   const tabs = h('div', { class: 'tabs' })
-  const insp = h('div', { class: 'ib' })
-  const right = h('aside', { id: 'right' }, tabs, insp)
+  const insp = h('div', { class: 'ib', id: 'insp' })
+  const right = h('aside', { id: 'right' })
   const desk = h('main', { id: 'desk', tabIndex: -1 })
+  const docTabs = h('div', { id: 'doctabs', role: 'tablist' })
+  const center = h('div', { id: 'center' })
   const g1 = h('div', { class: 'grip' }), g2 = h('div', { class: 'grip' })
-  const mid = h('div', { id: 'mid' }, left, g1, desk, g2, right)
+  const mid = h('div', { id: 'mid' })
   const foot = h('footer', { id: 'foot' })
-  root.append(top, mid, foot)
   app.view = new Viewport(app, desk)
+  let tab: 'props' | 'hist' = 'props'
+  const showTab = (t: 'props' | 'hist') => { tab = t; renderInsp(); app.emit('insp-tab') }
+  const opts = psOptions(app, run), strip = psStrip(app, run), dock = psDock(app, showTab, () => tab)
+  const sbar = saiBar(app, run), nav = saiNavigator(app), scol = saiColor(app), stiles = saiTools(app), ssizes = saiSizes(app)
+  const col1 = h('aside', { id: 'col1' }), col2 = h('aside', { id: 'col2' })
+
+  const arrange = () => {
+    const st = app.settings.uiStyle || 'classic'
+    const r = document.documentElement
+    for (const c of ['ui-classic', 'ui-ps', 'ui-sai']) r.classList.toggle(c, c === 'ui-' + st)
+    root.innerHTML = ''
+    mid.innerHTML = ''; left.innerHTML = ''; right.innerHTML = ''; center.innerHTML = ''; col1.innerHTML = ''; col2.innerHTML = ''
+    if (st === 'ps') {
+      center.append(docTabs, desk)
+      right.append(tabs, insp, layersBox)
+      mid.append(strip, center, g2, dock, right)
+      root.append(top, opts, mid, foot)
+    } else if (st === 'sai') {
+      center.append(desk, docTabs)
+      col1.append(nav, layersBox)
+      col2.append(scol, stiles, h('div', { class: 'pnl grow' }, tabs, insp, ssizes))
+      mid.append(col1, col2, center)
+      root.append(top, sbar, mid, foot)
+    } else {
+      center.append(docTabs, desk)
+      left.append(toolsHead, tools, layersBox)
+      right.append(tabs, insp)
+      mid.append(left, g1, center, g2, right)
+      root.append(top, mid, foot)
+    }
+    app.applyTheme()
+    renderTabs()
+    renderInsp()
+    requestAnimationFrame(() => app.view.resize())
+  }
+
+  const renderTabs = () => {
+    docTabs.innerHTML = ''
+    const st = app.settings.uiStyle || 'classic'
+    docTabs.hidden = !(app.docs.length > 1 || (st !== 'classic' && app.docs.length > 0))
+    for (const d of app.docs) {
+      const on = d === app.doc
+      const b = h('div', { class: 'dtab' + (on ? ' on' : ''), role: 'tab', 'aria-selected': on ? 'true' : 'false', onclick: () => app.activate(d), title: d.name },
+        h('span', { class: 'dn' }, d.name), d.modified ? h('i', { class: 'dot busy' }) : null,
+        on ? h('span', { class: 'mute dz' }, Math.round(app.view.zoom * 100) + '%') : null,
+        tip(h('button', { class: 'dx', onclick: (e: Event) => { e.stopPropagation(); app.closeDoc(d) } }, icon('x')), 'Close'))
+      b.addEventListener('auxclick', e => { if ((e as MouseEvent).button === 1) app.closeDoc(d) })
+      docTabs.append(b)
+    }
+    if (app.docs.length) docTabs.append(tip(h('button', { class: 'dx add', onclick: () => run.open() }, icon('plus')), 'Open image'))
+  }
+  app.on('tabs', renderTabs)
+  app.on('zoom', renderTabs)
+  app.on('style', arrange)
 
   const layout = () => {
+    mid.style.setProperty('--sw', app.settings.toolCols === 2 ? '84px' : '48px')
     mid.style.setProperty('--lw', app.settings.leftW + 'px')
     mid.style.setProperty('--rw', app.settings.rightW + 'px')
     mid.classList.toggle('nol', !app.settings.leftOpen)
@@ -160,11 +230,10 @@ export function buildShell(app: App, root: HTMLElement) {
     }
   }
 
-  let tab: 'props' | 'hist' = 'props'
   let lastActive = ''
   const renderInsp = () => {
     tabs.innerHTML = ''
-    tabs.append(h('button', { class: tab === 'props' ? 'on' : '', onclick: () => { tab = 'props'; renderInsp() } }, 'Properties'), h('button', { class: tab === 'hist' ? 'on' : '', onclick: () => { tab = 'hist'; renderInsp() } }, 'History'))
+    tabs.append(h('button', { class: tab === 'props' ? 'on' : '', onclick: () => showTab('props') }, 'Properties'), h('button', { class: tab === 'hist' ? 'on' : '', onclick: () => showTab('hist') }, 'History'))
     const sc = insp.scrollTop
     insp.innerHTML = ''
     if (!app.doc) { insp.appendChild(h('p', { class: 'hint' }, 'Open an image to start.')); return }
@@ -303,7 +372,7 @@ export function buildShell(app: App, root: HTMLElement) {
       return
     }
     e.preventDefault()
-    if (id.startsWith('tool:')) { if (app.doc) app.setTool(id.slice(5)) }
+    if (id.startsWith('tool:')) { if (app.doc) app.setTool(app.settings.uiStyle === 'ps' ? groupKey(app, id.slice(5)) : id.slice(5)) }
     else if (app.doc || ['open', 'paste', 'newPaste', 'updates', 'fullscreen', 'panels'].includes(id)) run[id]?.()
   })
   addEventListener('keyup', e => { if (e.key === ' ') { app.view.space = false; app.view.updateCursor() } })
@@ -313,7 +382,10 @@ export function buildShell(app: App, root: HTMLElement) {
   native?.onFullScreen(fsChanged)
   document.addEventListener('fullscreenchange', () => fsChanged(!!document.fullscreenElement))
   native?.onOpenFile(f => app.openFile(f))
-  native?.onWantClose(async () => { if (await app.confirmDiscard()) { await native!.clearRecovery(); native!.closeNow() } })
+  native?.onWantClose(async () => { if (await app.closeAll()) { await native!.clearRecovery(); native!.closeNow() } })
 
+  app.on('style', layout)
+  app.on('tool', () => noteTool(app.toolId))
+  arrange()
   renderTools(); renderInsp(); renderTop(); renderFoot(); renderStart()
 }

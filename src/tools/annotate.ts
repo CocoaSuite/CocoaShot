@@ -25,9 +25,9 @@ export function annotateTools(app: App): Tool[] {
     const place = () => {
       const x = document.createElement('canvas').getContext('2d')!
       const b = textBox(x, s)
-      const p = v.toScreen(s.type === 'callout' ? Math.min(s.x1, s.x2) : s.x1, s.type === 'callout' ? Math.min(s.y1, s.y2) : s.y1)
+      const p = v.screenOf(s.type === 'callout' ? Math.min(s.x1, s.x2) : s.x1, s.type === 'callout' ? Math.min(s.y1, s.y2) : s.y1)
       Object.assign(ta.style, {
-        left: p.x + 'px', top: p.y + 'px', width: Math.max(40, (s.type === 'callout' ? Math.abs(s.x2 - s.x1) : b.w + s.size) * v.zoom) + 'px',
+        left: p.x + 'px', top: p.y + 'px', transformOrigin: '0 0', transform: v.rotated ? `rotate(${v.angle}deg)${v.flip ? ' scaleX(-1)' : ''}` : '', width: Math.max(40, (s.type === 'callout' ? Math.abs(s.x2 - s.x1) : b.w + s.size) * v.zoom) + 'px',
         height: Math.max(20, (s.type === 'callout' ? Math.abs(s.y2 - s.y1) : b.h + s.size * 0.3) * v.zoom) + 'px',
         font: `${s.italic ? 'italic ' : ''}${s.bold ? 600 : 400} ${s.size * v.zoom}px "${s.font}"`, color: 'transparent', caretColor: s.color === '#ffffff' ? '#fff' : s.color,
         textAlign: s.align
