@@ -139,6 +139,7 @@ export function tip<T extends HTMLElement>(el: T, text: string): T {
 export function toast(msg: string, opts: { err?: boolean; action?: string; onAction?: () => void; ms?: number } = {}) {
   let box = document.getElementById('toasts')
   if (!box) { box = h('div', { id: 'toasts' }); document.body.appendChild(box) }
+  for (const el of box.children) if ((el.firstChild as HTMLElement)?.textContent === msg) el.remove()
   const t = h('div', { class: 'toast' + (opts.err ? ' err' : '') }, h('span', { class: 'sp' }, msg),
     opts.action && h('button', { onclick: () => { opts.onAction?.(); t.remove() } }, opts.action))
   box.appendChild(t)

@@ -19,6 +19,7 @@ interface Native {
   copyImage(png: Uint8Array): Promise<void>
   modelsSize(): Promise<number>
   modelsFolder(): Promise<void>
+  dataFolder(): Promise<void>
   ai(op: string, args?: any, onProgress?: (p: any) => void): Promise<any>
   aiCancel(): Promise<void>
   onOpenFile(cb: (f: OpenedFile) => void): void

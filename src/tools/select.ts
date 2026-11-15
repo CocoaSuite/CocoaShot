@@ -296,7 +296,12 @@ export function selectTools(app: App): Tool[] {
         const src = rgbaOf(doc.comp, 1024)
         const s = src.w / doc.w
         if (samFor !== key) { await ai(app, 'samEmbed', src, prog); samFor = key }
-        const r = await ai(app, 'samMask', { points: pts.map(q => [q.x * s, q.y * s]), labels: pts.map(q => (q.pos ? 1 : 0)) }, prog)
+        const args = { points: pts.map(q => [q.x * s, q.y * s]), labels: pts.map(q => (q.pos ? 1 : 0)) }
+        const r = await ai(app, 'samMask', args, prog).catch(async e => {
+          if (!/No image/.test(e.message)) throw e
+          await ai(app, 'samEmbed', src, prog)
+          return ai(app, 'samMask', args, prog)
+        })
         const m = canvasFromAlpha(r.mask, r.w, r.h)
         const full = canvas(doc.w, doc.h); const fx = ctx2d(full); fx.imageSmoothingQuality = 'high'; fx.drawImage(m, 0, 0, doc.w, doc.h)
         applySelection(app, full, pts.length > 1 && mode === 'new' ? 'new' : mode, 'Select object')

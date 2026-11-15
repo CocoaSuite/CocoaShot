@@ -1,17 +1,26 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
-import { env, AutoModel, AutoProcessor, RawImage, SamModel, pipeline } from '@huggingface/transformers'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const ort = require('onnxruntime-node')
+let env, AutoModel, AutoProcessor, RawImage, SamModel, pipeline, ort
+let loadError = null
+try {
+  ;({ env, AutoModel, AutoProcessor, RawImage, SamModel, pipeline } = await import('@huggingface/transformers'))
+  ort = require('onnxruntime-node')
+} catch (e) {
+  loadError = e
+  console.error('Failed to load the AI libraries:', e?.stack || e)
+}
 
 const DIR = process.env.COCOA_MODELS || path.join(process.cwd(), '.models')
-env.cacheDir = DIR
-env.allowLocalModels = true
-env.localModelPath = DIR
-env.allowRemoteModels = true
+if (env) {
+  env.cacheDir = DIR
+  env.allowLocalModels = true
+  env.localModelPath = DIR
+  env.allowRemoteModels = true
+}
 
 export const MODELS = {
   isnet: { repo: 'isnet', files: ['isnet-general-use.onnx'], url: 'https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-general-use.onnx', size: 179e6, name: 'ISNet', use: 'Background removal for products, animals, people and objects', license: 'Apache-2.0', raw: true },
@@ -33,7 +42,7 @@ export async function status() {
 }
 
 const SO = { enableCpuMemArena: false, enableMemPattern: false, graphOptimizationLevel: 'all' }
-let gpu = true
+let gpu = !process.env.COCOA_AI_CPU
 const devices = () => (gpu && process.platform === 'win32' ? ['dml', 'cpu'] : ['cpu'])
 const loaded = new Map()
 
@@ -217,13 +226,26 @@ export async function upscale(a, progress) {
 export const OPS = { status, removeBg, samEmbed, samMask, detect, inpaint, upscale, download: (a, p) => download(a.key, p), remove: a => remove(a.key), setGpu: a => { gpu = !!a.on; loaded.clear(); return true } }
 
 if (process.parentPort) {
+  process.on('uncaughtException', e => console.error('Uncaught:', e?.stack || e))
+  process.on('unhandledRejection', e => console.error('Unhandled:', e?.stack || e))
   process.parentPort.on('message', async e => {
     const { id, op, args } = e.data
     const progress = p => process.parentPort.postMessage({ id, progress: p })
     try {
-      const result = await OPS[op](args || {}, progress)
+      if (loadError && op !== 'status') throw new Error('The AI libraries could not load: ' + (loadError.message || loadError))
+      let result
+      try { result = await OPS[op](args || {}, progress) }
+      catch (err) {
+        if (!gpu || !/887A|DmlExecutionProvider|device instance|D3D12|DXGI|GPU/i.test(String(err?.message || err))) throw err
+        console.error('GPU failed, switching to CPU:', err?.message || err)
+        gpu = false
+        loaded.clear()
+        samCache = null
+        result = await OPS[op](args || {}, progress)
+      }
       process.parentPort.postMessage({ id, ok: true, result })
     } catch (err) {
+      console.error(op, err?.stack || err)
       process.parentPort.postMessage({ id, ok: false, error: String(err?.message || err) })
     }
   })

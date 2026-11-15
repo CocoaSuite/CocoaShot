@@ -153,14 +153,31 @@ async function dirSize(p) {
 }
 ipcMain.handle('modelsSize', () => dirSize(MODELS()))
 ipcMain.handle('modelsFolder', () => { fs.mkdirSync(MODELS(), { recursive: true }); shell.openPath(MODELS()) })
+ipcMain.handle('dataFolder', () => shell.openPath(DATA()))
 
 let ai = null
 let aiSeq = 0
 const aiWait = new Map()
 
+let aiLog = ''
+let aiStopping = false
+const AILOG = () => path.join(DATA(), 'ai.log')
+function logAI(t) {
+  aiLog = (aiLog + t).slice(-4000)
+  fs.appendFile(AILOG(), t, () => {})
+}
+
+let aiCpu = false
 function startAI() {
   if (ai) return ai
-  ai = utilityProcess.fork(path.join(__dirname, 'ai.mjs'), [], { env: { ...process.env, COCOA_MODELS: MODELS() }, serviceName: 'CocoaShot AI' })
+  aiLog = ''
+  aiStopping = false
+  const env = { ...process.env, COCOA_MODELS: MODELS() }
+  if (aiCpu) env.COCOA_AI_CPU = '1'
+  ai = utilityProcess.fork(path.join(__dirname, 'ai.mjs'), [], { env, serviceName: 'CocoaShot AI', stdio: 'pipe' })
+  logAI(`\n--- ${new Date().toISOString()} AI engine started\n`)
+  ai.stdout?.on('data', d => logAI(String(d)))
+  ai.stderr?.on('data', d => logAI(String(d)))
   ai.on('message', m => {
     const w = aiWait.get(m.id)
     if (!w) return
@@ -168,18 +185,27 @@ function startAI() {
     aiWait.delete(m.id)
     m.ok ? w.res(m.result) : w.rej(new Error(m.error))
   })
-  ai.on('exit', () => {
+  ai.on('exit', code => {
     ai = null
-    for (const w of aiWait.values()) w.rej(new Error('Cancelled'))
+    logAI(`--- AI engine stopped, code ${code}\n`)
+    if (!aiStopping && !aiCpu && aiWait.size && [...aiWait.values()].every(w => !w.retried)) {
+      aiCpu = true
+      logAI('--- restarting the AI engine on the CPU\n')
+      const p = startAI()
+      for (const [id, w] of aiWait) { w.retried = true; p.postMessage({ id, op: w.op, args: w.args }) }
+      return
+    }
+    const why = aiStopping ? 'Cancelled' : 'The AI engine stopped unexpectedly (code ' + code + '). ' + (aiLog.trim().split('\n').filter(l => /error|cannot|failed|not found/i.test(l)).slice(-2).join(' ') || 'Details are in ai.log in the CocoaShot data folder.')
+    for (const w of aiWait.values()) w.rej(new Error(why))
     aiWait.clear()
   })
   return ai
 }
-function stopAI() { if (ai) { ai.kill(); ai = null } }
+function stopAI() { if (ai) { aiStopping = true; ai.kill(); ai = null } }
 
 ipcMain.handle('ai', (e, cid, op, args) => new Promise((res, rej) => {
   const id = ++aiSeq
-  aiWait.set(id, { res, rej, sender: e.sender, cid })
+  aiWait.set(id, { res, rej, sender: e.sender, cid, op, args })
   startAI().postMessage({ id, op, args })
 }))
 ipcMain.handle('aiCancel', () => stopAI())

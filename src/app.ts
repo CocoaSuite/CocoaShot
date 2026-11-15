@@ -257,7 +257,7 @@ export class App extends Emitter {
     try {
       return await fn((p, d) => { if (!this.job) return; this.job.progress = p; if (d !== undefined) this.job.detail = d; this.emit('job') })
     } catch (e: any) {
-      if (!/Cancelled/.test(e.message)) toast(e.message || 'Something went wrong', { err: true })
+      if (e.message !== 'Cancelled') toast(e.message || 'Something went wrong', { err: true, ...(/AI engine|AI libraries/.test(e.message) && native ? { action: 'Open log folder', onAction: () => native!.dataFolder() } : {}) })
       return null
     } finally { this.job = null; this.emit('job') }
   }

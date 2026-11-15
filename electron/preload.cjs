@@ -23,10 +23,13 @@ contextBridge.exposeInMainWorld('cocoaNative', {
   copyImage: png => ipcRenderer.invoke('copyImage', png),
   modelsSize: () => ipcRenderer.invoke('modelsSize'),
   modelsFolder: () => ipcRenderer.invoke('modelsFolder'),
+  dataFolder: () => ipcRenderer.invoke('dataFolder'),
   ai: (op, args, onProgress) => {
     const cid = ++seq
     if (onProgress) progress.set(cid, onProgress)
-    return ipcRenderer.invoke('ai', cid, op, args).finally(() => progress.delete(cid))
+    return ipcRenderer.invoke('ai', cid, op, args)
+      .catch(e => { throw new Error(String(e.message).replace(/^Error invoking remote method '\w+': (Error: )?/, '')) })
+      .finally(() => progress.delete(cid))
   },
   aiCancel: () => ipcRenderer.invoke('aiCancel'),
   onOpenFile: cb => ipcRenderer.on('open-file', (_e, f) => cb(f)),
