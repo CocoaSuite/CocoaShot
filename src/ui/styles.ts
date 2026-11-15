@@ -80,7 +80,7 @@ export function psOptions(app: App, run: Record<string, () => void>) {
       if (l?.canvas && b.opts) bar.append(tip(h('button', { class: 'ic' + (l.alphaLock ? ' on' : ''), onclick: () => app.hist!.op(l.alphaLock ? 'Unlock transparency' : 'Lock transparency', () => { l.alphaLock = !l.alphaLock }) }, icon('alpha')), 'Lock transparency'))
     } else bar.append(h('span', { class: 'mute', style: { fontSize: '12px' } }, 'Settings for this tool are in Properties on the right.'))
     bar.append(h('span', { class: 'sp' }))
-    if (b) bar.append(h('span', { class: 'mute', style: { fontSize: '12px' } }, 'Ctrl-drag size · Alt-drag opacity'), h('span', { class: 'sep' }))
+    if (b) bar.append(h('span', { class: 'mute', style: { fontSize: '12px', display: 'flex', gap: '12px' } }, h('span', 'Ctrl-drag size'), h('span', 'Alt-drag opacity')), h('span', { class: 'sep' }))
     const z = h('button', { class: 'zoom', onclick: () => app.view.fit() }, Math.round(app.view.zoom * 100) + '%')
     bar.append(tip(h('button', { class: 'ic', onclick: () => run.zoomOut() }, icon('minus')), 'Zoom out'), tip(z, 'Fit to screen'), tip(h('button', { class: 'ic', onclick: () => run.zoomIn() }, icon('plus')), 'Zoom in'),
       tip(h('button', { class: 'ic' + (app.view.compare === 'split' ? ' on' : ''), onclick: () => run.compare() }, icon('compare')), 'Before and after'),
@@ -117,7 +117,7 @@ export function psStrip(app: App, run: Record<string, () => void>) {
       const t = app.tools.get(face)
       if (!t) continue
       const k = shortcutOf(app, face)
-      const b = tip(h('button', { class: 'tb' + (s.includes(app.toolId) ? ' on' : '') }, icon(t.icon), s.length > 1 && h('span', { class: 'tri' })), t.label + (k ? ' (' + k + ')' : '') + (s.length > 1 ? ' · hold for more' : ''))
+      const b = tip(h('button', { class: 'tb' + (s.includes(app.toolId) ? ' on' : '') }, icon(t.icon), s.length > 1 && h('span', { class: 'tri' })), t.label + (k ? ' (' + k + ')' : '') + (s.length > 1 ? ', hold for more' : ''))
       let hold = 0
       b.addEventListener('pointerdown', e => { if (e.button === 0 && s.length > 1) hold = window.setTimeout(() => { hold = -1; openFly(s, b) }, 380) })
       b.addEventListener('pointerup', () => { if (hold === -1) { hold = 0; return } clearTimeout(hold); hold = 0; app.setTool(face) })
@@ -192,7 +192,7 @@ export function saiBar(app: App, run: Record<string, () => void>) {
     tip(h('button', { class: 'sb txt', onclick: () => app.view.setAngle(0) }, 'Reset'), 'Reset rotation'), flipB, h('span', { class: 'sep' }),
     stabSelect(app, 'Stabilizer'),
     h('span', { class: 'sp' }),
-    h('span', { class: 'mute hintx' }, 'Ctrl-drag size · Alt-drag opacity'),
+    h('span', { class: 'mute hintx', style: { display: 'flex', gap: '12px' } }, h('span', 'Ctrl-drag size'), h('span', 'Alt-drag opacity')),
     sb('compare', 'Before and after', () => run.compare()), sb('fullscreen', 'Full screen (F11)', () => run.fullscreen()), sb('gear', 'Settings', () => run.settings()),
     h('button', { class: 'pri', onclick: () => run.export() }, icon('download'), 'Export'))
   const sync = () => {

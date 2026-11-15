@@ -65,7 +65,7 @@ export function layersPanel(app: App, box: HTMLElement) {
       const th = h('span', { class: 'thumb' + (l.canvas ? ' chk' : '') })
       if (l.canvas && l.kind !== 'text' && l.kind !== 'shape') { const c = h('canvas'); drawThumb(l, c); th.appendChild(c); thumbs.set(l.id, c) }
       else th.appendChild(icon(KIND_ICON[l.kind] || 'layers'))
-      const nm = h('span', { class: 'nm' }, h('span', { class: 'nmt' }, l.name), h('span', { class: 'lsub' }, (BLENDS.find(b => b[0] === l.blend)?.[1] || 'Normal') + ' · ' + Math.round(l.opacity * 100) + '%'))
+      const nm = h('span', { class: 'nm' }, h('span', { class: 'nmt' }, l.name), h('span', { class: 'lsub' }, (BLENDS.find(b => b[0] === l.blend)?.[1] || 'Normal') + '  ' + Math.round(l.opacity * 100) + '%'))
       nm.addEventListener('dblclick', () => {
         const i = h('input', { type: 'text', value: l.name }) as HTMLInputElement
         nm.innerHTML = ''; nm.appendChild(i); i.focus(); i.select()
