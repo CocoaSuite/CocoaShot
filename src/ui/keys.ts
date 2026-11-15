@@ -11,6 +11,7 @@ export const ACTIONS: Action[] = [
   { id: 'redo', label: 'Redo', key: 'Mod+Shift+Z' },
   { id: 'copy', label: 'Copy', key: 'Mod+C' },
   { id: 'paste', label: 'Paste', key: 'Mod+V' },
+  { id: 'newPaste', label: 'Paste as new image', key: 'Mod+Alt+V' },
   { id: 'selectAll', label: 'Select all', key: 'Mod+A' },
   { id: 'deselect', label: 'Deselect', key: 'Mod+D' },
   { id: 'invert', label: 'Invert selection', key: 'Mod+Shift+I' },
