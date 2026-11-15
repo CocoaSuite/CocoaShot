@@ -1,0 +1,272 @@
+import { compose, effectiveMask } from '../core/compose'
+import { contours } from '../core/px'
+import { alphaOf, canvas, ctx2d, Rect, rectUnion } from '../core/util'
+import type { App } from '../app'
+
+export interface Pt { x: number; y: number; p: number; sx: number; sy: number; e: PointerEvent }
+
+export class Viewport {
+  el: HTMLCanvasElement
+  zoom = 1
+  ox = 0
+  oy = 0
+  compare: 'off' | 'split' = 'off'
+  split = 0.5
+  showOriginal = false
+  maskView: 'normal' | 'mask' | 'overlay' = 'normal'
+  hover: { x: number; y: number } | null = null
+  private pending: Rect | null | true = null
+  private raf = 0
+  private ants: Path2D | null = null
+  private antsOff = 0
+  private antTimer = 0
+  private pat: CanvasPattern | null = null
+  private panning: { x: number; y: number; ox: number; oy: number } | null = null
+  space = false
+  private splitDrag = false
+
+  constructor(public app: App, public desk: HTMLElement) {
+    this.el = document.createElement('canvas')
+    this.el.className = 'view'
+    desk.appendChild(this.el)
+    new ResizeObserver(() => this.resize()).observe(desk)
+    this.el.addEventListener('pointerdown', e => this.down(e))
+    this.el.addEventListener('pointermove', e => this.move(e))
+    this.el.addEventListener('pointerup', e => this.up(e))
+    this.el.addEventListener('pointercancel', e => this.up(e))
+    this.el.addEventListener('pointerleave', () => { this.hover = null; this.draw() })
+    this.el.addEventListener('wheel', e => this.wheel(e), { passive: false })
+    this.el.addEventListener('dblclick', e => app.tool?.dbl?.(this.pt(e as any)))
+    this.el.addEventListener('contextmenu', e => e.preventDefault())
+  }
+
+  get doc() { return this.app.doc }
+
+  resize() {
+    const r = this.desk.getBoundingClientRect(), d = devicePixelRatio || 1
+    this.el.width = Math.max(1, Math.round(r.width * d))
+    this.el.height = Math.max(1, Math.round(r.height * d))
+    this.pat = null
+    this.draw()
+  }
+
+  size() { const r = this.desk.getBoundingClientRect(); return { w: r.width, h: r.height } }
+
+  fit() {
+    if (!this.doc) return
+    const { w, h } = this.size()
+    const z = Math.min((w - 60) / this.doc.w, (h - 60) / this.doc.h, 1)
+    this.zoom = Math.max(0.01, z)
+    this.ox = (w - this.doc.w * this.zoom) / 2
+    this.oy = (h - this.doc.h * this.zoom) / 2
+    this.app.emit('zoom')
+    this.draw()
+  }
+
+  setZoom(z: number, cx?: number, cy?: number) {
+    const { w, h } = this.size()
+    cx ??= w / 2; cy ??= h / 2
+    z = Math.max(0.02, Math.min(32, z))
+    const dx = (cx - this.ox) / this.zoom, dy = (cy - this.oy) / this.zoom
+    this.zoom = z
+    this.ox = cx - dx * z
+    this.oy = cy - dy * z
+    this.app.emit('zoom')
+    this.draw()
+  }
+  zoomStep(dir: number) {
+    const steps = [0.05, 0.1, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32]
+    const z = this.zoom
+    const n = dir > 0 ? steps.find(s => s > z * 1.01) : [...steps].reverse().find(s => s < z * 0.99)
+    this.setZoom(n || z)
+  }
+
+  pt(e: PointerEvent): Pt {
+    const r = this.el.getBoundingClientRect()
+    const sx = e.clientX - r.left, sy = e.clientY - r.top
+    return { x: (sx - this.ox) / this.zoom, y: (sy - this.oy) / this.zoom, p: e.pointerType === 'pen' ? e.pressure || 0.5 : 1, sx, sy, e }
+  }
+  toScreen(x: number, y: number) { return { x: x * this.zoom + this.ox, y: y * this.zoom + this.oy } }
+
+  private down(e: PointerEvent) {
+    this.el.focus()
+    if (!this.doc) return
+    this.el.setPointerCapture(e.pointerId)
+    if (e.button === 1 || this.space || (e.button === 0 && this.app.toolId === 'hand')) {
+      this.panning = { x: e.clientX, y: e.clientY, ox: this.ox, oy: this.oy }
+      this.el.style.cursor = 'grabbing'
+      return
+    }
+    if (this.compare === 'split') {
+      const p = this.pt(e)
+      const sx = this.ox + this.doc.w * this.zoom * this.split
+      if (Math.abs(p.sx - sx) < 10) { this.splitDrag = true; return }
+    }
+    if (e.button === 2) return
+    this.app.tool?.down?.(this.pt(e))
+  }
+  private move(e: PointerEvent) {
+    if (this.panning) {
+      this.ox = this.panning.ox + e.clientX - this.panning.x
+      this.oy = this.panning.oy + e.clientY - this.panning.y
+      this.draw()
+      return
+    }
+    const p = this.pt(e)
+    if (this.splitDrag && this.doc) { this.split = Math.max(0, Math.min(1, p.x / this.doc.w)); this.draw(); return }
+    this.hover = { x: p.x, y: p.y }
+    if (this.el.hasPointerCapture(e.pointerId)) {
+      const evs = (e as any).getCoalescedEvents?.() as PointerEvent[] | undefined
+      if (evs && evs.length > 1 && this.app.tool?.move) for (const ce of evs) this.app.tool.move(this.pt(ce), true)
+      else this.app.tool?.move?.(p, true)
+    } else this.app.tool?.move?.(p, false)
+    this.updateCursor(p)
+    this.draw()
+  }
+  private up(e: PointerEvent) {
+    if (this.el.hasPointerCapture(e.pointerId)) this.el.releasePointerCapture(e.pointerId)
+    if (this.panning) { this.panning = null; this.updateCursor(); return }
+    if (this.splitDrag) { this.splitDrag = false; return }
+    this.app.tool?.up?.(this.pt(e))
+    this.draw()
+  }
+  private wheel(e: WheelEvent) {
+    e.preventDefault()
+    const r = this.el.getBoundingClientRect()
+    if (e.ctrlKey || e.metaKey) this.setZoom(this.zoom * Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0025)), e.clientX - r.left, e.clientY - r.top)
+    else {
+      const k = e.deltaMode ? 30 : 1
+      this.ox -= (e.shiftKey ? e.deltaY : e.deltaX) * k
+      this.oy -= (e.shiftKey ? 0 : e.deltaY) * k
+      this.draw()
+    }
+  }
+
+  updateCursor(p?: Pt) {
+    if (this.space || this.app.toolId === 'hand') { this.el.style.cursor = 'grab'; return }
+    this.el.style.cursor = this.app.tool?.cursor?.(p) || 'default'
+  }
+
+  dirty(r: Rect | null) {
+    if (r === null) this.pending = true
+    else if (this.pending !== true) this.pending = rectUnion(this.pending, r)
+    this.schedule()
+  }
+  schedule() { if (!this.raf) this.raf = requestAnimationFrame(() => this.frame()) }
+
+  private frame() {
+    this.raf = 0
+    const doc = this.doc
+    if (doc && this.pending) {
+      const r = this.pending === true ? null : this.pending
+      this.pending = null
+      compose(doc, doc.comp, r, { stroke: this.app.stroke?.preview?.() || null })
+    }
+    this.paint()
+  }
+
+  draw() { this.schedule() }
+
+  selectionChanged() {
+    const s = this.doc?.selection
+    this.ants = null
+    if (!s) { this.stopAnts(); this.draw(); return }
+    const W = s.width, H = s.height
+    const sc = Math.min(1, 1600 / Math.max(W, H))
+    let a: Uint8Array, w = W, hh = H
+    if (sc < 1) {
+      w = Math.round(W * sc); hh = Math.round(H * sc)
+      const t = canvas(w, hh); ctx2d(t).drawImage(s, 0, 0, w, hh); a = alphaOf(t)
+    } else a = alphaOf(s)
+    const p = new Path2D()
+    let any = false
+    for (const l of contours(a, w, hh, 128)) {
+      any = true
+      p.moveTo(l[0] / sc, l[1] / sc)
+      for (let i = 2; i < l.length; i += 2) p.lineTo(l[i] / sc, l[i + 1] / sc)
+      p.closePath()
+    }
+    if (!any) { this.doc!.selection = null; this.stopAnts(); this.app.emit('selection-empty'); this.draw(); return }
+    this.ants = p
+    if (!this.antTimer) this.antTimer = window.setInterval(() => { this.antsOff = (this.antsOff + 1) % 16; this.draw() }, 90)
+    this.draw()
+  }
+  private stopAnts() { clearInterval(this.antTimer); this.antTimer = 0 }
+
+  private checker(x: CanvasRenderingContext2D) {
+    if (this.pat) return this.pat
+    const cs = getComputedStyle(document.documentElement)
+    const c = canvas(16, 16), cx = ctx2d(c)
+    cx.fillStyle = cs.getPropertyValue('--chk1').trim() || '#2b2b2b'; cx.fillRect(0, 0, 16, 16)
+    cx.fillStyle = cs.getPropertyValue('--chk2').trim() || '#363636'; cx.fillRect(0, 0, 8, 8); cx.fillRect(8, 8, 8, 8)
+    this.pat = x.createPattern(c, 'repeat')
+    return this.pat
+  }
+
+  private paint() {
+    const x = this.el.getContext('2d')!
+    const d = devicePixelRatio || 1
+    x.setTransform(1, 0, 0, 1, 0, 0)
+    x.clearRect(0, 0, this.el.width, this.el.height)
+    const doc = this.doc
+    if (!doc) return
+    x.setTransform(d, 0, 0, d, 0, 0)
+    const z = this.zoom, W = doc.w * z, H = doc.h * z
+    x.save()
+    x.shadowColor = 'rgba(0,0,0,.35)'; x.shadowBlur = 24; x.shadowOffsetY = 6
+    x.fillStyle = this.checker(x)!
+    x.translate(this.ox, this.oy)
+    x.fillRect(0, 0, W, H)
+    x.restore()
+    x.save()
+    x.translate(this.ox, this.oy)
+    x.imageSmoothingEnabled = z < 2
+    x.imageSmoothingQuality = 'high'
+    const active = this.app.doc?.active
+    if (this.maskView === 'mask' && active?.mask) {
+      x.fillStyle = '#000'; x.fillRect(0, 0, W, H)
+      x.drawImage(effectiveMask(active)!, 0, 0, W, H)
+    } else {
+      if (this.showOriginal) x.drawImage(doc.original, 0, 0, W, H)
+      else x.drawImage(doc.comp, 0, 0, W, H)
+      if (this.maskView === 'overlay' && active?.mask && active.canvas) {
+        const t = canvas(Math.min(doc.w, 2400), Math.min(doc.h, Math.round(2400 * doc.h / doc.w)))
+        const tx = ctx2d(t)
+        tx.fillStyle = 'rgba(255,60,60,.5)'; tx.fillRect(0, 0, t.width, t.height)
+        tx.globalCompositeOperation = 'destination-out'
+        tx.drawImage(effectiveMask(active)!, 0, 0, t.width, t.height)
+        x.globalAlpha = 0.5
+        x.drawImage(active.canvas, 0, 0, W, H)
+        x.globalAlpha = 1
+        x.drawImage(t, 0, 0, W, H)
+      }
+      if (this.compare === 'split' && !this.showOriginal) {
+        const sx = W * this.split
+        x.save()
+        x.beginPath(); x.rect(0, 0, sx, H); x.clip()
+        x.fillStyle = this.checker(x)!; x.fillRect(0, 0, sx, H)
+        x.drawImage(doc.original, 0, 0, doc.original.width, doc.original.height, 0, 0, W, H)
+        x.restore()
+        x.fillStyle = '#fff'; x.fillRect(sx - 1, 0, 2, H)
+        x.beginPath(); x.arc(sx, H / 2, 13, 0, Math.PI * 2); x.fill()
+        x.strokeStyle = '#111'; x.lineWidth = 2
+        x.beginPath(); x.moveTo(sx - 4, H / 2 - 5); x.lineTo(sx - 8, H / 2); x.lineTo(sx - 4, H / 2 + 5); x.moveTo(sx + 4, H / 2 - 5); x.lineTo(sx + 8, H / 2); x.lineTo(sx + 4, H / 2 + 5); x.stroke()
+        x.font = '500 11px Inter, sans-serif'
+        const tag = (t: string, tx: number) => { const w = x.measureText(t).width + 14; x.fillStyle = 'rgba(18,18,18,.75)'; x.beginPath(); x.roundRect(tx, 10, w, 20, 4); x.fill(); x.fillStyle = '#fff'; x.fillText(t, tx + 7, 24) }
+        if (sx > 80) tag('Before', 10)
+        if (W - sx > 70) tag('After', W - x.measureText('After').width - 24)
+      }
+    }
+    x.restore()
+    if (this.ants) {
+      x.save()
+      x.translate(this.ox, this.oy); x.scale(z, z)
+      x.lineWidth = 1 / z
+      x.setLineDash([4 / z, 4 / z])
+      x.strokeStyle = '#000'; x.lineDashOffset = -this.antsOff / z; x.stroke(this.ants)
+      x.strokeStyle = '#fff'; x.lineDashOffset = (-this.antsOff + 4) / z; x.stroke(this.ants)
+      x.restore()
+    }
+    this.app.tool?.overlay?.(x, this)
+  }
+}
