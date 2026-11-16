@@ -1,6 +1,7 @@
 import type { App } from '../app'
 import { GROUPS, groupOf } from '../tools/types'
 import { h, icon, logo, tip, toast, confirmBox } from './dom'
+import { newImageDialog } from './newimage'
 import { duplicate, groupLayer, layersPanel, newAdjust, newFolder, removeLayer, ungroup } from './layers'
 import { FILTERS, openFilter } from '../tools/filters'
 import { exportDialog, helpDialog, settingsDialog } from './dialogs'
@@ -93,6 +94,7 @@ export function buildShell(app: App, root: HTMLElement) {
         d.layers = [base]; d.activeId = base.id
       })
     },
+    newImage: () => newImageDialog(app),
     newPaste: () => app.newFromClipboard(),
     close: () => app.closeDoc(),
     toggleLeft: () => { app.settings.leftOpen = !app.settings.leftOpen; layout() },
@@ -128,7 +130,7 @@ export function buildShell(app: App, root: HTMLElement) {
   const exportB = h('button', { class: 'pri', style: { marginLeft: '4px' }, onclick: () => run.export() }, 'Export')
   const top = h('header', { id: 'top' },
     h('div', { class: 'brand' }, logo(), 'CocoaShot'),
-    menu('File', () => [['Open image', 'open', 'open'], ['Open project', 'openProject', 'folder'], ['New image from clipboard', 'newPaste', 'image'], '-', ['Save project', 'save', 'save'], ['Save project as', 'saveAs'], ['Export image', 'export', 'download'], '-', ['Close image', 'close', 'x']]),
+    menu('File', () => [['New image', 'newImage', 'plus'], ['Open image', 'open', 'open'], ['Open project', 'openProject', 'folder'], ['New image from clipboard', 'newPaste', 'image'], '-', ['Save project', 'save', 'save'], ['Save project as', 'saveAs'], ['Export image', 'export', 'download'], '-', ['Close image', 'close', 'x']]),
     menu('Edit', [['Undo', 'undo', 'undo'], ['Redo', 'redo', 'redo'], '-', ['Cut', 'cut', 'cut'], ['Copy', 'copy', 'copy'], ['Paste as layer', 'paste'], ['Paste as new image', 'newPaste', 'image'], ['Delete', 'delete', 'trash'], '-', ['Select all', 'selectAll'], ['Deselect', 'deselect'], ['Invert selection', 'invert'], '-', ['Settings', 'settings', 'gear']]),
     menu('Image', [['Resize', 'resize', 'resize'], ['Crop to selection', 'cropSel', 'crop'], ['Free transform', 'transform', 'transform'], '-', ['Rotate left', 'rotl', 'rotl'], ['Rotate right', 'rotr', 'rotr'], ['Flip horizontal', 'fliph', 'fliph'], ['Flip vertical', 'flipv', 'flipv'], '-', ['Flatten image', 'flattenImg', 'layers']]),
     menu('Layer', [['New layer', 'newLayer', 'plus'], ['New folder', 'newFolder', 'folder'], ['New adjustment layer', 'newAdjust', 'sliders'], ['Duplicate layer', 'dupLayer', 'copy'], ['Delete layer', 'delLayer', 'trash'], '-', ['Put in folder', 'groupLayer'], ['Remove folder, keep layers', 'ungroup'], '-', ['Layer effects', 'effects', 'fx'], ['Free transform', 'transform', 'transform'], ['Edit layer alpha', 'editAlpha', 'alpha'], ['Levels', 'levels', 'levels'], '-', ['Flatten image', 'flattenImg', 'layers']]),
@@ -293,9 +295,10 @@ export function buildShell(app: App, root: HTMLElement) {
     ;(drop.querySelector('svg') as SVGElement).style.cssText = 'width:22px;height:22px;margin:0 auto;color:var(--mute)'
     const rec = h('div', { class: 'rec' })
     const card = h('div', { class: 'card' },
-      h('div', {}, h('h1', logo(), 'CocoaShot'), h('p', { class: 'hint', style: { fontSize: '13.5px', marginTop: '6px' } }, 'Open an image to start editing. Everything stays on this computer.')),
+      h('div', {}, h('h1', logo(), 'CocoaShot'), h('p', { class: 'hint', style: { fontSize: '13.5px', marginTop: '6px' } }, 'Open an image or start a blank one. Everything stays on this computer.')),
       h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
         h('button', { class: 'pri big', onclick: () => run.open() }, 'Open image'),
+        h('button', { class: 'big', onclick: () => run.newImage() }, 'New image'),
         h('button', { class: 'big', onclick: () => run.newPaste() }, 'Paste from clipboard'),
         h('button', { class: 'big', onclick: () => run.openProject() }, 'Open project')),
       drop, rec)

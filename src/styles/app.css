@@ -358,3 +358,8 @@ input.val{text-align:right}
 #layersBox > .ph{flex-wrap:wrap;row-gap:4px}
 #layersBox > .ph > span:last-child{flex-wrap:nowrap}
 #layersBox > .ph button.ic,#layersBox .lbar button.ic{padding:2px 4px}
+
+.bgopts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.bgopt{display:flex;align-items:center;gap:7px;justify-content:flex-start}
+.bgopt.on{outline:2px solid var(--sel);outline-offset:-2px}
+.bgopt .sw{width:16px;height:16px;border-radius:3px;border:1px solid var(--line);flex:none}

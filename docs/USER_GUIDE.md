@@ -2,7 +2,9 @@
 
 ## Getting started
 
-Open an image with **Open image**, by dropping it onto the window, or by pasting from the clipboard. Tools are on the left, grouped by task. The selected tool's settings are on the right. Layers are under the tools.
+Open an image with **Open image**, by dropping it onto the window, or by pasting from the clipboard. To start from nothing, use **New image** (Ctrl+N, or File, New image): give it a name, pick a preset or type a width and height in pixels, choose portrait or landscape, and pick a background (white, black, transparent, your front or back colour, or any colour). CocoaShot remembers your last choice. Images can be up to 16384 px on a side and 200 megapixels in total.
+
+Tools are on the left, grouped by task. The selected tool's settings are on the right. Layers are under the tools.
 
 Hold Space and drag, or use the scroll wheel, to move around. Hold Ctrl (Cmd on a Mac) and scroll to zoom. **F11** switches to full screen (Esc leaves it) and **Tab** hides or shows the side panels, so the two together give the image the whole screen.
 
