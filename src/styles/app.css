@@ -345,3 +345,16 @@ input.val{text-align:right}
 :root:not(.light).ui-sai .lr.on{background:#3f5577}
 .lopac{padding:6px 12px 10px}
 .fly button .sp{text-align:left}
+
+.lr .fold{padding:2px;margin-left:-4px}
+.lr .fold svg.i{transform:rotate(-90deg);transition:transform .12s}
+.lr .fold.open svg.i{transform:none}
+.lr.grp .nmt{font-weight:500}
+.lr.dropin{outline:2px solid var(--sel);outline-offset:-2px}
+.lr .fxb{padding:1px}
+.lr .fxb svg.i{width:13px;height:13px}
+.fxsec{border:1px solid var(--line);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:8px}
+.fxsec.off > :not(:first-child){display:none}
+#layersBox > .ph{flex-wrap:wrap;row-gap:4px}
+#layersBox > .ph > span:last-child{flex-wrap:nowrap}
+#layersBox > .ph button.ic,#layersBox .lbar button.ic{padding:2px 4px}

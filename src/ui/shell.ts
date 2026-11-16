@@ -1,7 +1,8 @@
 import type { App } from '../app'
 import { GROUPS, groupOf } from '../tools/types'
 import { h, icon, logo, tip, toast, confirmBox } from './dom'
-import { duplicate, layersPanel, newAdjust, removeLayer } from './layers'
+import { duplicate, groupLayer, layersPanel, newAdjust, newFolder, removeLayer, ungroup } from './layers'
+import { FILTERS, openFilter } from '../tools/filters'
 import { exportDialog, helpDialog, settingsDialog } from './dialogs'
 import { ACTIONS, comboOf } from './keys'
 import { Viewport } from '../view/viewport'
@@ -37,6 +38,14 @@ export function buildShell(app: App, root: HTMLElement) {
     fullscreen: () => app.toggleFullscreen(),
     newLayer: () => app.emit('new-layer'),
     newAdjust: () => app.doc && newAdjust(app),
+    newFolder: () => app.doc && newFolder(app),
+    groupLayer: () => app.doc && groupLayer(app),
+    ungroup: () => app.doc && ungroup(app),
+    effects: () => app.doc && app.setTool('effects'),
+    transform: () => app.doc && app.setTool('transform'),
+    gradient: () => app.doc && app.setTool('gradient'),
+    lastFilter: () => app.doc && openFilter(app),
+    ...Object.fromEntries(FILTERS.map(f => ['filter:' + f.id, () => { if (app.doc) openFilter(app, f.id) }])),
     dupLayer: () => app.doc && duplicate(app),
     delLayer: () => app.doc && removeLayer(app),
     editAlpha: () => app.setTool('alpha'),
@@ -79,6 +88,7 @@ export function buildShell(app: App, root: HTMLElement) {
         const c = flatten(d)
         const base = d.layers.find(l => l.kind === 'image') || d.layers[0]
         base.canvas = c; base.mask = null; base.maskAI = null; base.visible = true; base.opacity = 1; base.blend = 'source-over'; base.clip = false; base.kind = 'image'; base.name = 'Image'
+        base.parent = null; base.fx = null; base.fxCache = null
         base.dirty = true
         d.layers = [base]; d.activeId = base.id
       })
@@ -120,8 +130,14 @@ export function buildShell(app: App, root: HTMLElement) {
     h('div', { class: 'brand' }, logo(), 'CocoaShot'),
     menu('File', () => [['Open image', 'open', 'open'], ['Open project', 'openProject', 'folder'], ['New image from clipboard', 'newPaste', 'image'], '-', ['Save project', 'save', 'save'], ['Save project as', 'saveAs'], ['Export image', 'export', 'download'], '-', ['Close image', 'close', 'x']]),
     menu('Edit', [['Undo', 'undo', 'undo'], ['Redo', 'redo', 'redo'], '-', ['Cut', 'cut', 'cut'], ['Copy', 'copy', 'copy'], ['Paste as layer', 'paste'], ['Paste as new image', 'newPaste', 'image'], ['Delete', 'delete', 'trash'], '-', ['Select all', 'selectAll'], ['Deselect', 'deselect'], ['Invert selection', 'invert'], '-', ['Settings', 'settings', 'gear']]),
-    menu('Image', [['Resize', 'resize', 'resize'], ['Crop to selection', 'cropSel', 'crop'], '-', ['Rotate left', 'rotl', 'rotl'], ['Rotate right', 'rotr', 'rotr'], ['Flip horizontal', 'fliph', 'fliph'], ['Flip vertical', 'flipv', 'flipv'], '-', ['Flatten image', 'flattenImg', 'layers']]),
-    menu('Layer', [['New layer', 'newLayer', 'plus'], ['New adjustment layer', 'newAdjust', 'sliders'], ['Duplicate layer', 'dupLayer', 'copy'], ['Delete layer', 'delLayer', 'trash'], '-', ['Edit layer alpha', 'editAlpha', 'alpha'], ['Levels', 'levels', 'levels'], '-', ['Flatten image', 'flattenImg', 'layers']]),
+    menu('Image', [['Resize', 'resize', 'resize'], ['Crop to selection', 'cropSel', 'crop'], ['Free transform', 'transform', 'transform'], '-', ['Rotate left', 'rotl', 'rotl'], ['Rotate right', 'rotr', 'rotr'], ['Flip horizontal', 'fliph', 'fliph'], ['Flip vertical', 'flipv', 'flipv'], '-', ['Flatten image', 'flattenImg', 'layers']]),
+    menu('Layer', [['New layer', 'newLayer', 'plus'], ['New folder', 'newFolder', 'folder'], ['New adjustment layer', 'newAdjust', 'sliders'], ['Duplicate layer', 'dupLayer', 'copy'], ['Delete layer', 'delLayer', 'trash'], '-', ['Put in folder', 'groupLayer'], ['Remove folder, keep layers', 'ungroup'], '-', ['Layer effects', 'effects', 'fx'], ['Free transform', 'transform', 'transform'], ['Edit layer alpha', 'editAlpha', 'alpha'], ['Levels', 'levels', 'levels'], '-', ['Flatten image', 'flattenImg', 'layers']]),
+    menu('Filter', () => {
+      const out: ([string, string, string?] | '-')[] = []
+      let cat = ''
+      for (const f of FILTERS) { if (cat && f.cat !== cat) out.push('-'); cat = f.cat; out.push([f.label, 'filter:' + f.id]) }
+      return out
+    }),
     menu('Select', [['Select all', 'selectAll'], ['Deselect', 'deselect'], ['Invert selection', 'invert'], '-', ['Cut', 'cut', 'cut'], ['Copy', 'copy', 'copy'], ['Delete pixels', 'delete', 'trash']]),
     menu('View', () => [['Zoom in', 'zoomIn', 'plus'], ['Zoom out', 'zoomOut', 'minus'], ['Fit to screen', 'fit', 'fit'], ['Actual pixels', 'actual'], ['Before and after', 'compare', 'compare'], '-', ['Rotate view left', 'viewRotL', 'rotl'], ['Rotate view right', 'viewRotR', 'rotr'], ['Reset rotation', 'viewRot0'], ['Flip view', 'viewFlip', 'fliph'], '-', [app.fullscreen || document.fullscreenElement ? 'Exit full screen' : 'Full screen', 'fullscreen', 'fullscreen'], ['Show or hide panels', 'panels'], ['Show or hide tools', 'toggleLeft'], ['Show or hide properties', 'toggleRight'], ['Restore default layout', 'resetLayout']]),
     menu('Help', () => [['Quick guide', 'help', 'help'], ...(native ? [['Check for updates', 'updates', 'update'] as [string, string, string]] : []), ['About CocoaShot', 'about']]),
@@ -273,7 +289,7 @@ export function buildShell(app: App, root: HTMLElement) {
     start.hidden = !!app.doc
     if (app.doc) return
     start.innerHTML = ''
-    const drop = h('div', { class: 'drop', onclick: () => run.open() }, h('div', {}, icon('image', 'i'), h('div', { style: { marginTop: '8px' } }, 'Drop an image here'), h('div', { class: 'hint', style: { marginTop: '2px' } }, 'PNG, JPG, WEBP, BMP, TIFF, GIF, PSD')))
+    const drop = h('div', { class: 'drop', onclick: () => run.open() }, h('div', {}, icon('image', 'i'), h('div', { style: { marginTop: '8px' } }, 'Drop an image here'), h('div', { class: 'hint', style: { marginTop: '2px' } }, 'PNG, JPG, WEBP, AVIF, HEIC, BMP, TIFF, GIF, PSD, SVG, ICO, TGA')))
     ;(drop.querySelector('svg') as SVGElement).style.cssText = 'width:22px;height:22px;margin:0 auto;color:var(--mute)'
     const rec = h('div', { class: 'rec' })
     const card = h('div', { class: 'card' },

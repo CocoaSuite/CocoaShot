@@ -1,6 +1,6 @@
 import type { App } from '../app'
 import { flatten } from '../core/compose'
-import { encode, ExportFormat, ExportOpts } from '../core/io'
+import { encode, EXT, ExportFormat, ExportOpts, FORMATS } from '../core/io'
 import { job } from '../core/jobs'
 import { canvas, ctx2d, getData, putData, mkID } from '../core/util'
 import { native, downloadLocal, isMac } from '../native'
@@ -10,7 +10,6 @@ import { mb } from '../tools/common'
 import { checkForUpdates } from './update'
 import { ACTIONS, comboOf, fmtCombo } from './keys'
 
-const EXT: Record<ExportFormat, string> = { png: 'png', jpg: 'jpg', webp: 'webp', tiff: 'tif', bmp: 'bmp' }
 
 export function exportDialog(app: App) {
   const doc = app.doc
@@ -27,24 +26,31 @@ export function exportDialog(app: App) {
       const s = Math.min(1, Math.sqrt(400000 / (o.w * o.h)))
       const c = canvas(Math.max(1, Math.round(o.w * s)), Math.max(1, Math.round(o.h * s)))
       ctx2d(c).drawImage(flat, 0, 0, c.width, c.height)
-      try { const b = await encode(c, { ...o, maxCompress: false }); est.textContent = 'About ' + mb(b.length / (s * s)) } catch { est.textContent = '' }
+      try { if (o.format === 'psd' || o.format === 'avif') { est.textContent = ''; return } const b = await encode(c, { ...o, maxCompress: false }); est.textContent = 'About ' + mb(b.length / (s * s)) } catch { est.textContent = '' }
     }, 250)
   }
   const body = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } })
   const draw = () => {
     body.innerHTML = ''
-    const lossy = o.format === 'jpg' || o.format === 'webp'
-    const canAlpha = o.format !== 'jpg'
+    const lossy = o.format === 'jpg' || o.format === 'webp' || o.format === 'avif' || o.format === 'pdf'
+    const canAlpha = o.format !== 'jpg' && o.format !== 'psd'
+    const sized = o.format !== 'ico'
+    const note: Partial<Record<ExportFormat, string>> = {
+      psd: 'Keeps layers and folders. Masks and effects are applied to each layer, text and shapes become pixels, and adjustment layers show in the merged image only.',
+      pdf: 'One page the size of the image. Transparent images are stored losslessly, opaque ones as JPEG at the quality below.',
+      ico: 'A Windows icon with every size from 16 to 256 px. Non-square images are centred.',
+      avif: 'Small files with good quality. Encoding large images takes a few seconds.'
+    }
     const W = numField('Width', () => o.w, v => { o.w = v; o.h = Math.max(1, Math.round(v * doc.h / doc.w)); H.input.value = String(o.h); estimate() })
     const H = numField('Height', () => o.h, v => { o.h = v; o.w = Math.max(1, Math.round(v * doc.w / doc.h)); W.input.value = String(o.w); estimate() })
     const nameIn = h('input', { type: 'text', value: name }) as HTMLInputElement
     nameIn.addEventListener('input', () => (name = nameIn.value))
     body.append(...[
       h('h2', 'Export image'),
-      hint('Exports a flattened copy. Save project keeps layers, masks and text editable.'),
-      seg([['png', 'PNG'], ['jpg', 'JPG'], ['webp', 'WEBP'], ['tiff', 'TIFF'], ['bmp', 'BMP']], () => o.format, v => { o.format = v as ExportFormat; draw(); estimate() }, 'Format'),
+      hint(note[o.format] || 'Exports a flattened copy. Save project keeps layers, masks and text editable.'),
+      select('Format', FORMATS, () => o.format, v => { o.format = v; draw(); estimate() }),
       lossy && slider('Quality', () => o.quality, v => { o.quality = v; estimate() }, { min: 10, max: 100 }),
-      h('div', { class: 'fr' }, h('label', 'Size'), h('div', { class: 'g3 grow' }, W.el, H.el,
+      sized && h('div', { class: 'fr' }, h('label', 'Size'), h('div', { class: 'g3 grow' }, W.el, H.el,
         h('label', { style: { display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '11px', color: 'var(--mute)' } }, 'Scale',
           h('select', { onchange: (e: Event) => { const k = +(e.target as HTMLSelectElement).value; o.w = Math.round(doc.w * k); o.h = Math.round(doc.h * k); draw(); estimate() } },
             [0.25, 0.5, 1, 2].map(k => h('option', { value: k, selected: Math.abs(o.w / doc.w - k) < 0.001 }, k * 100 + '%')))))),
@@ -67,13 +73,13 @@ export function exportDialog(app: App) {
     app.saveSettings()
     await app.run('Exporting', async () => {
       let c = flat
-      if (o.w !== doc.w || o.h !== doc.h) {
+      if (o.format !== 'psd' && o.format !== 'ico' && (o.w !== doc.w || o.h !== doc.h)) {
         const d = getData(flat)
         const out: Uint8ClampedArray = await job('lanczos', { data: d.data, w: doc.w, h: doc.h, dw: o.w, dh: o.h }, [d.data.buffer])
         c = canvas(o.w, o.h)
         putData(c, mkID(out, o.w, o.h))
       }
-      const bytes = await encode(c, o)
+      const bytes = await encode(c, o, doc)
       const file = (name.trim() || 'image') + '.' + EXT[o.format]
       if (native) {
         const p = await native.joinPath(folder || (await native.defaultFolder()), file)
@@ -100,7 +106,7 @@ export function settingsDialog(app: App, page = 'general') {
       hint('Applies when opening images. The original file is never changed.')
     ]],
     ['export', 'Export', () => [
-      select('Default format', [['png', 'PNG'], ['jpg', 'JPG'], ['webp', 'WEBP'], ['tiff', 'TIFF'], ['bmp', 'BMP']], () => app.settings.exportFormat, v => { app.settings.exportFormat = v; app.saveSettings() }),
+      select('Default format', FORMATS, () => app.settings.exportFormat, v => { app.settings.exportFormat = v; app.saveSettings() }),
       slider('Default quality', () => app.settings.exportQuality, v => { app.settings.exportQuality = v; app.saveSettings() }, { min: 10, max: 100 }),
       native && h('div', { class: 'fr' }, h('label', 'Folder'), h('span', { class: 'grow mute' }, app.settings.exportFolder || 'Pictures'),
         h('button', { onclick: async () => { const f = await native!.pickFolder(app.settings.exportFolder); if (f) { app.settings.exportFolder = f; app.saveSettings(); show('export') } } }, 'Change'))

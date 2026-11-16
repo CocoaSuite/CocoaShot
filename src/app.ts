@@ -1,7 +1,7 @@
-import { Doc, Layer, makeLayer, snapshot } from './core/doc'
+import { Doc, Layer, makeLayer, normalizeTree, shownLocked, snapshot } from './core/doc'
 import { History } from './core/history'
 import { flatten, touch } from './core/compose'
-import { decodeImage, loadProject, saveProject, IMAGE_EXT } from './core/io'
+import { decodeImage, loadProject, saveProject, IMAGE_EXT, type ExportFormat } from './core/io'
 import { canvas, ctx2d, Emitter, fitSize, getData } from './core/util'
 import { cancelJobs } from './core/jobs'
 import { Viewport } from './view/viewport'
@@ -11,7 +11,7 @@ import type { Tool } from './tools/types'
 
 export interface Settings {
   theme: 'dark' | 'light'
-  exportFormat: 'png' | 'jpg' | 'webp' | 'tiff' | 'bmp'
+  exportFormat: ExportFormat
   exportQuality: number
   openLimit: number
   bgModel: 'isnet' | 'birefnet' | 'modnet'
@@ -175,7 +175,7 @@ export class App extends Emitter {
   }
 
   async openDialog(kind?: string) {
-    const f = native ? await native.openDialog(kind) : await pickLocal(kind === 'project' ? '.cocoashot' : 'image/*,.psd,.tif,.tiff,.cocoashot')
+    const f = native ? await native.openDialog(kind) : await pickLocal(kind === 'project' ? '.cocoashot' : 'image/*,.psd,.tif,.tiff,.heic,.heif,.avif,.svg,.ico,.cur,.tga,.cocoashot')
     if (f) await this.openFile(f)
   }
 
@@ -201,8 +201,16 @@ export class App extends Emitter {
         const d = new Doc(c, f.name.replace(/\.[^.]+$/, ''))
         d.path = f.path || null
         if (r.layers && !lim) {
-          d.layers = r.layers.map(pl => { const l = makeLayer('image', pl.name, d.w, d.h); ctx2d(l.canvas!).drawImage(pl.canvas, 0, 0); l.opacity = pl.opacity; l.visible = pl.visible; return l })
-          d.activeId = d.layers[d.layers.length - 1].id
+          const made = r.layers.map(pl => {
+            const l = makeLayer(pl.folder ? 'group' : 'image', pl.name, d.w, d.h, !pl.folder)
+            if (pl.canvas) ctx2d(l.canvas!).drawImage(pl.canvas, 0, 0)
+            l.opacity = pl.opacity; l.visible = pl.visible; l.blend = pl.blend; l.collapsed = !pl.open; l.clip = pl.clip
+            return l
+          })
+          r.layers.forEach((pl, i) => { if (pl.parent !== null) made[i].parent = made[pl.parent]?.id || null })
+          d.layers = made
+          normalizeTree(d)
+          d.activeId = [...d.layers].reverse().find(l => l.kind !== 'group')!.id
         }
         d.modified = false
         this.setDoc(d)
@@ -333,7 +341,8 @@ export class App extends Emitter {
   activeRaster(): Layer | null {
     const l = this.doc?.active
     if (!l) return null
-    if (l.locked) { toast(`${l.name} is locked`); return null }
+    if (shownLocked(this.doc!, l)) { toast(`${l.name} is locked`); return null }
+    if (l.kind === 'group') { toast('Select a layer inside the folder first'); return null }
     if (l.kind === 'text' || l.kind === 'shape' || l.kind === 'outline' || l.kind === 'adjust' || l.kind === 'background') {
       toast('Select an image or paint layer first')
       return null

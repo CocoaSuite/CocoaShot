@@ -1,13 +1,20 @@
 import { strFromU8, strToU8, unzipSync, zipSync, zlibSync, unzlibSync } from 'fflate'
 import UTIF from 'utif'
 import { readPsd } from 'ag-psd'
-import { cloneAdjust, Doc, Layer, makeLayer } from './doc'
+import { Blend, cloneAdjust, Doc, Layer, makeLayer, normalizeTree, normFx } from './doc'
+import { blendFromPsd, decodeHeic, decodeSvg, decodeTga, encodeAvif, encodeIco, encodePdf, encodePsd } from './formats'
 import { canvas, ctx2d, getData, putData, mkID } from './util'
 
-export const IMAGE_EXT = /\.(png|jpe?g|webp|bmp|tiff?|gif|psd)$/i
+export const IMAGE_EXT = /\.(png|jpe?g|jfif|webp|avif|heic|heif|bmp|tiff?|gif|psd|svg|ico|cur|tga)$/i
 
-export async function decodeImage(name: string, data: ArrayBuffer): Promise<{ canvas: HTMLCanvasElement; layers?: { name: string; canvas: HTMLCanvasElement; opacity: number; visible: boolean }[] }> {
+/** A layer read from a PSD file. Folders have no canvas; parent is the index of the folder in the same list. */
+export interface ImportedLayer { name: string; canvas: HTMLCanvasElement | null; opacity: number; visible: boolean; blend: Blend; folder: boolean; open: boolean; parent: number | null; clip: boolean }
+
+export async function decodeImage(name: string, data: ArrayBuffer): Promise<{ canvas: HTMLCanvasElement; layers?: ImportedLayer[] }> {
   const ext = (name.split('.').pop() || '').toLowerCase()
+  if (ext === 'heic' || ext === 'heif') return { canvas: await decodeHeic(data) }
+  if (ext === 'svg') return { canvas: await decodeSvg(data) }
+  if (ext === 'tga') return { canvas: decodeTga(data) }
   if (ext === 'tif' || ext === 'tiff') {
     const ifds = UTIF.decode(data)
     if (!ifds.length) throw new Error('This TIFF file has no images')
@@ -22,18 +29,25 @@ export async function decodeImage(name: string, data: ArrayBuffer): Promise<{ ca
     const psd = readPsd(data, { skipThumbnail: true })
     const c = canvas(psd.width, psd.height)
     if (psd.canvas) ctx2d(c).drawImage(psd.canvas as any, 0, 0)
-    const layers: any[] = []
-    const walk = (ch: any[] | undefined) => {
+    const layers: ImportedLayer[] = []
+    // ag-psd lists layers bottom to top. Parent links are enough: the document puts each folder above its contents.
+    const walk = (ch: any[] | undefined, parent: number | null) => {
       for (const l of ch || []) {
-        if (l.children) { walk(l.children); continue }
+        const common = { name: l.name || 'Layer', opacity: l.opacity ?? 1, visible: !l.hidden, blend: blendFromPsd(l.blendMode), clip: !!l.clipping, parent }
+        if (l.children) {
+          const at = layers.length
+          layers.push({ ...common, canvas: null, folder: true, open: !!l.opened })
+          walk(l.children, at)
+          continue
+        }
         if (!l.canvas) continue
         const lc = canvas(psd.width, psd.height)
         ctx2d(lc).drawImage(l.canvas, l.left || 0, l.top || 0)
-        layers.push({ name: l.name || 'Layer', canvas: lc, opacity: l.opacity ?? 1, visible: !l.hidden })
+        layers.push({ ...common, canvas: lc, folder: false, open: false })
       }
     }
-    walk(psd.children)
-    return { canvas: c, layers: layers.length ? layers : undefined }
+    walk(psd.children, null)
+    return { canvas: c, layers: layers.some(l => !l.folder) ? layers : undefined }
   }
   const bmp = await createImageBitmap(new Blob([data]), { colorSpaceConversion: 'default', premultiplyAlpha: 'none' } as any)
   const c = canvas(bmp.width, bmp.height)
@@ -42,12 +56,17 @@ export async function decodeImage(name: string, data: ArrayBuffer): Promise<{ ca
   return { canvas: c }
 }
 
-export type ExportFormat = 'png' | 'jpg' | 'webp' | 'tiff' | 'bmp'
+export type ExportFormat = 'png' | 'jpg' | 'webp' | 'avif' | 'tiff' | 'bmp' | 'psd' | 'pdf' | 'ico'
+export const FORMATS: [ExportFormat, string][] = [['png', 'PNG'], ['jpg', 'JPG'], ['webp', 'WEBP'], ['avif', 'AVIF'], ['tiff', 'TIFF'], ['bmp', 'BMP'], ['psd', 'PSD (layers)'], ['pdf', 'PDF'], ['ico', 'ICO (icon)']]
+export const EXT: Record<ExportFormat, string> = { png: 'png', jpg: 'jpg', webp: 'webp', avif: 'avif', tiff: 'tif', bmp: 'bmp', psd: 'psd', pdf: 'pdf', ico: 'ico' }
 export interface ExportOpts { format: ExportFormat; quality: number; w: number; h: number; transparent: boolean; matte: string; srgb: boolean; maxCompress: boolean }
 
 const blob = (c: HTMLCanvasElement, type: string, q?: number) => new Promise<Blob>((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('Encoding failed'))), type, q))
 
-export async function encode(c: HTMLCanvasElement, o: ExportOpts): Promise<Uint8Array> {
+/** Encodes an export. PSD needs the document (it keeps layers); everything else uses the flattened image c. */
+export async function encode(c: HTMLCanvasElement, o: ExportOpts, doc?: Doc): Promise<Uint8Array> {
+  if (o.format === 'psd') { if (!doc) throw new Error('Nothing to export'); return encodePsd(doc, o.w, o.h) }
+  if (o.format === 'pdf') return encodePdf(c, o.quality, o.transparent)
   let src = c
   const flat = !o.transparent || o.format === 'jpg'
   if (flat) {
@@ -65,6 +84,8 @@ export async function encode(c: HTMLCanvasElement, o: ExportOpts): Promise<Uint8
   }
   if (o.format === 'jpg') return new Uint8Array(await (await blob(src, 'image/jpeg', o.quality / 100)).arrayBuffer())
   if (o.format === 'webp') return new Uint8Array(await (await blob(src, 'image/webp', o.quality / 100)).arrayBuffer())
+  if (o.format === 'avif') return encodeAvif(src, o.quality)
+  if (o.format === 'ico') return encodeIco(src)
   const d = getData(src)
   if (o.format === 'tiff') return new Uint8Array(UTIF.encodeImage(d.data.buffer, d.width, d.height))
   return encodeBmp(d)
@@ -141,7 +162,7 @@ export function pngWithSrgb(png: Uint8Array): Uint8Array {
 async function png(c: HTMLCanvasElement) { return new Uint8Array(await (await blob(c, 'image/png')).arrayBuffer()) }
 async function fromPng(b: Uint8Array) { const bm = await createImageBitmap(new Blob([b as any]), { premultiplyAlpha: 'none' } as any); const c = canvas(bm.width, bm.height); ctx2d(c).drawImage(bm, 0, 0); bm.close(); return c }
 
-const LAYER_KEYS = ['id', 'name', 'kind', 'visible', 'locked', 'opacity', 'blend', 'alphaLock', 'clip', 'maskOpts', 'shape', 'outline', 'adjust', 'bgFor'] as const
+const LAYER_KEYS = ['id', 'name', 'kind', 'visible', 'locked', 'opacity', 'blend', 'alphaLock', 'clip', 'maskOpts', 'shape', 'outline', 'adjust', 'bgFor', 'parent', 'collapsed', 'fx'] as const
 
 export async function saveProject(doc: Doc): Promise<Uint8Array> {
   const files: Record<string, Uint8Array> = {}
@@ -171,9 +192,12 @@ export async function loadProject(data: ArrayBuffer, fileName: string): Promise<
   doc.comp = canvas(p.w, p.h)
   doc.layers = []
   for (const o of p.layers) {
-    const l: Layer = makeLayer(o.kind, o.name, p.w, p.h, o.kind !== 'adjust')
+    const l: Layer = makeLayer(o.kind, o.name, p.w, p.h, o.kind !== 'adjust' && o.kind !== 'group')
     for (const k of LAYER_KEYS) if (o[k] !== undefined) (l as any)[k] = o[k]
     if (l.adjust) l.adjust = cloneAdjust(l.adjust)
+    l.fx = normFx(o.fx)
+    l.parent = o.parent || null
+    l.collapsed = !!o.collapsed
     if (z[`layers/${o.id}.png`]) l.canvas = await fromPng(z[`layers/${o.id}.png`])
     if (z[`masks/${o.id}.png`]) l.mask = await fromPng(z[`masks/${o.id}.png`])
     if (z[`masksai/${o.id}.png`]) l.maskAI = await fromPng(z[`masksai/${o.id}.png`])
@@ -181,6 +205,7 @@ export async function loadProject(data: ArrayBuffer, fileName: string): Promise<
     l.dirty = true; l.maskDirty = true
     doc.layers.push(l)
   }
+  normalizeTree(doc)
   if (z['selection.png']) doc.selection = await fromPng(z['selection.png'])
   doc.activeId = doc.layer(p.active) ? p.active : doc.layers[doc.layers.length - 1].id
   doc.modified = false

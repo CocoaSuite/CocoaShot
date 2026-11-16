@@ -25,10 +25,12 @@
     "@huggingface/transformers": "^3.8.0"
   },
   "devDependencies": {
+    "@jsquash/avif": "^2.1.1",
     "ag-psd": "^34.2.0",
     "electron": "^45.3.2",
     "electron-builder": "^26.0.0",
     "fflate": "^0.8.2",
+    "libheif-js": "^1.23.5",
     "typescript": "^5.9.0",
     "utif": "^3.1.0",
     "vite": "^7.0.0"
@@ -75,7 +77,13 @@
           "tif",
           "tiff",
           "gif",
-          "psd"
+          "psd",
+          "avif",
+          "heic",
+          "heif",
+          "svg",
+          "ico",
+          "tga"
         ],
         "name": "Image",
         "role": "Editor",

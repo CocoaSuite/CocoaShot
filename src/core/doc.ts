@@ -1,6 +1,6 @@
-import { canvas, copyCanvas, ctx2d, Emitter, Rect, uid } from './util'
+import { canvas, copyCanvas, ctx2d, Emitter, type Rect, uid } from './util'
 
-export type LayerKind = 'image' | 'paint' | 'text' | 'shape' | 'highlight' | 'outline' | 'adjust' | 'background'
+export type LayerKind = 'image' | 'paint' | 'text' | 'shape' | 'highlight' | 'outline' | 'adjust' | 'background' | 'group'
 export type Blend = 'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'color-burn' | 'soft-light' | 'hard-light' | 'difference' | 'color' | 'luminosity'
 
 export interface MaskOpts { feather: number; smooth: number; shift: number }
@@ -43,6 +43,31 @@ export interface OutlineOpts {
   glow: number; round: boolean
 }
 
+export interface FxShadow { on: boolean; color: string; opacity: number; angle: number; distance: number; size: number }
+export interface FxGlow { on: boolean; color: string; opacity: number; size: number }
+export interface FxStroke { on: boolean; color: string; opacity: number; size: number; position: 'outside' | 'inside' | 'center' }
+export interface FxOverlay { on: boolean; color: string; opacity: number }
+/** Layer effects, drawn around and over the layer's pixels without changing them. */
+export interface Effects { shadow: FxShadow; glow: FxGlow; stroke: FxStroke; inner: FxShadow; overlay: FxOverlay }
+
+export const freshFx = (): Effects => ({
+  shadow: { on: false, color: '#000000', opacity: 0.6, angle: 120, distance: 8, size: 12 },
+  glow: { on: false, color: '#fff3a8', opacity: 0.8, size: 16 },
+  stroke: { on: false, color: '#ffffff', opacity: 1, size: 4, position: 'outside' },
+  inner: { on: false, color: '#000000', opacity: 0.5, angle: 120, distance: 4, size: 8 },
+  overlay: { on: false, color: '#e25b45', opacity: 1 }
+})
+export const cloneFx = (f: Effects | null): Effects | null => f && {
+  shadow: { ...f.shadow }, glow: { ...f.glow }, stroke: { ...f.stroke }, inner: { ...f.inner }, overlay: { ...f.overlay }
+}
+export const fxActive = (f: Effects | null | undefined) => !!f && (f.shadow.on || f.glow.on || f.stroke.on || f.inner.on || f.overlay.on)
+/** Fills in effects missing from projects saved by older versions. */
+export const normFx = (f: any): Effects | null => {
+  if (!f) return null
+  const d = freshFx()
+  return { shadow: { ...d.shadow, ...f.shadow }, glow: { ...d.glow, ...f.glow }, stroke: { ...d.stroke, ...f.stroke }, inner: { ...d.inner, ...f.inner }, overlay: { ...d.overlay, ...f.overlay } }
+}
+
 export interface BgOpts { mode: 'none' | 'color' | 'image' | 'blur'; color: string; blur: number; image?: HTMLCanvasElement }
 
 export interface Layer {
@@ -64,6 +89,15 @@ export interface Layer {
   adjust: Adjust | null
   bg: BgOpts | null
   bgFor: string | null
+  /** Folder this layer belongs to, or null at the top level. */
+  parent: string | null
+  /** Folders only: children hidden in the layers panel. */
+  collapsed: boolean
+  fx: Effects | null
+  fxCache: HTMLCanvasElement | null
+  fxKey: string
+  /** While a layer is dragged: its effects image moved along with it, shown instead of re-rendering every frame. */
+  fxHold?: HTMLCanvasElement | null
   dirty: Rect | true | null
   maskDirty: Rect | true | null
   cache: HTMLCanvasElement | null
@@ -75,11 +109,13 @@ export function makeLayer(kind: LayerKind, name: string, w: number, h: number, r
     id: uid(), name, kind, visible: true, locked: false, opacity: 1, blend: 'source-over',
     alphaLock: false, clip: false, canvas: raster ? canvas(w, h) : null, mask: null, maskAI: null,
     maskOpts: { feather: 0, smooth: 0, shift: 0 }, shape: null, outline: null, adjust: null, bg: null, bgFor: null,
+    parent: null, collapsed: false, fx: null, fxCache: null, fxKey: '',
     dirty: true, maskDirty: null, cache: null, maskCache: null
   }
 }
 
 export const isRaster = (l: Layer) => !!l.canvas && l.kind !== 'text' && l.kind !== 'shape' && l.kind !== 'outline'
+export const isGroup = (l: Layer | null | undefined) => l?.kind === 'group'
 
 export class Doc extends Emitter {
   w: number
@@ -111,14 +147,83 @@ export class Doc extends Emitter {
   layer(id: string) { return this.layers.find(l => l.id === id) }
   index(id: string) { return this.layers.findIndex(l => l.id === id) }
 
-  changed(rect?: Rect | null) { this.modified = true; this.emit('change', rect || null) }
-  structure() { this.modified = true; this.emit('layers'); this.emit('change', null) }
+  changed(rect?: Rect | null) {
+    this.modified = true
+    // Effects reach beyond what changed (a shadow follows its layer), so redraw everything.
+    if (rect && this.layers.some(l => l.visible && fxActive(l.fx))) rect = null
+    this.emit('change', rect || null)
+  }
+  structure() { normalizeTree(this); this.modified = true; this.emit('layers'); this.emit('change', null) }
 
+  /** Adds l above the layer `above`, in the same folder. Above an open folder, l goes to the top of that folder. */
   add(l: Layer, above?: string) {
-    const i = above ? this.index(above) : this.layers.length - 1
-    this.layers.splice(i + 1, 0, l)
+    const ref = above ? this.layer(above) : undefined
+    if (!ref) { l.parent = null; this.layers.push(l) }
+    else if (ref.kind === 'group' && !ref.collapsed && l.kind !== 'background') { l.parent = ref.id; this.layers.splice(this.index(ref.id), 0, l) }
+    else { l.parent = ref.parent; this.layers.splice(this.index(ref.id) + 1, 0, l) }
     this.activeId = l.id
   }
+}
+
+/** Layers whose folder is `parent` (null for the top level), bottom to top. */
+export function childrenOf(doc: Doc, parent: string | null) { return doc.layers.filter(l => l.parent === parent) }
+
+export function ancestors(doc: Doc, l: Layer): Layer[] {
+  const out: Layer[] = []
+  let p = l.parent ? doc.layer(l.parent) : undefined
+  while (p && out.length < 64) { out.push(p); p = p.parent ? doc.layer(p.parent) : undefined }
+  return out
+}
+export const isInside = (doc: Doc, l: Layer, folder: Layer) => ancestors(doc, l).includes(folder)
+export const shownVisible = (doc: Doc, l: Layer) => l.visible && ancestors(doc, l).every(a => a.visible)
+export const shownLocked = (doc: Doc, l: Layer) => l.locked || ancestors(doc, l).some(a => a.locked)
+export const depthOf = (doc: Doc, l: Layer) => ancestors(doc, l).length
+
+/** A layer with everything inside it (for folders), bottom to top, as it sits in doc.layers. */
+export function subtree(doc: Doc, l: Layer): Layer[] {
+  if (l.kind !== 'group') return [l]
+  return [...doc.layers.filter(x => x !== l && isInside(doc, x, l)), l]
+}
+
+/**
+ * Keeps doc.layers in folder order: every folder sits directly above its contents, so a folder and
+ * everything in it is one unbroken run. Relative order inside each folder is kept. Broken parent
+ * links (a deleted folder, a non-folder parent) fall back to the top level.
+ */
+export function normalizeTree(doc: Doc) {
+  const ids = new Map(doc.layers.map(l => [l.id, l]))
+  for (const l of doc.layers) {
+    const p = l.parent ? ids.get(l.parent) : undefined
+    if (l.parent && (!p || p.kind !== 'group' || p === l)) l.parent = null
+  }
+  for (const l of doc.layers) if (l.parent) { const seen = new Set<string>(); let p: Layer | undefined = l; while (p?.parent) { if (seen.has(p.id)) { l.parent = null; break } seen.add(p.id); p = ids.get(p.parent) } }
+  const out: Layer[] = []
+  const emit = (parent: string | null) => { for (const l of doc.layers) if (l.parent === parent) { if (l.kind === 'group') emit(l.id); out.push(l) } }
+  emit(null)
+  if (out.length === doc.layers.length && out.every((l, i) => l === doc.layers[i])) return
+  doc.layers = out
+}
+
+/**
+ * Moves a layer (and its contents, for a folder) next to ref: 'above' or 'below' it in ref's folder,
+ * or 'into' ref when ref is a folder (to the top of it). Returns false for a move into itself.
+ */
+export function moveLayer(doc: Doc, id: string, refId: string | null, where: 'above' | 'below' | 'into'): boolean {
+  const l = doc.layer(id)
+  const ref = refId ? doc.layer(refId) : null
+  if (!l || ref === l) return false
+  if (ref && (isInside(doc, ref, l))) return false
+  if (where === 'into' && ref?.kind !== 'group') where = 'above'
+  const block = subtree(doc, l)
+  const rest = doc.layers.filter(x => !block.includes(x))
+  let at: number
+  if (!ref) { at = rest.length; l.parent = null }
+  else if (where === 'into') { at = rest.indexOf(ref); l.parent = ref.id }
+  else if (where === 'above') { at = rest.indexOf(ref) + 1; l.parent = ref.parent }
+  else { at = rest.indexOf(subtree(doc, ref)[0]); l.parent = ref.parent }
+  rest.splice(at, 0, ...block)
+  doc.layers = rest
+  return true
 }
 
 export function snapshot(doc: Doc) {
@@ -130,7 +235,8 @@ export function snapshot(doc: Doc) {
         name: l.name, visible: l.visible, locked: l.locked, opacity: l.opacity, blend: l.blend, alphaLock: l.alphaLock,
         clip: l.clip, canvas: l.canvas, mask: l.mask, maskAI: l.maskAI, maskOpts: { ...l.maskOpts },
         shape: l.shape && { ...l.shape }, outline: l.outline && { ...l.outline },
-        adjust: l.adjust && cloneAdjust(l.adjust), bg: l.bg && { ...l.bg }, bgFor: l.bgFor
+        adjust: l.adjust && cloneAdjust(l.adjust), bg: l.bg && { ...l.bg }, bgFor: l.bgFor,
+        parent: l.parent, collapsed: l.collapsed, fx: cloneFx(l.fx)
       }
     }))
   }
@@ -142,8 +248,8 @@ export function restore(doc: Doc, s: Snap) {
   if (doc.comp.width !== s.w || doc.comp.height !== s.h) doc.comp = canvas(s.w, s.h)
   doc.selection = s.selection
   doc.layers = s.layers.map(({ ref, p }) => {
-    Object.assign(ref, p, { maskOpts: { ...p.maskOpts }, shape: p.shape && { ...p.shape }, outline: p.outline && { ...p.outline }, adjust: p.adjust && cloneAdjust(p.adjust), bg: p.bg && { ...p.bg } })
-    ref.dirty = true; ref.maskDirty = true; ref.cache = null; ref.maskCache = null
+    Object.assign(ref, p, { maskOpts: { ...p.maskOpts }, shape: p.shape && { ...p.shape }, outline: p.outline && { ...p.outline }, adjust: p.adjust && cloneAdjust(p.adjust), bg: p.bg && { ...p.bg }, fx: cloneFx(p.fx) })
+    ref.fxKey = ''; ref.dirty = true; ref.maskDirty = true; ref.cache = null; ref.maskCache = null
     return ref
   })
   doc.activeId = doc.layer(s.active) ? s.active : doc.layers[doc.layers.length - 1]?.id
