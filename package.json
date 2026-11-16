@@ -65,27 +65,126 @@
         "name": "CocoaShot Project",
         "description": "CocoaShot project",
         "mimeType": "application/x-cocoashot",
-        "role": "Editor"
+        "role": "Editor",
+        "icon": "fileicons/cocoashot"
       },
       {
-        "ext": [
-          "png",
-          "jpg",
-          "jpeg",
-          "webp",
-          "bmp",
-          "tif",
-          "tiff",
-          "gif",
-          "psd",
-          "avif",
-          "heic",
-          "heif",
-          "svg",
-          "ico",
-          "tga"
-        ],
-        "name": "Image",
+        "ext": "png",
+        "name": "CocoaShot.png",
+        "description": "PNG image",
+        "icon": "fileicons/png",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": "jpg",
+        "name": "CocoaShot.jpg",
+        "description": "JPEG image",
+        "icon": "fileicons/jpg",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": "jpeg",
+        "name": "CocoaShot.jpeg",
+        "description": "JPEG image",
+        "icon": "fileicons/jpeg",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": "webp",
+        "name": "CocoaShot.webp",
+        "description": "WebP image",
+        "icon": "fileicons/webp",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": "bmp",
+        "name": "CocoaShot.bmp",
+        "description": "Bitmap image",
+        "icon": "fileicons/bmp",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": "tif",
+        "name": "CocoaShot.tif",
+        "description": "TIFF image",
+        "icon": "fileicons/tif",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": "tiff",
+        "name": "CocoaShot.tiff",
+        "description": "TIFF image",
+        "icon": "fileicons/tiff",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": "gif",
+        "name": "CocoaShot.gif",
+        "description": "GIF image",
+        "icon": "fileicons/gif",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": "psd",
+        "name": "CocoaShot.psd",
+        "description": "Photoshop document",
+        "icon": "fileicons/psd",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": "avif",
+        "name": "CocoaShot.avif",
+        "description": "AVIF image",
+        "icon": "fileicons/avif",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": "heic",
+        "name": "CocoaShot.heic",
+        "description": "HEIC image",
+        "icon": "fileicons/heic",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": "heif",
+        "name": "CocoaShot.heif",
+        "description": "HEIF image",
+        "icon": "fileicons/heif",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": "svg",
+        "name": "CocoaShot.svg",
+        "description": "SVG image",
+        "icon": "fileicons/svg",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": "ico",
+        "name": "CocoaShot.ico",
+        "description": "Icon",
+        "icon": "fileicons/ico",
+        "role": "Editor",
+        "rank": "Alternate"
+      },
+      {
+        "ext": "tga",
+        "name": "CocoaShot.tga",
+        "description": "TGA image",
+        "icon": "fileicons/tga",
         "role": "Editor",
         "rank": "Alternate"
       }
