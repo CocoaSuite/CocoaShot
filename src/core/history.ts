@@ -1,4 +1,4 @@
-import { Doc, Layer, restore, snapshot, Snap } from './doc'
+import { Doc, Layer, normalizeTree, restore, snapshot, Snap } from './doc'
 import { getData, putData, Rect } from './util'
 
 interface Entry { label: string; undo: () => void; redo: () => void; size: number }
@@ -30,6 +30,7 @@ export class History {
   private after() { this.doc.emit('history'); this.doc.structure(); this.doc.emit('selection') }
 
   structural(label: string, before: Snap) {
+    normalizeTree(this.doc)
     const after = snapshot(this.doc)
     this.push({ label, undo: () => restore(this.doc, before), redo: () => restore(this.doc, after), size: 2048 })
   }

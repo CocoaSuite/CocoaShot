@@ -103,7 +103,11 @@ const P: Record<string, string> = {
   up: 'M12 19V5M5 12l7-7 7 7',
   sparkle: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z',
   person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
-  download: 'M12 3v12M7 10l5 5 5-5M5 21h14'
+  download: 'M12 3v12M7 10l5 5 5-5M5 21h14',
+  fx: 'M11 4H9a2 2 0 0 0-2 2v14M4 10h6M14 11l7 9M21 11l-7 9',
+  transform: 'M6 6h12v12H6zM3 3h4v4H3zM17 3h4v4h-4zM3 17h4v4H3zM17 17h4v4h-4z',
+  gradient: 'M3 3h18v18H3zM8 3v18M12 3v18M15.5 3v18M18.5 3v18',
+  filter: 'M3 4h18l-7 8.5V19l-4 2v-8.5z'
 }
 
 export function icon(name: string, cls = 'i') {

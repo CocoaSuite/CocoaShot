@@ -13,7 +13,7 @@ const DATA = () => app.getPath('userData')
 const MODELS = () => path.join(DATA(), 'models')
 const RECENT = () => path.join(DATA(), 'recent.json')
 const RECOVERY = () => path.join(DATA(), 'recovery.cocoashot')
-const OPENABLE = /\.(png|jpe?g|webp|bmp|tiff?|gif|psd|cocoashot)$/i
+const OPENABLE = /\.(png|jpe?g|jfif|webp|avif|heic|heif|bmp|tiff?|gif|psd|svg|ico|cur|tga|cocoashot)$/i
 
 let win = null
 const pending = []
@@ -103,10 +103,11 @@ ipcMain.on('setTitleBar', (_e, color, symbolColor, height) => {
 })
 ipcMain.on('setTitle', (_e, t) => { if (win) win.setTitle(String(t).slice(0, 200)) })
 
-const IMG_FILTERS = [{ name: 'Images and projects', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'tif', 'tiff', 'gif', 'psd', 'cocoashot'] }]
+const IMAGE_TYPES = ['png', 'jpg', 'jpeg', 'jfif', 'webp', 'avif', 'heic', 'heif', 'bmp', 'tif', 'tiff', 'gif', 'psd', 'svg', 'ico', 'cur', 'tga']
+const IMG_FILTERS = [{ name: 'Images and projects', extensions: [...IMAGE_TYPES, 'cocoashot'] }]
 
 ipcMain.handle('openDialog', async (_e, kind) => {
-  const filters = kind === 'project' ? [{ name: 'CocoaShot project', extensions: ['cocoashot'] }] : kind === 'image-only' ? [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'tif', 'tiff', 'gif', 'psd'] }] : IMG_FILTERS
+  const filters = kind === 'project' ? [{ name: 'CocoaShot project', extensions: ['cocoashot'] }] : kind === 'image-only' ? [{ name: 'Images', extensions: IMAGE_TYPES }] : IMG_FILTERS
   const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters })
   if (r.canceled || !r.filePaths[0]) return null
   return readOpened(r.filePaths[0])

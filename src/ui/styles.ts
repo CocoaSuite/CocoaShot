@@ -10,8 +10,8 @@ export type UIStyle = 'classic' | 'ps' | 'sai'
 
 /** Toolbar slots for the Photoshop-style layout. Each slot is a group; the first tool is its default face. */
 export const SLOTS: (string[] | '-')[] = [
-  ['move'], ['marquee', 'ellipse-sel'], ['lasso', 'poly'], ['wand', 'obj-sel', 'subject'], ['crop', 'persp', 'resize'], ['picker'], '-',
-  ['ai-remove', 'ai-cleanup', 'ai-enhance', 'ai-upscale', 'ai-detect'], ['brush', 'pencil', 'highlight'], ['clone'], ['eraser', 'bg-remove', 'bg-refine'], ['fill'], ['blur', 'sharpen', 'smudge'], '-',
+  ['move', 'transform'], ['marquee', 'ellipse-sel'], ['lasso', 'poly'], ['wand', 'obj-sel', 'subject'], ['crop', 'persp', 'resize'], ['picker'], '-',
+  ['ai-remove', 'ai-cleanup', 'ai-enhance', 'ai-upscale', 'ai-detect'], ['brush', 'pencil', 'highlight'], ['clone'], ['eraser', 'bg-remove', 'bg-refine'], ['fill', 'gradient'], ['blur', 'sharpen', 'smudge'], '-',
   ['text'], ['arrow', 'line', 'rect', 'ellipse', 'callout', 'label', 'marker'], ['outline', 'spotlight'], '-', ['hand'], ['zoom']
 ]
 export const slotOf = (id: string) => SLOTS.find(s => s !== '-' && s.includes(id)) as string[] | undefined

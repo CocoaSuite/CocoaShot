@@ -1,4 +1,5 @@
-import { Doc, Layer } from './doc'
+import { childrenOf, Doc, fxActive, Layer } from './doc'
+import { renderFx } from './fx'
 import { adjustGL, isIdentity } from './gl'
 import { contours, maskPipeline } from './px'
 import { drawShape } from './shapes'
@@ -124,6 +125,7 @@ export function layerFull(doc: Doc, l: Layer): HTMLCanvasElement | null {
 
 function prepare(doc: Doc, l: Layer) {
   if (!l.canvas) return
+  if (l.dirty) l.fxKey = ''
   if (l.dirty === true) {
     if (l.kind === 'text' || l.kind === 'shape') { const x = ctx2d(l.canvas); x.clearRect(0, 0, l.canvas.width, l.canvas.height); if (l.shape) drawShape(x, l.shape) }
     else if (l.kind === 'outline' && l.outline) renderOutline(doc, l)
@@ -160,6 +162,8 @@ function tmp(i: number, w: number, h: number) {
 
 export interface ComposeOpts { stroke?: StrokePreview | null; hide?: string | null; upTo?: string | null }
 
+interface Pass { r: Rect; o: ComposeOpts; stop: boolean; n: number }
+
 export function compose(doc: Doc, out: HTMLCanvasElement, rect: Rect | null, o: ComposeOpts = {}) {
   const r = rectClip(rect || { x: 0, y: 0, w: doc.w, h: doc.h }, doc.w, doc.h)
   if (!r) return
@@ -171,6 +175,15 @@ export function compose(doc: Doc, out: HTMLCanvasElement, rect: Rect | null, o: 
     const s = l.outline.source === 'selection' ? null : doc.layer(l.outline.source)
     if (s && s.dirty && s !== o.stroke?.layer) l.dirty = true
   }
+  composeLevel(doc, out, null, { r, o, stop: false, n: 0 })
+  X.restore()
+}
+
+/** Composites one folder level (or the top level) onto out. Folders are composited on their own first. */
+function composeLevel(doc: Doc, out: HTMLCanvasElement, parent: string | null, ps: Pass) {
+  const { r, o } = ps
+  const X = ctx2d(out)
+  const mark = ps.n
   let group: { base: Layer; img: CanvasImageSource; clips: { l: Layer; img: CanvasImageSource }[] } | null = null
   const draw = (target: CanvasRenderingContext2D, img: CanvasImageSource, alpha: number, op: GlobalCompositeOperation) => {
     target.globalAlpha = alpha
@@ -188,9 +201,11 @@ export function compose(doc: Doc, out: HTMLCanvasElement, rect: Rect | null, o: 
       draw(X, t, group.base.opacity, group.base.blend)
     }
     group = null
+    ps.n = mark
   }
-  for (const l of doc.layers) {
-    if (o.upTo && l.id === o.upTo) break
+  for (const l of childrenOf(doc, parent)) {
+    if (ps.stop) break
+    if (o.upTo && l.id === o.upTo) { ps.stop = true; break }
     if (!l.visible || l.id === o.hide) continue
     if (l.kind === 'adjust') {
       flush()
@@ -207,21 +222,40 @@ export function compose(doc: Doc, out: HTMLCanvasElement, rect: Rect | null, o: 
       }
       continue
     }
-    const img = imageFor(doc, l, r, o.stroke)
+    const clipped = l.clip && !!group
+    if (!clipped) flush()
+    let img: CanvasImageSource | null
+    if (l.kind === 'group') {
+      const t = tmp(10 + ps.n++, doc.w, doc.h)
+      composeLevel(doc, t, l.id, ps)
+      img = t
+    } else img = imageFor(doc, l, r, o.stroke)
     if (!img) continue
-    if (l.clip && group) group.clips.push({ l, img })
-    else { flush(); group = { base: l, img, clips: [] } }
+    if (clipped) group!.clips.push({ l, img })
+    else group = { base: l, img, clips: [] }
   }
   flush()
-  X.restore()
+}
+
+function fxImage(doc: Doc, l: Layer): HTMLCanvasElement | null {
+  if (l.fxHold) { prepare(doc, l); return l.fxHold }
+  const base = layerFull(doc, l)
+  if (!base) return null
+  const key = JSON.stringify(l.fx)
+  if (!l.fxCache || l.fxCache.width !== base.width || l.fxCache.height !== base.height) { l.fxCache = canvas(base.width, base.height); l.fxKey = '' }
+  if (l.fxKey !== key) { renderFx(base, l.fx!, l.fxCache); l.fxKey = key }
+  return l.fxCache
 }
 
 function imageFor(doc: Doc, l: Layer, r: Rect, st?: StrokePreview | null): CanvasImageSource | null {
   if (!l.canvas) return null
+  const fx = fxActive(l.fx)
   if (st && st.layer === l) {
+    const stale = fx && st.op === 'source-over' && l.fxCache && l.fxKey ? l.fxCache : null
     prepare(doc, l)
     const t = tmp(0, doc.w, doc.h)
     const x = ctx2d(t)
+    if (stale) x.drawImage(stale, r.x, r.y, r.w, r.h, r.x, r.y, r.w, r.h)
     x.drawImage(l.canvas, r.x, r.y, r.w, r.h, r.x, r.y, r.w, r.h)
     x.globalAlpha = st.alpha
     x.globalCompositeOperation = st.op
@@ -234,7 +268,46 @@ function imageFor(doc: Doc, l: Layer, r: Rect, st?: StrokePreview | null): Canva
     x.globalCompositeOperation = 'source-over'
     return t
   }
-  return layerFull(doc, l)
+  return fx ? fxImage(doc, l) : layerFull(doc, l)
+}
+
+/**
+ * Starts showing a layer's current effects image moved with the layer (see Layer.fxHold).
+ * Returns a function that redraws the held image through a transform, and one that ends the hold.
+ */
+export function holdFx(doc: Doc, l: Layer) {
+  if (!fxActive(l.fx)) return null
+  const src = fxImage(doc, l)
+  if (!src) return null
+  const orig = canvas(src.width, src.height)
+  ctx2d(orig).drawImage(src, 0, 0)
+  const held = canvas(src.width, src.height)
+  ctx2d(held).drawImage(orig, 0, 0)
+  l.fxHold = held
+  return {
+    draw(m: DOMMatrix, smooth = true) {
+      const x = ctx2d(held)
+      x.setTransform(1, 0, 0, 1, 0, 0)
+      x.clearRect(0, 0, held.width, held.height)
+      x.imageSmoothingEnabled = smooth
+      x.setTransform(m)
+      x.drawImage(orig, 0, 0)
+      x.setTransform(1, 0, 0, 1, 0, 0)
+    },
+    end() { l.fxHold = null; l.fxKey = '' }
+  }
+}
+
+/** A layer's pixels as they show in the image, effects included. */
+export function layerWithFx(doc: Doc, l: Layer): HTMLCanvasElement | null {
+  return fxActive(l.fx) ? fxImage(doc, l) : layerFull(doc, l)
+}
+
+/** One folder composited on its own, at full size. */
+export function groupImage(doc: Doc, g: Layer): HTMLCanvasElement {
+  const c = canvas(doc.w, doc.h)
+  composeLevel(doc, c, g.id, { r: { x: 0, y: 0, w: doc.w, h: doc.h }, o: {}, stop: false, n: 0 })
+  return c
 }
 
 export function flatten(doc: Doc): HTMLCanvasElement {

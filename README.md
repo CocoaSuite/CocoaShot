@@ -11,14 +11,17 @@ It shares its look and feel with CocoaAuthor.
 - **Replace background**: colour, image or a blurred copy of the original.
 - **Select**: rectangle, ellipse, lasso, magic wand, click to select an object (AI), select subject (AI), add, subtract, intersect, feather, grow or shrink, invert, copy to layer, delete, crop to selection.
 - **Crop and resize**: free and fixed ratios, social media sizes, custom output size, straighten, rotate, flip, perspective correction, resize by pixels or percent with Lanczos resampling.
+- **Free transform**: scale, rotate, flip and move a layer, or just the selected part of it, with handles or exact numbers.
 - **Highlight and outline**: brush, rectangle and ellipse highlights, marker style, spotlight, and outlines that follow the real edge of an object (solid or dashed, outside, centre or inside, glow, rounded or sharp).
-- **Paint and erase**: brush, pencil, eraser, fill, colour picker, clone, blur, sharpen and smudge, with pen pressure, a colour wheel with RGB and hex input and recent colours, lock transparency and clipping to the layer below.
+- **Paint and erase**: brush, pencil, eraser, fill, gradient (linear, radial, reflected, angle, diamond), colour picker, clone, blur, sharpen and smudge, with pen pressure, a colour wheel with RGB and hex input and recent colours, lock transparency and clipping to the layer below.
 - **Adjustments**: exposure, brightness, contrast, highlights, shadows, whites, blacks, gamma, temperature, tint, saturation, vibrance, hue, sharpness, clarity, grayscale, sepia and invert, plus auto enhance, white balance, contrast and colour. Adjustments live on a layer and stay editable. GPU accelerated.
+- **Filters**: Gaussian, motion and zoom blur, unsharp mask, add noise, pixelate, posterize, emboss, find edges and vignette, with a live preview. They follow the selection, and Ctrl+F repeats the last one.
 - **AI tools**: remove objects (LaMa), heal spots and damage, reduce noise, upscale 2x or 4x (Swin2SR), one-step enhance, and find people, animals, vehicles and objects to select, highlight, outline or cut out.
 - **Text and annotations**: text, arrows, lines, rectangles, ellipses, callouts, labels and numbered markers. Each is its own editable layer.
-- **Layers**: image, paint, text, shape, highlight, outline, adjustment and background layers with visibility, rename, reorder, opacity, blend modes, duplicate, delete, lock, masks, lock transparency and clipping.
+- **Layers**: image, paint, text, shape, highlight, outline, adjustment and background layers with visibility, rename, reorder, opacity, blend modes, duplicate, delete, lock, masks, lock transparency and clipping. Folders group layers (and other folders) and have their own visibility, opacity and blend mode.
+- **Layer effects**: drop shadow, outer glow, stroke (outside, centre or inside), inner shadow and colour overlay. They stay editable and follow the layer as it changes.
 - **History**: undo, redo and a history list for the whole session.
-- **Files**: opens PNG, JPG, WEBP, BMP, TIFF, GIF (first frame) and PSD (with layers). Exports PNG, JPG, WEBP, TIFF and BMP with quality, size, transparency, compression and colour tagging. Projects save as `.cocoashot` with layers, masks, text and settings intact.
+- **Files**: opens PNG, JPG, WEBP, AVIF, HEIC and HEIF (iPhone photos), BMP, TIFF, GIF (first frame), SVG, ICO, TGA and PSD (with layers and folders). Exports PNG, JPG, WEBP, AVIF, TIFF, BMP, PDF, ICO (every icon size) and PSD (with layers and folders), with quality, size, transparency, compression and colour tagging. Projects save as `.cocoashot` with layers, masks, text and settings intact.
 - **Reliability**: autosave with crash recovery, non-destructive editing wherever possible, heavy work in background threads, cancellable AI tasks.
 
 ## Privacy
@@ -54,7 +57,7 @@ Installers can only be built for the system you are on. The GitHub workflow in `
 
 The desktop app checks the latest GitHub release when it starts (this can be turned off in Settings, About) and from **Help, Check for updates**.
 
-Most releases only change CocoaShot's own code. Each release therefore also carries a small code-only update (`cocoashot-app-<version>.json.gz`, under 1 MB) and a description of it (`cocoashot-app.json`). The update is built for one exact version of the parts CocoaShot runs on: Electron, the files in `electron/` and the packages. `scripts/shell-id.mjs` fingerprints those at build time. When an installed copy has the same fingerprint, it downloads only the small update, checks it against the release, unpacks it into its data folder and restarts. If the new code does not start, the next start goes back to the code that came with the installer. Installing a newer full version removes any downloaded code.
+Most releases only change CocoaShot's own code. Each release therefore also carries a small code-only update (`cocoashot-app-<version>.json.gz`, about 3 MB, most of it the HEIC decoder and AVIF encoder) and a description of it (`cocoashot-app.json`). The update is built for one exact version of the parts CocoaShot runs on: Electron, the files in `electron/` and the packages. `scripts/shell-id.mjs` fingerprints those at build time. When an installed copy has the same fingerprint, it downloads only the small update, checks it against the release, unpacks it into its data folder and restarts. If the new code does not start, the next start goes back to the code that came with the installer. Installing a newer full version removes any downloaded code.
 
 When those parts change (a new Electron, a changed package, or any edit in `electron/`), the fingerprint changes and the app downloads the full installer instead:
 
@@ -87,10 +90,13 @@ npm test
 | User interface | `src/ui/` |
 | Rendering engine (viewport) | `src/view/viewport.ts` |
 | Image processing engine | `src/core/px.ts`, `src/core/gl.ts`, `src/core/brush.ts`, `src/core/compose.ts`, `src/core/transform.ts`, `src/core/worker.ts` |
-| Document, layers and history | `src/core/doc.ts`, `src/core/history.ts` |
-| Project files and export | `src/core/io.ts` |
+| Layer effects | `src/core/fx.ts` |
+| Document, layers, folders and history | `src/core/doc.ts`, `src/core/history.ts` |
+| Project files and export | `src/core/io.ts`, `src/core/formats.ts` (HEIC, SVG, TGA, PSD, PDF, ICO, AVIF) |
 | Tools | `src/tools/` |
 
-New tools are added by writing a `Tool` (see `src/tools/types.ts`) and listing it in a group. New AI models are added to `MODELS` in `electron/ai.mjs`.
+New tools are added by writing a `Tool` (see `src/tools/types.ts`) and listing it in a group. New filters are added to `FILTERS` in `src/tools/filters.ts`.
+
+Layers stay in one flat list, `doc.layers`, from bottom to top. A layer in a folder has the folder's id as its `parent`, and every folder sits directly above its contents (`normalizeTree` in `src/core/doc.ts` keeps it that way after each change), so code that only needs the stacking order can ignore folders. New AI models are added to `MODELS` in `electron/ai.mjs`.
 
 See [docs/USER_GUIDE.md](docs/USER_GUIDE.md) and [docs/TESTING.md](docs/TESTING.md).

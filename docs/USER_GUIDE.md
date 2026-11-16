@@ -53,6 +53,26 @@ Remove the background first, or select the object. In **Outline**, choose **Outl
 
 **AI Tools, Remove object**: paint over what should disappear. **Cleanup**: paint over dust and scratches, or reduce noise. **Upscale** enlarges with added detail. **Enhance** improves exposure, colour and sharpness in one step.
 
+### Free transform
+
+**Layer, Free transform** (Ctrl+T) puts a box with handles around the selected layer, or around the selected part of it if there is a selection. Drag inside the box to move, a handle to resize, or just outside a corner to rotate. Corners keep the proportions; hold Shift to resize freely, or to snap rotation to 15° steps. Alt resizes from the centre, and the arrow keys nudge. The panel takes exact sizes and angles, flips, and **Fit to image**. Enter or **Apply** keeps the change, Esc or **Cancel** puts it back. Text and shapes are resized with **Move** instead.
+
+### Folders
+
+**New folder** (the folder button above the layers, or **Layer, New folder**) adds an empty folder. Drag a layer onto the middle of a folder to put it inside, or above or below another layer to take it out. **Layer, Put in folder** (Ctrl+G) wraps the selected layer in a new folder, and **Remove folder, keep layers** (Ctrl+Shift+G) undoes that. The arrow beside a folder opens or closes it. Hiding, locking or fading a folder affects everything in it, and adjustment layers inside a folder only change the layers below them in that folder.
+
+### Layer effects
+
+**Layer, Layer effects**, the **fx** button above the layers, or a double-click on a layer's thumbnail opens the effects for the selected layer: **Drop shadow**, **Outer glow**, **Stroke** (outside, centre or inside the edge), **Inner shadow** and **Colour overlay**. Each one switches on with its toggle. Effects follow the layer when you paint, move or transform it, and the **fx** mark in the layers list opens them again. Export, Flatten and PSD export apply them.
+
+### Filters
+
+The **Filter** menu has Gaussian blur, Motion blur, Zoom blur, Unsharp mask, Add noise, Pixelate, Posterize, Emboss, Find edges and Vignette. The selected filter shows in the panel on the right with a live preview; **Apply** keeps it, **Cancel** puts the layer back, and switching tools applies it. With a selection, only the selected area changes. **Ctrl+F** applies the last filter again with the same settings.
+
+### Gradients
+
+Choose **Paint & Erase, Gradient** (Shift+G) and drag across the image. Pick the shape (linear, radial, reflected, angle or diamond) and whether it runs from the front colour to the back colour, from the front colour to transparent, or through a rainbow. Hold Shift to keep the line straight. With a selection, only the selected area is filled.
+
 ### Paint and draw
 
 **Paint & Erase** has a brush, pencil, eraser, fill, colour picker, clone, blur, sharpen and smudge. Painting on the photo creates a new paint layer so the photo stays untouched. **Lock transparency** paints only where the layer already has pixels. **Clip to layer below** shows the layer only inside the one beneath it.
@@ -79,11 +99,11 @@ With a selection, **Ctrl+X** copies the selected part of the current layer to th
 
 ## Updates
 
-The desktop app looks for a newer version on GitHub when it starts and offers to install it. Most updates are under 1 MB and only need a quick restart; occasionally a full installer is needed. **Help, Check for updates** checks at any time. The automatic check can be turned off in **Settings, About**.
+The desktop app looks for a newer version on GitHub when it starts and offers to install it. Most updates are a few MB and only need a quick restart; occasionally a full installer is needed. **Help, Check for updates** checks at any time. The automatic check can be turned off in **Settings, About**.
 
 ## Saving
 
-**Save project** writes a `.cocoashot` file that keeps every layer, mask and text editable. **Export** writes a flat PNG, JPG, WEBP, TIFF or BMP for sharing. Your original image is never changed.
+**Save project** writes a `.cocoashot` file that keeps every layer, mask and text editable. **Export** writes a PNG, JPG, WEBP, AVIF, TIFF, BMP, PDF or ICO for sharing, or a PSD that keeps layers and folders for other editors. CocoaShot opens all of these except PDF, plus HEIC photos from iPhones, SVG drawings and TGA files. Your original image is never changed.
 
 Unsaved work is backed up every few minutes. If CocoaShot closes unexpectedly, the start screen offers to recover it.
 

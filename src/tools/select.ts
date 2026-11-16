@@ -1,7 +1,7 @@
 import type { App } from '../app'
 import type { Tool } from './types'
-import { Layer, snapshot } from '../core/doc'
-import { touch } from '../core/compose'
+import { Layer, shownLocked, shownVisible, snapshot } from '../core/doc'
+import { holdFx, touch } from '../core/compose'
 import { flood, morph, gauss } from '../core/px'
 import { hitShape, shapeBounds } from '../core/shapes'
 import { alphaOf, bboxOfAlpha, canvas, canvasFromAlpha, copyCanvas, ctx2d, getData } from '../core/util'
@@ -176,6 +176,7 @@ function shapeSelTool(app: App, id: string, label: string, ic: string, kind: 're
 
 export function selectTools(app: App): Tool[] {
   let drag: { x: number; y: number; orig: HTMLCanvasElement | null; mask: HTMLCanvasElement | null; shape: any; handle: number; l: Layer } | null = null
+  let hold: ReturnType<typeof holdFx> = null
   const handles = (l: Layer) => {
     const s = l.shape!
     if (s.type === 'text' || s.type === 'label' || s.type === 'marker') return []
@@ -188,17 +189,19 @@ export function selectTools(app: App): Tool[] {
       const doc = app.doc!
       let l = doc.active
       const tol = 6 / app.view.zoom
-      const hitL = [...doc.layers].reverse().find(x => x.visible && !x.locked && x.shape && hitShape(x.shape, p.x, p.y, tol))
+      const hitL = [...doc.layers].reverse().find(x => shownVisible(doc, x) && !shownLocked(doc, x) && x.shape && hitShape(x.shape, p.x, p.y, tol))
       if (l?.shape) {
         const hs = handles(l)
         const hi = hs.findIndex(([hx, hy]) => Math.hypot(hx - p.x, hy - p.y) < 8 / app.view.zoom)
         if (hi >= 0) { drag = { x: p.x, y: p.y, orig: null, mask: null, shape: { ...l.shape! }, handle: hi, l }; return }
       }
       if (hitL && hitL !== l) { doc.activeId = hitL.id; l = hitL; app.emit('layers') }
-      if (!l || l.locked) return
+      if (!l || shownLocked(doc, l)) return
+      if (l.kind === 'group') { toast('Open the folder and select a layer to move it, or use Free transform'); return }
       if (l.shape) { drag = { x: p.x, y: p.y, orig: null, mask: null, shape: { ...l.shape }, handle: -1, l }; return }
       if (!l.canvas || l.kind === 'outline' || l.kind === 'background') return
       drag = { x: p.x, y: p.y, orig: copyCanvas(l.canvas), mask: l.mask ? copyCanvas(l.mask) : null, shape: null, handle: -1, l }
+      hold = holdFx(doc, l)
     },
     move(p, pressed) {
       if (!pressed || !drag) return
@@ -213,6 +216,7 @@ export function selectTools(app: App): Tool[] {
       }
       const put = (c: HTMLCanvasElement, src: HTMLCanvasElement) => { const x = ctx2d(c); x.clearRect(0, 0, c.width, c.height); x.drawImage(src, Math.round(dx), Math.round(dy)) }
       put(l.canvas!, drag.orig!)
+      hold?.draw(new DOMMatrix().translate(Math.round(dx), Math.round(dy)), false)
       if (drag.mask && l.mask) { put(l.mask, drag.mask); l.maskDirty = true }
       touch(l); app.doc!.changed()
     },
@@ -220,6 +224,7 @@ export function selectTools(app: App): Tool[] {
       if (!drag) return
       const d = drag
       drag = null
+      hold?.end(); hold = null
       const moved = Math.hypot(p.x - d.x, p.y - d.y) > 0.5
       if (!moved) return
       const doc = app.doc!

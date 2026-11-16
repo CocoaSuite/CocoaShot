@@ -383,3 +383,34 @@ export function editAlpha(alpha: Uint8Array | Uint8ClampedArray, w: number, h: n
   }
   return out
 }
+
+/** Squared Euclidean distance transform (Felzenszwalb and Huttenlocher). f holds 0 at seeds and a large number elsewhere; it is replaced in place. */
+export function edt2(f: Float32Array, w: number, h: number) {
+  const n = Math.max(w, h)
+  const v = new Int32Array(n), z = new Float64Array(n + 1), d = new Float64Array(n), g = new Float64Array(n)
+  const pass = (len: number, get: (i: number) => number, set: (i: number, x: number) => void) => {
+    for (let i = 0; i < len; i++) g[i] = get(i)
+    let k = 0
+    v[0] = 0; z[0] = -Infinity; z[1] = Infinity
+    for (let q = 1; q < len; q++) {
+      let s = ((g[q] + q * q) - (g[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k])
+      while (s <= z[k]) { k--; s = ((g[q] + q * q) - (g[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]) }
+      k++; v[k] = q; z[k] = s; z[k + 1] = Infinity
+    }
+    k = 0
+    for (let q = 0; q < len; q++) { while (z[k + 1] < q) k++; d[q] = (q - v[k]) * (q - v[k]) + g[v[k]] }
+    for (let i = 0; i < len; i++) set(i, d[i])
+  }
+  for (let x = 0; x < w; x++) pass(h, i => f[i * w + x], (i, val) => (f[i * w + x] = val))
+  for (let y = 0; y < h; y++) { const o = y * w; pass(w, i => f[o + i], (i, val) => (f[o + i] = val)) }
+  return f
+}
+
+/** Distance from every pixel to the nearest pixel where inside(i) is true, in pixels. */
+export function distanceTo(inside: (i: number) => boolean, w: number, h: number): Float32Array {
+  const f = new Float32Array(w * h)
+  for (let i = 0; i < w * h; i++) f[i] = inside(i) ? 0 : 1e20
+  edt2(f, w, h)
+  for (let i = 0; i < w * h; i++) f[i] = Math.sqrt(f[i])
+  return f
+}
