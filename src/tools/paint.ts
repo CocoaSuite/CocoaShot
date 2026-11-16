@@ -6,6 +6,7 @@ import { Stroke, BrushMode, BrushOpts } from '../core/brush'
 import { flood } from '../core/px'
 import { canvasFromAlpha, ctx2d, getData, rgba } from '../core/util'
 import { h, toast } from '../ui/dom'
+import { keyOf } from '../ui/keys'
 import { btn, hint, sec, select, slider, toggle } from '../ui/controls'
 import { brushControls, colorPanel, drawBrushCursor, stabilizer } from './common'
 
@@ -71,8 +72,9 @@ export function paintTools(app: App): Tool[] {
         }
       },
       key(e) {
-        if (e.key === '[') { o.size = Math.max(1, Math.round(o.size / 1.2)); app.emit('panel'); app.view.draw(); return true }
-        if (e.key === ']') { o.size = Math.min(1000, Math.round(o.size * 1.2 + 1)); app.emit('panel'); app.view.draw(); return true }
+        const k = keyOf(e)
+        if (k === '[') { o.size = Math.max(1, Math.round(o.size / 1.2)); app.emit('panel'); app.view.draw(); return true }
+        if (k === ']') { o.size = Math.min(1000, Math.round(o.size * 1.2 + 1)); app.emit('panel'); app.view.draw(); return true }
         return false
       },
       panel: () => h('div', { class: 'ib' },

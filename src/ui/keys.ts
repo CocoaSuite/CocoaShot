@@ -58,12 +58,37 @@ export const ACTIONS: Action[] = [
   { id: 'tool:outline', label: 'Outline', key: 'O' }
 ]
 
+// Physical keys we bind to, keyed by KeyboardEvent.code (US layout positions).
+const CODE_KEYS: Record<string, string> = {
+  Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', Backslash: '\\', IntlBackslash: '\\',
+  Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/', Backquote: '`',
+  NumpadAdd: '=', NumpadSubtract: '-'
+}
+
+// The key a shortcut should match, independent of the active keyboard layout.
+// Latin layouts (QWERTY, AZERTY, QWERTZ, Dvorak...) keep their own letters so mnemonics
+// still fit; non-Latin layouts (Cyrillic, Greek, Hebrew...) and characters altered by
+// Option on macOS fall back to the physical key, so Ctrl+Z is Ctrl+Z on a Russian layout.
+export function keyOf(e: KeyboardEvent) {
+  const k = e.key, c = e.code || ''
+  // Digits: AZERTY gives '&', 'é'... on the number row without Shift.
+  const d = /^(?:Digit|Numpad)(\d)$/.exec(c)
+  if (d) return d[1]
+  if (k.length !== 1 || k === ' ') return k
+  if (/^[a-z]$/i.test(k)) return k
+  if (c.startsWith('Key')) return c.slice(3).toLowerCase()
+  // Punctuation the layout already types in ASCII stays as typed (Shift-friendly);
+  // anything else falls back to its physical position.
+  if (k.charCodeAt(0) < 128 && !(e.altKey && isMac)) return k
+  return CODE_KEYS[c] ?? k
+}
+
 export function comboOf(e: KeyboardEvent) {
   const p: string[] = []
   if (e.ctrlKey || e.metaKey) p.push('Mod')
   if (e.shiftKey) p.push('Shift')
   if (e.altKey) p.push('Alt')
-  let k = e.key
+  let k = keyOf(e)
   if (k === '+') k = '='
   if (k === '_') k = '-'
   if (k.length === 1) k = k.toUpperCase()
