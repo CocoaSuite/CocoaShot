@@ -47,5 +47,8 @@ contextBridge.exposeInMainWorld('cocoaNative', {
   updateCheck: () => ipcRenderer.invoke('updateCheck').catch(clean),
   updateDownload: onProgress => { updateProgress = onProgress || null; return ipcRenderer.invoke('updateDownload').catch(clean).finally(() => { updateProgress = null }) },
   updateInstall: () => ipcRenderer.invoke('updateInstall').catch(clean),
-  openReleases: () => ipcRenderer.invoke('openReleases')
+  openReleases: () => ipcRenderer.invoke('openReleases'),
+  appIcon: () => ipcRenderer.invoke('appIcon'),
+  setAppIcon: t => ipcRenderer.invoke('setAppIcon', t),
+  createShortcut: () => ipcRenderer.invoke('createShortcut').catch(clean)
 })

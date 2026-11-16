@@ -29,7 +29,7 @@ export class Viewport {
   private panning: { x: number; y: number; ox: number; oy: number } | null = null
   space = false
   private splitDrag = false
-  gesture: { kind: 'size' | 'opacity'; sx: number; sy: number; v0: number; at: { x: number; y: number }; click: Pt | null; moved: boolean } | null = null
+  gesture: { kind: 'size' | 'opacity'; sx: number; sy: number; v0: number; at: { x: number; y: number }; click: Pt | null; pick: boolean; moved: boolean } | null = null
 
   constructor(public app: App, public desk: HTMLElement) {
     this.el = document.createElement('canvas')
@@ -134,11 +134,13 @@ export class Viewport {
     }
     if (e.button === 2) return
     const b = this.app.tool?.brush?.()
+    // Alt+click picks a colour with the painting tools; brushes still Alt+drag for opacity.
+    if (e.button === 0 && e.altKey && this.app.tool?.altPick && !b) { const p = this.pt(e); this.pickAt(p.x, p.y); return }
     if (b && e.button === 0) {
       const kind = e.ctrlKey || e.metaKey ? 'size' : e.altKey && b.setOpacity && b.getOpacity ? 'opacity' : null
       if (kind) {
         const p = this.pt(e)
-        this.gesture = { kind, sx: p.rx, sy: p.ry, v0: kind === 'size' ? b.getSize() : b.getOpacity!(), at: { x: p.x, y: p.y }, click: kind === 'opacity' && b.altClick ? p : null, moved: false }
+        this.gesture = { kind, sx: p.rx, sy: p.ry, v0: kind === 'size' ? b.getSize() : b.getOpacity!(), at: { x: p.x, y: p.y }, click: kind === 'opacity' && b.altClick ? p : null, pick: kind === 'opacity' && !!this.app.tool?.altPick, moved: false }
         this.hover = this.gesture.at
         this.draw()
         return
@@ -186,12 +188,17 @@ export class Viewport {
     if (g) {
       this.gesture = null
       if (g.moved) this.app.emit('panel')
+      else if (g.pick) this.pickAt(g.at.x, g.at.y)
       else if (g.click) { this.app.tool?.down?.(g.click); this.app.tool?.up?.(g.click) }
       this.draw()
       return
     }
     this.app.tool?.up?.(this.pt(e))
     this.draw()
+  }
+  private pickAt(x: number, y: number) {
+    const c = this.app.sampleColor(x, y)
+    if (c) this.app.setColors(c)
   }
   private wheel(e: WheelEvent) {
     e.preventDefault()

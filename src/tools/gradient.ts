@@ -82,7 +82,7 @@ export function gradientTool(app: App): Tool {
     return { x: a.x + Math.cos(ang) * d, y: a.y + Math.sin(ang) * d }
   }
   return {
-    id: 'gradient', label: 'Gradient', icon: 'gradient',
+    id: 'gradient', label: 'Gradient', icon: 'gradient', altPick: true,
     cursor: () => 'crosshair',
     down(p) {
       const doc = app.doc!
