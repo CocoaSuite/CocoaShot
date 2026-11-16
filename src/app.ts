@@ -1,6 +1,7 @@
 import { Doc, Layer, makeLayer, normalizeTree, shownLocked, snapshot } from './core/doc'
 import { History } from './core/history'
 import { flatten, touch } from './core/compose'
+import type { NewImageOpts } from './ui/newimage'
 import { decodeImage, loadProject, saveProject, IMAGE_EXT, type ExportFormat } from './core/io'
 import { canvas, ctx2d, Emitter, fitSize, getData } from './core/util'
 import { cancelJobs } from './core/jobs'
@@ -27,11 +28,13 @@ export interface Settings {
   uiStyle: 'classic' | 'ps' | 'sai'
   toolCols: 1 | 2
   stabilizer: number
+  newImage: NewImageOpts
 }
 
 const DEFAULTS: Settings = {
   theme: 'dark', exportFormat: 'png', exportQuality: 92, openLimit: 0, bgModel: 'isnet', gpu: true, autosave: 3,
-  shortcuts: {}, exportFolder: '', leftW: 220, rightW: 288, leftOpen: true, rightOpen: true, checkUpdates: true, uiStyle: 'classic', toolCols: 1, stabilizer: 0
+  shortcuts: {}, exportFolder: '', leftW: 220, rightW: 288, leftOpen: true, rightOpen: true, checkUpdates: true, uiStyle: 'classic', toolCols: 1, stabilizer: 0,
+  newImage: { w: 1920, h: 1080, bg: 'white', color: '#f4e9d8' }
 }
 
 export interface Job { label: string; progress: number | null; detail: string; cancel?: () => void }
@@ -53,7 +56,7 @@ export class App extends Emitter {
     super()
     let s: Partial<Settings> = {}
     try { s = JSON.parse(localStorage.getItem('cocoashot.settings') || '{}') } catch {}
-    this.settings = { ...DEFAULTS, ...s, shortcuts: { ...(s.shortcuts || {}) } }
+    this.settings = { ...DEFAULTS, ...s, shortcuts: { ...(s.shortcuts || {}) }, newImage: { ...DEFAULTS.newImage, ...(s.newImage || {}) } }
     try { const c = JSON.parse(localStorage.getItem('cocoashot.fgbg') || 'null'); if (c) { this.fg = c[0]; this.bgc = c[1] } } catch {}
     this.applyTheme()
     setInterval(() => this.autosave(), 30000)

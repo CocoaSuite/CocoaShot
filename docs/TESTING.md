@@ -14,6 +14,7 @@ The unit tests cover the image processing core: blurring, mask growth and feathe
 Run `npm run desktop` and work through this list with a photo of a person and a product shot.
 
 1. Open PNG, JPG, WEBP, AVIF, HEIC (an iPhone photo), TIFF, BMP, GIF, SVG, ICO, TGA and a layered PSD with folders. Drag and drop and clipboard paste also open images.
+1a. File, New image (and Ctrl+N, and the start screen button): each preset, portrait and landscape, every background, a typed size, a size over 200 megapixels (Create is disabled), and that the next New image remembers the last choice.
 2. Remove a background with each model. Refine with Keep, Remove and Restore. Change feather, smooth and shift edge. Check all three previews.
 3. Replace the background with a colour, an image and a blur.
 4. Make every kind of selection, then add, subtract, invert, grow and delete.

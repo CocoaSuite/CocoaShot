@@ -3,6 +3,7 @@ import { isMac } from '../native'
 export interface Action { id: string; label: string; key: string }
 
 export const ACTIONS: Action[] = [
+  { id: 'newImage', label: 'New image', key: 'Mod+N' },
   { id: 'open', label: 'Open', key: 'Mod+O' },
   { id: 'save', label: 'Save project', key: 'Mod+S' },
   { id: 'saveAs', label: 'Save project as', key: 'Mod+Shift+S' },
