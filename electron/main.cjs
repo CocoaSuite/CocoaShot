@@ -5,6 +5,7 @@ const fsp = fs.promises
 const { pathToFileURL } = require('url')
 const { registerUpdates } = require('./update.cjs')
 const appcode = require('./appcode.cjs')
+const { setupAppIcon } = require('./appicon.cjs')
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }])
 
@@ -16,6 +17,7 @@ const RECOVERY = () => path.join(DATA(), 'recovery.cocoashot')
 const OPENABLE = /\.(png|jpe?g|jfif|webp|avif|heic|heif|bmp|tiff?|gif|psd|svg|ico|cur|tga|cocoashot)$/i
 
 let win = null
+const appIcon = setupAppIcon({ name: 'CocoaShot', appId: 'com.cocoasuite.cocoashot' })
 const pending = []
 
 const ab = b => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)
@@ -49,7 +51,7 @@ function createWindow() {
     width: 1440, height: 920, minWidth: 900, minHeight: 560,
     title: 'CocoaShot',
     backgroundColor: '#121212',
-    icon: path.join(__dirname, '..', 'build', 'icon.png'),
+    icon: appIcon.windowIcon(),
     autoHideMenuBar: process.platform !== 'darwin',
     ...(process.platform === 'darwin' ? {} : { titleBarStyle: 'hidden', titleBarOverlay: { color: '#1a1a1a', symbolColor: '#ececec', height: 41 } }),
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, spellcheck: false }

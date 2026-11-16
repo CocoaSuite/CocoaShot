@@ -9,6 +9,7 @@ import { hint, sec, seg, select, slider, toggle, numField } from './controls'
 import { mb } from '../tools/common'
 import { checkForUpdates } from './update'
 import { ACTIONS, comboOf, fmtCombo } from './keys'
+import { appIconSettings } from './appicon'
 
 
 export function exportDialog(app: App) {
@@ -103,7 +104,8 @@ export function settingsDialog(app: App, page = 'general') {
       select('Autosave', [['0', 'Off'], ['1', 'Every minute'], ['3', 'Every 3 minutes'], ['10', 'Every 10 minutes']], () => String(app.settings.autosave) as any, v => { app.settings.autosave = +v; app.saveSettings() }),
       hint('Autosave keeps a recovery copy of unsaved work so it can be restored after a crash.'),
       select('Large images', [['0', 'Keep full resolution'], ['4096', 'Reduce to 4096 px'], ['2048', 'Reduce to 2048 px']], () => String(app.settings.openLimit) as any, v => { app.settings.openLimit = +v; app.saveSettings() }),
-      hint('Applies when opening images. The original file is never changed.')
+      hint('Applies when opening images. The original file is never changed.'),
+      ...appIconSettings()
     ]],
     ['export', 'Export', () => [
       select('Default format', FORMATS, () => app.settings.exportFormat, v => { app.settings.exportFormat = v; app.saveSettings() }),

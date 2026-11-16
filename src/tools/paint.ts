@@ -32,7 +32,7 @@ export function paintTools(app: App): Tool[] {
     let lastPt: { x: number; y: number; l: any } | null = null
     const stab = stabilizer(() => app.settings.stabilizer || 0)
     const t: Tool = {
-      id, label, icon: ic,
+      id, label, icon: ic, altPick: mode === 'paint',
       cursor: () => 'none',
       brush: () => ({
         getSize: () => o.size, setSize: v => { o.size = v }, getOpacity: () => o.opacity, setOpacity: v => { o.opacity = v },
@@ -88,7 +88,7 @@ export function paintTools(app: App): Tool[] {
 
   const fillO = { tol: 32, contiguous: true, merged: false, opacity: 1 }
   const fill: Tool = {
-    id: 'fill', label: 'Fill', icon: 'bucket',
+    id: 'fill', label: 'Fill', icon: 'bucket', altPick: true,
     cursor: () => 'crosshair',
     down(p) {
       const doc = app.doc!

@@ -29,6 +29,8 @@ export interface Tool {
   deactivate?(): void
   key?(e: KeyboardEvent): boolean
   brush?(): BrushHandle | null
+  /** Alt+click samples the colour under the cursor instead of using the tool. */
+  altPick?: boolean
 }
 
 export interface Group { id: string; name: string; icon: string; tools: string[] }

@@ -111,6 +111,12 @@ aside{background:var(--panel);min-height:0;min-width:0;overflow:hidden;display:f
 .seg button{flex:1;padding:5px 4px;justify-content:center;background:none;border-color:transparent;font-size:12px;min-width:0}
 .seg button:hover{background:var(--panel2)}
 .seg button.on{background:var(--selbg);border-color:var(--selbd)}
+.iconpick{display:flex;gap:8px;flex:1}
+.iconpick button{flex:1;flex-direction:column;gap:6px;padding:10px 6px;background:none;border-color:transparent;font-size:12px}
+.iconpick button:hover{background:var(--panel2)}
+.iconpick button.on{background:var(--selbg);border-color:var(--selbd)}
+.iconpick .art{display:block;width:44px;height:44px}
+.iconpick .art svg{display:block;width:100%;height:100%}
 .sl{display:grid;grid-template-columns:82px minmax(0,1fr) 46px;align-items:center;gap:8px;font-size:12px}
 .sl label{color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sl label.rs{cursor:pointer}

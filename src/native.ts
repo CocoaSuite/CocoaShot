@@ -35,7 +35,12 @@ interface Native {
   updateDownload(onProgress?: (p: { loaded: number; total: number }) => void): Promise<{ name: string; kind?: 'code' | 'installer' }>
   updateInstall(): Promise<'quitting' | 'restarting' | 'opened'>
   openReleases(): Promise<void>
+  appIcon?(): Promise<AppIconTheme>
+  setAppIcon?(t: AppIconTheme): Promise<AppIconTheme>
+  createShortcut?(): Promise<string>
 }
+
+export type AppIconTheme = 'amethyst' | 'midnight'
 
 export interface UpdateInfo {
   current: string; latest: string | null; newer: boolean; page: string

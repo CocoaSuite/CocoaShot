@@ -81,7 +81,7 @@ Choose **Paint & Erase, Gradient** (Shift+G) and drag across the image. Pick the
 
 ### Brush size and opacity
 
-With any brush, hold **Ctrl** (Cmd on a Mac) and drag left or right to change the size, or hold **Alt** and drag to change the opacity. The brush preview shows the new value as you drag. With Clone, a plain Alt-click still sets the source. In Refine edges, Alt still swaps Keep and Remove, so only Ctrl-drag applies there. `[` and `]` also change the size.
+With any brush, hold **Ctrl** (Cmd on a Mac) and drag left or right to change the size, or hold **Alt** and drag to change the opacity. The brush preview shows the new value as you drag. A plain Alt-click with Brush, Pencil, Fill or Gradient picks the colour under the cursor, like the Colour picker. With Clone, a plain Alt-click still sets the source. In Refine edges, Alt still swaps Keep and Remove, so only Ctrl-drag applies there. `[` and `]` also change the size.
 
 ### Levels
 
