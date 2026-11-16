@@ -17,7 +17,11 @@ const RECOVERY = () => path.join(DATA(), 'recovery.cocoashot')
 const OPENABLE = /\.(png|jpe?g|jfif|webp|avif|heic|heif|bmp|tiff?|gif|psd|svg|ico|cur|tga|cocoashot)$/i
 
 let win = null
-const appIcon = setupAppIcon({ name: 'CocoaShot', appId: 'com.cocoasuite.cocoashot' })
+const appIcon = setupAppIcon({
+  name: 'CocoaShot', appId: 'com.cocoasuite.cocoashot',
+  // The installer's file classes (package.json fileAssociations) and their icons
+  fileTypes: { 'CocoaShot Project': 'cocoashot', 'CocoaShot.png': 'png', 'CocoaShot.jpg': 'jpg', 'CocoaShot.jpeg': 'jpeg', 'CocoaShot.webp': 'webp', 'CocoaShot.bmp': 'bmp', 'CocoaShot.tif': 'tif', 'CocoaShot.tiff': 'tiff', 'CocoaShot.gif': 'gif', 'CocoaShot.psd': 'psd', 'CocoaShot.avif': 'avif', 'CocoaShot.heic': 'heic', 'CocoaShot.heif': 'heif', 'CocoaShot.svg': 'svg', 'CocoaShot.ico': 'ico', 'CocoaShot.tga': 'tga' }
+})
 const pending = []
 
 const ab = b => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)

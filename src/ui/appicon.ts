@@ -27,7 +27,7 @@ export function appIconSettings(): HTMLElement[] {
   const win = n.platform === 'win32'
   return [
     h('div', { class: 'fr' }, h('label', 'App icon'), pick),
-    h('p', { class: 'hint' }, win ? 'Used for the window, taskbar and the CocoaShot shortcuts on this computer.' : 'Used for the window and the Dock.'),
+    h('p', { class: 'hint' }, win ? 'Used for the window, the taskbar, CocoaShot shortcuts and the icons of files that open in CocoaShot.' : 'Used for the window and the Dock.'),
     win && h('div', { class: 'fr' }, h('label', 'Shortcut'), h('button', { onclick: async () => {
       try { await n.createShortcut!(); toast('Shortcut created on the desktop') } catch (e: any) { toast(e.message, { err: true }) }
     } }, 'Create desktop shortcut'))
