@@ -16,6 +16,7 @@ import { loadProject } from '../core/io'
 import { jobBox } from '../tools/common'
 import { groupKey, noteTool, psDock, psOptions, psStrip, saiBar, saiColor, saiNavigator, saiSizes, saiTools } from './styles'
 import { checkForUpdates } from './update'
+import { flipChosen } from '../tools/multi'
 
 export function buildShell(app: App, root: HTMLElement) {
   const run: Record<string, () => void> = {
@@ -99,6 +100,8 @@ export function buildShell(app: App, root: HTMLElement) {
     rotl: () => app.doc && (rotate90(app.doc, app.hist!, -1), app.view.fit()),
     rotr: () => app.doc && (rotate90(app.doc, app.hist!, 1), app.view.fit()),
     fliph: () => app.doc && flip(app.doc, app.hist!, true),
+    flipLayerH: () => app.doc && flipChosen(app, true),
+    flipLayerV: () => app.doc && flipChosen(app, false),
     flipv: () => app.doc && flip(app.doc, app.hist!, false),
     resize: () => app.setTool('resize'),
     cropSel: () => app.emit('crop-to-selection'),
@@ -162,8 +165,8 @@ export function buildShell(app: App, root: HTMLElement) {
     h('div', { class: 'brand' }, logo(), 'CocoaShot'),
     menu('File', () => [['New image', 'newImage', 'plus'], ['Open image', 'open', 'open'], ['Open project', 'openProject', 'folder'], ['New image from clipboard', 'newPaste', 'image'], '-', ['Save project', 'save', 'save'], ['Save project as', 'saveAs'], ['Export image', 'export', 'download'], '-', ['Close image', 'close', 'x']]),
     menu('Edit', [['Undo', 'undo', 'undo'], ['Redo', 'redo', 'redo'], '-', ['Cut', 'cut', 'cut'], ['Copy', 'copy', 'copy'], ['Paste as layer', 'paste'], ['Paste as new image', 'newPaste', 'image'], ['Delete', 'delete', 'trash'], '-', ['Select all', 'selectAll'], ['Deselect', 'deselect'], ['Invert selection', 'invert'], '-', ['Settings', 'settings', 'gear']]),
-    menu('Image', [['Resize', 'resize', 'resize'], ['Crop to selection', 'cropSel', 'crop'], ['Free transform', 'transform', 'transform'], ['Distort', 'distort'], ['Warp', 'warp'], '-', ['Rotate left', 'rotl', 'rotl'], ['Rotate right', 'rotr', 'rotr'], ['Flip horizontal', 'fliph', 'fliph'], ['Flip vertical', 'flipv', 'flipv'], '-', ['Flatten image', 'flattenImg', 'layers']]),
-    menu('Layer', [['New layer', 'newLayer', 'plus'], ['New folder', 'newFolder', 'folder'], ['New adjustment layer', 'newAdjust', 'sliders'], ['Duplicate layer', 'dupLayer', 'copy'], ['Delete layer', 'delLayer', 'trash'], '-', ['Merge down', 'mergeDown'], ['Merge visible', 'mergeVisible'], ['Put in folder', 'groupLayer'], ['Remove folder, keep layers', 'ungroup'], '-', ['Add mask', 'addMask', 'mask'], ['Mask from selection', 'maskFromSel'], ['Disable or enable mask', 'toggleMask'], ['Invert mask', 'invertMask'], ['Apply mask', 'applyMask'], ['Delete mask', 'deleteMask'], '-', ['Layer effects', 'effects', 'fx'], ['Free transform', 'transform', 'transform'], ['Distort', 'distort'], ['Warp', 'warp'], ['Edit layer alpha', 'editAlpha', 'alpha'], ['Levels', 'levels', 'levels'], '-', ['Flatten image', 'flattenImg', 'layers']]),
+    menu('Image', [['Resize', 'resize', 'resize'], ['Crop to selection', 'cropSel', 'crop'], ['Free transform', 'transform', 'transform'], ['Distort', 'distort'], ['Warp', 'warp'], '-', ['Rotate left', 'rotl', 'rotl'], ['Rotate right', 'rotr', 'rotr'], ['Flip image horizontally', 'fliph', 'fliph'], ['Flip image vertically', 'flipv', 'flipv'], '-', ['Flatten image', 'flattenImg', 'layers']]),
+    menu('Layer', [['New layer', 'newLayer', 'plus'], ['New folder', 'newFolder', 'folder'], ['New adjustment layer', 'newAdjust', 'sliders'], ['Duplicate layer', 'dupLayer', 'copy'], ['Delete layer', 'delLayer', 'trash'], '-', ['Merge down', 'mergeDown'], ['Merge visible', 'mergeVisible'], ['Put in folder', 'groupLayer'], ['Remove folder, keep layers', 'ungroup'], '-', ['Add mask', 'addMask', 'mask'], ['Mask from selection', 'maskFromSel'], ['Disable or enable mask', 'toggleMask'], ['Invert mask', 'invertMask'], ['Apply mask', 'applyMask'], ['Delete mask', 'deleteMask'], '-', ['Layer effects', 'effects', 'fx'], ['Flip horizontally', 'flipLayerH', 'fliph'], ['Flip vertically', 'flipLayerV', 'flipv'], ['Free transform', 'transform', 'transform'], ['Distort', 'distort'], ['Warp', 'warp'], ['Edit layer alpha', 'editAlpha', 'alpha'], ['Levels', 'levels', 'levels'], '-', ['Flatten image', 'flattenImg', 'layers']]),
     menu('Filter', () => {
       const out: ([string, string, string?] | '-')[] = []
       let cat = ''

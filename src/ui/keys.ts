@@ -42,6 +42,8 @@ export const ACTIONS: Action[] = [
   { id: 'distort', label: 'Distort', key: '' },
   { id: 'warp', label: 'Warp', key: 'Mod+Alt+T' },
   { id: 'gradient', label: 'Gradient', key: 'Shift+G' },
+  { id: 'flipLayerH', label: 'Flip selected layers horizontally', key: 'Shift+H' },
+  { id: 'flipLayerV', label: 'Flip selected layers vertically', key: 'Shift+V' },
   { id: 'tool:move', label: 'Move tool', key: 'V' },
   { id: 'tool:marquee', label: 'Rectangle select', key: 'M' },
   { id: 'tool:lasso', label: 'Lasso', key: 'L' },
