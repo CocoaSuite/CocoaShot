@@ -10,6 +10,7 @@ import { mb } from '../tools/common'
 import { checkForUpdates } from './update'
 import { ACTIONS, comboOf, fmtCombo } from './keys'
 import { appIconSettings } from './appicon'
+import { onboard } from './onboard'
 
 
 export const BG_MODELS: ['isnet' | 'birefnet' | 'modnet', string][] = [['isnet', 'ISNet, general'], ['birefnet', 'BiRefNet, maximum detail'], ['modnet', 'MODNet, fast, for people']]
@@ -212,9 +213,18 @@ export function settingsDialog(app: App, page = 'general') {
     sect.append(...pages.find(p => p[0] === id)![2]().filter(Boolean) as HTMLElement[])
   }
   show(page)
-  modal(close => h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
+  // Typing "hello" anywhere in Settings (outside a text field) closes it and replays the welcome. No feedback until then.
+  let typed = ''
+  const secret = (e: KeyboardEvent) => {
+    if (capture || (e.target as HTMLElement)?.closest?.('input,textarea,select')) return
+    if (e.key.length !== 1) return
+    typed = (typed + e.key.toLowerCase()).slice(-5)
+    if (typed === 'hello') { typed = ''; closeSettings(); setTimeout(() => void onboard(app), 150) }
+  }
+  addEventListener('keydown', secret, true)
+  const closeSettings = modal(close => h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
     h('div', { class: 'fr' }, h('h2', 'Settings'), h('span', { class: 'sp' }), h('button', { class: 'ic', 'aria-label': 'Close', onclick: close }, icon('x'))),
-    h('div', { class: 'set' }, nav, sect)), true, stopCapture)
+    h('div', { class: 'set' }, nav, sect)), true, () => { stopCapture(); removeEventListener('keydown', secret, true) })
 }
 
 export function helpDialog() {

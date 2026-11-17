@@ -375,3 +375,55 @@ input.val{text-align:right}
 .dd button[disabled]{opacity:.45;pointer-events:none}
 .lr.pk{background:color-mix(in srgb,var(--sel) 16%,transparent)}
 .lb.off{opacity:.45;text-decoration:line-through}
+/* First-launch welcome: "hello" over the blurred app, then a short tour (the same as CocoaCanvas) */
+#onb{position:fixed;inset:0;z-index:95;display:grid;place-items:center;padding:16px;background:rgba(8,8,8,0);-webkit-backdrop-filter:blur(0) saturate(1);backdrop-filter:blur(0) saturate(1);transition:background .7s ease,backdrop-filter .7s ease,-webkit-backdrop-filter .7s ease}
+#onb.on{background:rgba(8,8,8,.42);-webkit-backdrop-filter:blur(28px) saturate(1.15);backdrop-filter:blur(28px) saturate(1.15)}
+#onb.on.tour{background:rgba(8,8,8,0);-webkit-backdrop-filter:blur(0) saturate(1);backdrop-filter:blur(0) saturate(1)}
+#onb.clear{background:rgba(8,8,8,0);-webkit-backdrop-filter:blur(0) saturate(1);backdrop-filter:blur(0) saturate(1);transition-duration:.95s;pointer-events:none}
+.onbH{grid-area:1/1;display:flex;flex-direction:column;align-items:center;gap:34px;transition:opacity .38s ease,transform .45s cubic-bezier(.4,0,.2,1);cursor:pointer}
+.onbH svg{width:min(72vw,440px);height:auto;overflow:visible}
+.onbH path{fill:none;stroke:#fff;stroke-width:6.5;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 3px 18px rgba(0,0,0,.35))}
+.onbTap{color:rgba(255,255,255,.72);font-size:15px;opacity:0;transform:translateY(6px);transition:opacity .7s,transform .7s}
+.onbTap.on{opacity:1;transform:none}
+.onbH.out{opacity:0;transform:translateY(-18px) scale(.97)}
+.onbHi{position:fixed;border:2px solid var(--brand);border-radius:12px;box-shadow:0 0 0 9999px rgba(8,8,8,.58),0 0 24px rgba(138,167,217,.35);pointer-events:none;transition:left .45s cubic-bezier(.22,.8,.24,1),top .45s cubic-bezier(.22,.8,.24,1),width .45s cubic-bezier(.22,.8,.24,1),height .45s cubic-bezier(.22,.8,.24,1)}
+.onbC{grid-area:1/1;width:min(400px,calc(100vw - 24px));background:rgba(30,30,30,.96);color:#f3f3f3;border:1px solid #3a3a3a;border-radius:26px;padding:18px;box-shadow:0 24px 70px rgba(0,0,0,.55);opacity:0;transform:translateY(28px) scale(.98);transition:opacity .42s ease,transform .55s cubic-bezier(.22,.8,.24,1),left .45s cubic-bezier(.22,.8,.24,1),top .45s cubic-bezier(.22,.8,.24,1)}
+.onbC.side{position:fixed;grid-area:auto;margin:0}
+.onbC.in{opacity:1;transform:none}
+.onbC.out{opacity:0;transform:translateY(18px) scale(.98);transition-duration:.3s}
+.onbS{transition:opacity .2s ease,transform .26s cubic-bezier(.22,.8,.24,1)}
+.onbS.sw{opacity:0;transform:translateX(var(--sx,16px))}
+.onbIll{height:136px;border-radius:18px;background:#141414;border:1px solid #2c2c2c;display:grid;place-items:center;margin-bottom:16px;overflow:hidden}
+.onbIll svg{width:100%;height:100%}
+.onbC h3{margin:0 0 6px;font-size:20px;font-weight:600;letter-spacing:-.01em;color:#f3f3f3}
+.onbC p{margin:0;color:#aaa;font-size:14.5px;line-height:1.5;min-height:3em}
+.onbSt{display:flex;gap:6px;margin-top:12px}
+.onbSt button{flex:1;justify-content:center;background:#262626;border-color:#3a3a3a;color:#ddd;border-radius:10px;padding:8px 6px;font-size:12.5px}
+.onbSt button.on{border-color:var(--brand);background:rgba(138,167,217,.18);color:#fff}
+.onbD{display:flex;gap:6px;margin:16px 0 14px}
+.onbD i{width:7px;height:7px;border-radius:4px;background:#444;transition:width .3s,background .3s}
+.onbD i.on{width:22px;background:var(--brand)}
+.onbR{display:flex;align-items:center;gap:8px}
+.onbR .sp{flex:1}
+.onbR button{padding:10px 18px;border-radius:12px;font-size:14px}
+.onbSk,.onbBk{background:none!important;border-color:transparent!important;color:#999}
+.onbR .pri{padding:10px 24px;font-weight:600}
+.oKey{animation:oKey 2.25s ease-in-out infinite;transform-box:fill-box}
+.oSub{animation:oSub 2.6s ease-in-out infinite}
+.oZoom{transform-origin:120px 60px;animation:oZoom 2.6s ease-in-out infinite}
+.oPan{animation:oPan 2.6s ease-in-out infinite}
+.oKnob{animation:oKnob 2.4s ease-in-out infinite}
+.oLift{animation:oLift 2.8s cubic-bezier(.4,0,.2,1) infinite}
+.oUp{animation:oUp 1.8s ease-in-out infinite}
+.oChip{animation:oChip 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.oStyle{animation:oStyle 2.4s ease-in-out infinite}
+@keyframes oKey{0%,100%{transform:none}8%{transform:translateY(3px)}16%{transform:none}}
+@keyframes oSub{0%,20%{opacity:0;transform:translateY(-4px)}40%,85%{opacity:1;transform:none}100%{opacity:0}}
+@keyframes oZoom{0%,100%{transform:scale(.85)}50%{transform:scale(1.35)}}
+@keyframes oPan{0%,100%{transform:translate(70px,90px);opacity:0}15%{opacity:1}50%{transform:translate(170px,32px);opacity:1}70%{opacity:0}}
+@keyframes oKnob{0%,100%{transform:none}50%{transform:translateX(34px)}}
+@keyframes oLift{0%,20%{transform:none}45%,70%{transform:translateY(-28px)}100%{transform:none}}
+@keyframes oUp{0%,100%{transform:translateY(-4px)}50%{transform:translateY(6px)}}
+@keyframes oChip{0%,100%{transform:none}12%{transform:translateY(-4px)}24%{transform:none}}
+@keyframes oStyle{0%,100%{opacity:.55}20%,40%{opacity:1}}
+@media (prefers-reduced-motion:reduce){#onb *,#onb{animation:none!important;transition:none!important}}

@@ -16,11 +16,13 @@ import { transformTool } from './tools/transform'
 import { gradientTool } from './tools/gradient'
 import { native } from './native'
 import { checkForUpdates } from './ui/update'
+import { firstLaunch } from './ui/onboard'
 
 const app = new App()
 for (const t of [...selectTools(app), ...cropTools(app), ...bgTools(app), ...highlightTools(app), ...paintTools(app), adjustTool(app), levelsTool(app), alphaTool(app), ...aiTools(app), ...annotateTools(app), ...viewTools(app), filterTool(app), effectsTool(app), transformTool(app), gradientTool(app)]) app.tools.set(t.id, t)
 buildShell(app, document.getElementById('app')!)
 app.setTool('move')
+firstLaunch(app)
 if (native && !app.settings.gpu) native.ai('setGpu', { on: false })
 // Tell the app the interface is up (this keeps a code-only update). Sent once the first frame is drawn,
 // so closing CocoaShot right after starting it no longer rolls an update back.
