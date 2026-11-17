@@ -9,6 +9,7 @@ import { h, icon, toast } from '../ui/dom'
 import { btn, hint, sec, seg, slider, toggle } from '../ui/controls'
 import { ai, jobBox, rgbaOf } from './common'
 import type { Viewport, Pt } from '../view/viewport'
+import { toolSteps } from '../core/steps'
 
 type Mode = 'new' | 'add' | 'sub' | 'int'
 export const sel = { mode: 'new' as Mode, feather: 0, tol: 32, contiguous: true, sample: true, grow: 4 }
@@ -287,16 +288,28 @@ export function selectTools(app: App): Tool[] {
   let samFor: any = null
   let pts: { x: number; y: number; pos: boolean }[] = []
   let addPart = true
+  // Undo takes back the last click and the selection it made.
+  let ptsAhead: { x: number; y: number; pos: boolean }[] = []
+  const objSteps = {
+    get canUndo() { return pts.length > 0 },
+    get canRedo() { return ptsAhead.length > 0 && !!app.hist?.future.length },
+    undo() { if (!pts.length || app.job) return false; ptsAhead.push(pts.pop()!); app.hist?.undo(); app.emit('steps'); return true },
+    redo() { if (!ptsAhead.length || !app.hist?.future.length) return false; pts.push(ptsAhead.pop()!); app.hist.redo(); app.emit('steps'); return true },
+    reset() { pts = []; ptsAhead = []; app.emit('steps') }
+  }
   const obj: Tool = {
-    id: 'obj-sel', label: 'Object', icon: 'sparkle',
+    id: 'obj-sel', label: 'Object', icon: 'sparkle', steps: objSteps,
     cursor: () => 'crosshair',
     async down(p) {
       const doc = app.doc!
       if (p.x < 0 || p.y < 0 || p.x > doc.w || p.y > doc.h) return
+      if (app.job) return
       const mode = modeFrom(p.e)
       pts.push({ x: p.x, y: p.y, pos: addPart && !p.e.altKey })
+      ptsAhead = []
+      app.emit('steps')
       app.view.draw()
-      await app.run('Finding the object', async prog => {
+      const ok = await app.run('Finding the object', async prog => {
         const key = doc.comp
         const src = rgbaOf(doc.comp, 1024)
         const s = src.w / doc.w
@@ -310,7 +323,10 @@ export function selectTools(app: App): Tool[] {
         const m = canvasFromAlpha(r.mask, r.w, r.h)
         const full = canvas(doc.w, doc.h); const fx = ctx2d(full); fx.imageSmoothingQuality = 'high'; fx.drawImage(m, 0, 0, doc.w, doc.h)
         applySelection(app, full, pts.length > 1 && mode === 'new' ? 'new' : mode, 'Select object')
+        return true
       })
+      // A failed or cancelled lookup made no selection, so its point is not an undo step.
+      if (ok !== true) { pts.pop(); app.emit('steps'); app.view.draw() }
     },
     overlay(x, v) {
       for (const q of pts) {
@@ -319,12 +335,12 @@ export function selectTools(app: App): Tool[] {
         x.fillStyle = q.pos ? '#8AA7D9' : '#ff8a73'; x.fill(); x.strokeStyle = '#fff'; x.lineWidth = 1.5; x.stroke()
       }
     },
-    activate() { pts = [] },
-    deactivate() { pts = [] },
+    activate() { objSteps.reset() },
+    deactivate() { objSteps.reset() },
     panel: () => h('div', { class: 'ib' }, sec('Select object'),
       hint('Click an object to select it. Keep clicking to refine the selection.'),
       seg<'a' | 'r'>([['a', 'Include part'], ['r', 'Exclude part']], () => (addPart ? 'a' : 'r'), v => (addPart = v === 'a')),
-      jobBox(app), btn('Start over', () => { pts = []; applySelection(app, null, 'new', 'Deselect') }, 'wide'), ...selectionOps(app))
+      jobBox(app), btn('Start over', () => { objSteps.reset(); applySelection(app, null, 'new', 'Deselect') }, 'wide'), ...selectionOps(app))
   }
 
   const subject: Tool = {
@@ -343,6 +359,9 @@ export function selectTools(app: App): Tool[] {
 
 function polyTool(app: App): Tool {
   let pts: number[] = [], hover: { x: number; y: number } | null = null, mode: Mode = 'new'
+  // Each placed corner is its own undo step; Ctrl+Z takes back the last one.
+  const steps = toolSteps(app, () => ({ pts: pts.slice(), mode }), v => { pts = v.pts; mode = v.mode })
+  const discard = () => { pts = []; steps.reset(); app.view.draw() }
   const close = () => {
     const doc = app.doc!
     if (pts.length >= 6) {
@@ -352,7 +371,7 @@ function polyTool(app: App): Tool {
       x.closePath(); x.fill()
       applySelection(app, m, mode, 'Polygon select')
     }
-    pts = []; app.view.draw()
+    discard()
   }
   const snap = (p: Pt) => {
     if (!p.e.shiftKey || !pts.length) return { x: p.x, y: p.y }
@@ -361,18 +380,24 @@ function polyTool(app: App): Tool {
     return { x: lx + Math.cos(a) * d, y: ly + Math.sin(a) * d }
   }
   return {
-    id: 'poly', label: 'Polygon', icon: 'persp',
+    id: 'poly', label: 'Polygon', icon: 'persp', steps,
     cursor: () => 'crosshair',
     down(p) {
       const q = snap(p)
-      if (!pts.length) mode = p.e.altKey ? 'sub' : sel.mode
       if (pts.length >= 6 && Math.hypot(q.x - pts[0], q.y - pts[1]) * app.view.zoom < 8) return close()
+      steps.mark()
+      if (!pts.length) mode = p.e.altKey ? 'sub' : sel.mode
       pts.push(q.x, q.y)
     },
     move(p) { hover = snap(p) },
     dbl: () => close(),
-    key(e) { if (e.key === 'Enter') { close(); return true } if (e.key === 'Escape' && pts.length) { pts = []; app.view.draw(); return true } return false },
-    deactivate() { pts = [] },
+    key(e) {
+      if (e.key === 'Enter') { close(); return true }
+      if (e.key === 'Escape' && pts.length) { discard(); return true }
+      if (e.key === 'Backspace' && pts.length) { steps.undo(); app.view.draw(); return true }
+      return false
+    },
+    deactivate() { pts = []; steps.reset() },
     overlay(x, v) {
       if (!pts.length) return
       x.save(); x.translate(v.ox, v.oy); x.scale(v.zoom, v.zoom)
@@ -383,7 +408,7 @@ function polyTool(app: App): Tool {
       x.strokeStyle = '#000'; x.lineDashOffset = 4 / v.zoom; x.stroke()
       x.restore()
     },
-    panel: () => h('div', { class: 'ib' }, sec('Polygon'), hint('Click to place corners. Click the first corner or double-click to finish.'), modeSeg(),
+    panel: () => h('div', { class: 'ib' }, sec('Polygon'), hint('Click to place corners. Click the first corner or double-click to finish. Ctrl+Z or Backspace removes the last corner.'), modeSeg(),
       slider('Feather', () => sel.feather, v => (sel.feather = v), { min: 0, max: 100, unit: 'px', def: 0 }), ...selectionOps(app))
   }
 }

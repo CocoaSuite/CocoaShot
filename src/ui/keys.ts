@@ -32,6 +32,8 @@ export const ACTIONS: Action[] = [
   { id: 'effects', label: 'Layer effects', key: '' },
   { id: 'lastFilter', label: 'Repeat last filter', key: 'Mod+F' },
   { id: 'transform', label: 'Free transform', key: 'Mod+T' },
+  { id: 'distort', label: 'Distort', key: '' },
+  { id: 'warp', label: 'Warp', key: 'Mod+Alt+T' },
   { id: 'gradient', label: 'Gradient', key: 'Shift+G' },
   { id: 'tool:move', label: 'Move tool', key: 'V' },
   { id: 'tool:marquee', label: 'Rectangle select', key: 'M' },

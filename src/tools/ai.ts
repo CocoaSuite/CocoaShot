@@ -13,6 +13,7 @@ import { targetLayer } from './background'
 import { adjLayer, autoAdjust } from './adjust'
 import { applySelection } from './select'
 import { native } from '../native'
+import { toolSteps } from '../core/steps'
 
 function maskBrush(app: App, size: { v: number }, onDone: (mask: HTMLCanvasElement) => void) {
   let m: HTMLCanvasElement | null = null
@@ -232,9 +233,10 @@ export function aiTools(app: App): Tool[] {
   }
 
   let found: { label: string; score: number; box: number[]; on: boolean }[] = []
+  const detectSteps = toolSteps(app, () => found.map(f => f.on), v => { v.forEach((on, i) => { if (found[i]) found[i].on = on }) })
   const detect: Tool = {
-    id: 'ai-detect', label: 'Find objects', icon: 'person',
-    activate() { found = [] },
+    id: 'ai-detect', label: 'Find objects', icon: 'person', steps: detectSteps,
+    activate() { found = []; detectSteps.reset() },
     overlay(x, v) {
       x.save()
       x.font = '500 11px Inter, sans-serif'
@@ -250,7 +252,7 @@ export function aiTools(app: App): Tool[] {
     },
     down(p) {
       const f = found.find(f => p.x >= f.box[0] && p.y >= f.box[1] && p.x <= f.box[2] && p.y <= f.box[3])
-      if (f) { f.on = !f.on; app.emit('panel'); app.view.draw() }
+      if (f) { detectSteps.mark(); f.on = !f.on; app.emit('panel'); app.view.draw() }
     },
     panel() {
       const doc = app.doc!
@@ -259,6 +261,7 @@ export function aiTools(app: App): Tool[] {
         const s = doc.w / src.w
         const r = await ai(app, 'detect', { ...src, threshold: 0.75 }, p)
         found = r.map((f: any) => ({ ...f, box: f.box.map((v: number) => v * s), on: true }))
+        detectSteps.reset()
         if (!found.length) toast('No objects found')
         app.view.draw()
       })

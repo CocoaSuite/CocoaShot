@@ -18,6 +18,8 @@ Hold Space and drag, or use the scroll wheel, to move around. Hold Ctrl (Cmd on 
 
 Several images can be open at once. Each has a tab with its own layers and undo history. Middle-click a tab to close it.
 
+**Undo** (Ctrl+Z) always takes back the last thing you did. While a tool still has work in progress, that comes first: the last polygon corner, the last crop box change, the last corner in Perspective, the last click with Object or Find objects, or the last handle drag or typed value in Free transform. After that, undo moves on to the image's history. **Redo** (Ctrl+Shift+Z or Ctrl+Y) steps forward again.
+
 ## View rotation, zoom and smoothing
 
 **View, Rotate view** turns the canvas on screen without changing the image, and **Flip view** mirrors it, which helps when drawing. The SAI toolbar and Navigator also rotate it. The **Zoom** tool zooms in on a click and out on Alt-click; **Hand** drags the view.
@@ -58,6 +60,13 @@ Remove the background first, or select the object. In **Outline**, choose **Outl
 ### Free transform
 
 **Layer, Free transform** (Ctrl+T) puts a box with handles around the selected layer, or around the selected part of it if there is a selection. Drag inside the box to move, a handle to resize, or just outside a corner to rotate. Corners keep the proportions; hold Shift to resize freely, or to snap rotation to 15° steps. Alt resizes from the centre, and the arrow keys nudge. The panel takes exact sizes and angles, flips, and **Fit to image**. Enter or **Apply** keeps the change, Esc or **Cancel** puts it back. Text and shapes are resized with **Move** instead.
+
+The **Scale**, **Distort** and **Warp** buttons at the top of the panel switch how the layer is reshaped. **Image, Distort** and **Image, Warp** (Ctrl+Alt+T) open them directly, and Ctrl-dragging a corner in Scale switches to Distort.
+
+- **Distort** puts a handle on each corner and in the middle of each edge. Drag a corner to move it on its own, for example to fit a picture onto a sign or screen in a photo, or an edge to slide both its corners. Drag inside to move the whole layer, outside to rotate it.
+- **Warp** lays a grid over the layer. Drag a grid point to bend the layer around it, or drag anywhere inside the grid to pull that part of the surface. Alt-drag inside moves the layer, drag outside rotates it. **Grid** sets how many cells it has, from 2 × 2 to 6 × 6, and keeps the bend you've made so far.
+
+In both, Shift-click points to move several together, and the arrow keys nudge the picked points (or the whole layer when none are picked). **Reset** puts the shape back. Going from Scale to Distort to Warp carries the shape over; going back the other way applies it first.
 
 ### Folders
 

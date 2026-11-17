@@ -7,7 +7,7 @@ npm run typecheck
 npm test
 ```
 
-The unit tests cover the image processing core: blurring, mask growth and feathering, edge tracing, flood fill, inpainting, Lanczos resampling, perspective maths, histogram analysis, levels and alpha editing, the distance transform behind strokes and glows, and how folders keep their order when layers move in and out of them.
+The unit tests cover the image processing core, freeform warp and distort maths, in-tool undo steps, blurring, mask growth and feathering, edge tracing, flood fill, inpainting, Lanczos resampling, perspective maths, histogram analysis, levels and alpha editing, the distance transform behind strokes and glows, and how folders keep their order when layers move in and out of them.
 
 ## Before a release
 
@@ -32,6 +32,8 @@ Run `npm run desktop` and work through this list with a photo of a person and a 
 13b. Turn on every layer effect on a cut-out, a painted stroke and a text layer. Paint, move and transform the layer and check the effects follow. Export and flatten.
 13c. Run every filter with and without a selection, on a locked-transparency layer, then Cancel, Apply and Ctrl+F.
 13d. Free transform a layer and a selection: resize from corners and edges, with Shift and Alt, rotate, flip, type exact values, Apply, Cancel and undo.
+13f. Distort a layer, a selection and a masked cut-out: drag corners and edges, Ctrl-drag a corner from Scale, rotate outside, Shift-click two corners and nudge them. Warp the same with each grid size: drag points, pull the surface, change the grid mid-warp, Reset, Apply and Cancel. Check edges stay smooth after Apply.
+13g. Ctrl+Z inside tools: place polygon corners and undo them one at a time (and Backspace), then undo past the last corner into the history. Do the same with crop box drags, Perspective corners, Object clicks, Find objects toggles and each Free transform mode, then redo.
 13e. Draw each gradient shape with each colour option, with a selection and with Shift.
 14. Close without saving and check the recovery offer on the next start.
 15. Open a 6000 by 4000 px photo and check the app stays responsive.

@@ -11,7 +11,8 @@ It shares its look and feel with CocoaAuthor.
 - **Replace background**: colour, image or a blurred copy of the original.
 - **Select**: rectangle, ellipse, lasso, magic wand, click to select an object (AI), select subject (AI), add, subtract, intersect, feather, grow or shrink, invert, copy to layer, delete, crop to selection.
 - **Crop and resize**: free and fixed ratios, social media sizes, custom output size, straighten, rotate, flip, perspective correction, resize by pixels or percent with Lanczos resampling.
-- **Free transform**: scale, rotate, flip and move a layer, or just the selected part of it, with handles or exact numbers.
+- **Free transform**: scale, rotate, flip and move a layer, or just the selected part of it, with handles or exact numbers. **Distort** moves each corner on its own, and **Warp** bends the layer with a grid of points (2 × 2 up to 6 × 6).
+- **Step-by-step undo**: Ctrl+Z takes back the last action inside a tool before the document history, such as the last polygon corner, crop box change or transform handle drag.
 - **Highlight and outline**: brush, rectangle and ellipse highlights, marker style, spotlight, and outlines that follow the real edge of an object (solid or dashed, outside, centre or inside, glow, rounded or sharp).
 - **Paint and erase**: brush, pencil, eraser, fill, gradient (linear, radial, reflected, angle, diamond), colour picker, clone, blur, sharpen and smudge, with pen pressure, a colour wheel with RGB and hex input and recent colours, lock transparency and clipping to the layer below.
 - **Adjustments**: exposure, brightness, contrast, highlights, shadows, whites, blacks, gamma, temperature, tint, saturation, vibrance, hue, sharpness, clarity, grayscale, sepia and invert, plus auto enhance, white balance, contrast and colour. Adjustments live on a layer and stay editable. GPU accelerated.
