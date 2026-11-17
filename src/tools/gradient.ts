@@ -1,9 +1,9 @@
 import type { App } from '../app'
 import type { Tool } from './types'
-import type { Layer } from '../core/doc'
+import { shownVisible, type Layer } from '../core/doc'
 import { touch } from '../core/compose'
 import { canvas, copyCanvas, ctx2d, getData, hex2rgb } from '../core/util'
-import { h } from '../ui/dom'
+import { h, toast } from '../ui/dom'
 import { hint, sec, select, slider, toggle } from '../ui/controls'
 import { colorPanel } from './common'
 import { BLENDS, layerOptions } from './paint'
@@ -58,7 +58,7 @@ export function drawGradient(app: App, w: number, hh: number, a: { x: number; y:
 }
 
 export function gradientTool(app: App): Tool {
-  let drag: { l: Layer; a: { x: number; y: number }; b: { x: number; y: number }; orig: HTMLCanvasElement } | null = null
+  let drag: { l: Layer; a: { x: number; y: number }; b: { x: number; y: number }; orig: HTMLCanvasElement; made: boolean } | null = null
   const apply = () => {
     if (!drag) return
     const doc = app.doc!
@@ -90,7 +90,8 @@ export function gradientTool(app: App): Tool {
       const paintable = act && act.canvas && !act.locked && (act.kind === 'paint' || act.kind === 'image' || act.kind === 'highlight')
       const l = paintable ? app.activeRaster() : app.newPaintLayer()
       if (!l) return
-      drag = { l, a: { x: p.x, y: p.y }, b: { x: p.x, y: p.y }, orig: copyCanvas(l.canvas!) }
+      if (!shownVisible(doc, l)) toast(`${l.name} is hidden, so the gradient won't show`)
+      drag = { l, a: { x: p.x, y: p.y }, b: { x: p.x, y: p.y }, orig: copyCanvas(l.canvas!), made: !paintable }
     },
     move(p, pressed) {
       if (!pressed || !drag) return
@@ -103,7 +104,12 @@ export function gradientTool(app: App): Tool {
       if (!d) return
       drag = null
       const doc = app.doc!
-      if (Math.hypot(d.b.x - d.a.x, d.b.y - d.a.y) < 1) { const x = ctx2d(d.l.canvas!); x.globalCompositeOperation = 'copy'; x.drawImage(d.orig, 0, 0); x.globalCompositeOperation = 'source-over'; touch(d.l); doc.changed(); return }
+      if (Math.hypot(d.b.x - d.a.x, d.b.y - d.a.y) < 1) {
+        const x = ctx2d(d.l.canvas!); x.globalCompositeOperation = 'copy'; x.drawImage(d.orig, 0, 0); x.globalCompositeOperation = 'source-over'; touch(d.l); doc.changed()
+        // A click without a drag leaves no empty layer behind.
+        if (d.made) { app.hist!.undo(); app.hist!.future.pop(); app.emit('history') }
+        return
+      }
       app.hist!.raster('Gradient', d.l, 'canvas', { x: 0, y: 0, w: doc.w, h: doc.h }, getData(d.orig))
       app.view.draw()
     },

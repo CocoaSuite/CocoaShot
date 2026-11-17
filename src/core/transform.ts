@@ -1,7 +1,9 @@
 import { Doc, Layer, snapshot } from './doc'
 import { History } from './history'
 import { touch } from './compose'
+import { transformShape } from './shapes'
 import { job } from './jobs'
+import { homography } from './px'
 import { canvas, ctx2d, getData, putData, mkID } from './util'
 
 type Setup = (x: CanvasRenderingContext2D) => void
@@ -11,6 +13,11 @@ function canvasesOf(l: Layer) { return ['canvas', 'mask', 'maskAI'] as const }
 
 export function transformDoc(doc: Doc, hist: History, label: string, w: number, h: number, setup: Setup, pt: PtFn, scale = 1) {
   const before = snapshot(doc)
+  // How the image turned and whether it was mirrored, read from where pt sends two directions.
+  const [ox, oy] = pt(0, 0), [ax, ay] = pt(1, 0), [bx, by] = pt(0, 1)
+  const turn = Math.atan2(ay - oy, ax - ox), mirror = (ax - ox) * (by - oy) - (ay - oy) * (bx - ox) < 0
+  // A flip mirrors a shape's angle; its letters stay readable, so no extra turn is added.
+  const fixTurn = mirror ? 0 : turn
   const tf = (src: HTMLCanvasElement | null, smooth = true) => {
     if (!src) return null
     const c = canvas(w, h), x = ctx2d(c)
@@ -26,12 +33,7 @@ export function transformDoc(doc: Doc, hist: History, label: string, w: number, 
       if (k === 'canvas' && (l.kind === 'text' || l.kind === 'shape' || l.kind === 'outline' || l.kind === 'background')) l.canvas = canvas(w, h)
       else l[k] = tf(l[k])
     }
-    if (l.shape) {
-      const s = l.shape
-      ;[s.x1, s.y1] = pt(s.x1, s.y1)
-      ;[s.x2, s.y2] = pt(s.x2, s.y2)
-      s.size *= scale; s.width *= scale; s.radius *= scale; s.outline *= scale
-    }
+    if (l.shape) transformShape(l.shape, pt, scale, fixTurn, mirror)
     if (l.outline) { l.outline.width *= scale; l.outline.glow *= scale }
     l.cache = null; l.maskCache = null; touch(l); l.maskDirty = true
   }
@@ -45,6 +47,9 @@ export function transformDoc(doc: Doc, hist: History, label: string, w: number, 
 }
 
 export function cropDoc(doc: Doc, hist: History, r: { x: number; y: number; w: number; h: number }, angle = 0, outW?: number, outH?: number) {
+  // Whole pixels: a box between pixels would resample, and so soften, the whole image.
+  const x0 = Math.round(r.x), y0 = Math.round(r.y)
+  r = { x: x0, y: y0, w: Math.max(1, Math.round(r.x + r.w) - x0), h: Math.max(1, Math.round(r.y + r.h) - y0) }
   const w = Math.max(1, Math.round(r.w)), hh = Math.max(1, Math.round(r.h))
   const cx = r.x + r.w / 2, cy = r.y + r.h / 2
   const a = (angle * Math.PI) / 180
@@ -112,7 +117,7 @@ export async function resizeDoc(doc: Doc, hist: History, w: number, h: number, m
   const sc = Math.sqrt(sx * sy)
   for (const l of doc.layers) {
     if (l.kind === 'text' || l.kind === 'shape' || l.kind === 'outline' || l.kind === 'background') l.canvas = canvas(w, h)
-    if (l.shape) { const s = l.shape; s.x1 *= sx; s.x2 *= sx; s.y1 *= sy; s.y2 *= sy; s.size *= sc; s.width *= sc; s.radius *= sc; s.outline *= sc }
+    if (l.shape) transformShape(l.shape, (x, y) => [x * sx, y * sy], sc, 0, false)
     if (l.outline) { l.outline.width *= sc; l.outline.glow *= sc }
     l.cache = null; l.maskCache = null; touch(l); l.maskDirty = true
   }
@@ -141,6 +146,10 @@ export async function perspectiveDoc(doc: Doc, hist: History, quad: number[]) {
     if (l.maskAI) l.maskAI = await warp(l.maskAI)
     l.cache = null; l.maskCache = null; touch(l); l.maskDirty = true
   }
+  // Text and shapes follow the correction: their points go where the warp sends them.
+  const H = homography(quad, [0, 0, w, 0, w, h, 0, h])
+  const map = (x: number, y: number): [number, number] => { const z = H[6] * x + H[7] * y + H[8]; return [(H[0] * x + H[1] * y + H[2]) / z, (H[3] * x + H[4] * y + H[5]) / z] }
+  for (const l of doc.layers) if (l.shape) transformShape(l.shape, map, 1, 0, false)
   doc.original = await warp(doc.original)
   doc.selection = null
   doc.w = w; doc.h = h

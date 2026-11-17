@@ -9,7 +9,7 @@ export function viewTools(app: App): Tool[] {
     sec('View'),
     slider('Rotate', () => app.view.angle, v => app.view.setAngle(v), { min: -180, max: 180, def: 0, unit: '°' }),
     toggle('Flip view horizontally', () => app.view.flip, v => app.view.setFlip(v)),
-    h('div', { class: 'g2' }, btn('Fit to screen', () => app.view.fit()), btn('Actual pixels', () => app.view.setZoom(1))))
+    h('div', { class: 'g2' }, btn('Fit to screen', () => app.view.fit(true)), btn('Actual pixels', () => app.view.setZoom(1))))
   const hand: Tool = {
     id: 'hand', label: 'Hand', icon: 'hand',
     cursor: () => 'grab',

@@ -2,7 +2,7 @@ import { childrenOf, Doc, fxActive, Layer } from './doc'
 import { renderFx } from './fx'
 import { adjustGL, isIdentity } from './gl'
 import { contours, maskPipeline } from './px'
-import { drawShape } from './shapes'
+import { drawShape, fontReady } from './shapes'
 import { canvas, ctx2d, getData, putData, Rect, rectClip, rectPad, rectUnion, alphaOf } from './util'
 
 export interface StrokePreview { layer: Layer; buf: HTMLCanvasElement; alpha: number; op: GlobalCompositeOperation; rect: Rect | null }
@@ -120,18 +120,25 @@ export function renderBg(doc: Doc, l: Layer) {
 
 export function layerFull(doc: Doc, l: Layer): HTMLCanvasElement | null {
   prepare(doc, l)
-  return l.mask ? l.cache : l.canvas
+  return l.mask && !l.maskOff ? l.cache : l.canvas
 }
 
 function prepare(doc: Doc, l: Layer) {
   if (!l.canvas) return
   if (l.dirty) l.fxKey = ''
   if (l.dirty === true) {
-    if (l.kind === 'text' || l.kind === 'shape') { const x = ctx2d(l.canvas); x.clearRect(0, 0, l.canvas.width, l.canvas.height); if (l.shape) drawShape(x, l.shape) }
+    if (l.kind === 'text' || l.kind === 'shape') {
+      const x = ctx2d(l.canvas); x.clearRect(0, 0, l.canvas.width, l.canvas.height)
+      if (l.shape) {
+        drawShape(x, l.shape)
+        // Drawn again once its font has loaded (this is not an edit, so the image isn't marked changed).
+        fontReady(l.shape, () => { touch(l); doc.emit('change', null) })
+      }
+    }
     else if (l.kind === 'outline' && l.outline) renderOutline(doc, l)
     else if (l.kind === 'background' && l.bg) renderBg(doc, l)
   }
-  if (!l.mask) { l.cache = null; l.dirty = null; return }
+  if (!l.mask || l.maskOff) { l.cache = null; l.dirty = null; return }
   const m = effectiveMask(l)!
   let r: Rect | null = l.dirty === true || !l.cache ? { x: 0, y: 0, w: l.canvas.width, h: l.canvas.height } : l.dirty
   if (!l.cache || l.cache.width !== l.canvas.width || l.cache.height !== l.canvas.height) { l.cache = canvas(l.canvas.width, l.canvas.height); r = { x: 0, y: 0, w: l.canvas.width, h: l.canvas.height } }
@@ -261,7 +268,7 @@ function imageFor(doc: Doc, l: Layer, r: Rect, st?: StrokePreview | null): Canva
     x.globalCompositeOperation = st.op
     x.drawImage(st.buf, r.x, r.y, r.w, r.h, r.x, r.y, r.w, r.h)
     x.globalAlpha = 1
-    if (l.mask) {
+    if (l.mask && !l.maskOff) {
       x.globalCompositeOperation = 'destination-in'
       x.drawImage(effectiveMask(l)!, r.x, r.y, r.w, r.h, r.x, r.y, r.w, r.h)
     }
@@ -307,6 +314,20 @@ export function layerWithFx(doc: Doc, l: Layer): HTMLCanvasElement | null {
 export function groupImage(doc: Doc, g: Layer): HTMLCanvasElement {
   const c = canvas(doc.w, doc.h)
   composeLevel(doc, c, g.id, { r: { x: 0, y: 0, w: doc.w, h: doc.h }, o: {}, stop: false, n: 0 })
+  return c
+}
+
+/**
+ * The given layers composited on their own, in their stack order, as if nothing else were in the image
+ * (for merging). Folders are flattened: their layers are used directly.
+ */
+export function composeList(doc: Doc, list: Layer[]): HTMLCanvasElement {
+  // Bring every layer's own image up to date with the real document first.
+  for (const l of list) if (l.kind !== 'group') { if (fxActive(l.fx)) fxImage(doc, l); else layerFull(doc, l) }
+  const t = Object.create(doc) as Doc
+  t.layers = list.filter(l => l.kind !== 'group').map(l => ({ ...l, parent: null, visible: true, dirty: null, maskDirty: null }))
+  const c = canvas(doc.w, doc.h)
+  composeLevel(t, c, null, { r: { x: 0, y: 0, w: doc.w, h: doc.h }, o: {}, stop: false, n: 0 })
   return c
 }
 

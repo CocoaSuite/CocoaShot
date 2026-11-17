@@ -22,6 +22,8 @@ for (const t of [...selectTools(app), ...cropTools(app), ...bgTools(app), ...hig
 buildShell(app, document.getElementById('app')!)
 app.setTool('move')
 if (native && !app.settings.gpu) native.ai('setGpu', { on: false })
-setTimeout(() => native?.appStarted?.(), 3000)
+// Tell the app the interface is up (this keeps a code-only update). Sent once the first frame is drawn,
+// so closing CocoaShot right after starting it no longer rolls an update back.
+requestAnimationFrame(() => setTimeout(() => native?.appStarted?.(), 300))
 if (native && app.settings.checkUpdates) setTimeout(() => checkForUpdates(app, true), 5000)
 ;(window as any).cocoashot = app

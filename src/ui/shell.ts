@@ -2,10 +2,10 @@ import type { App } from '../app'
 import { GROUPS, groupOf } from '../tools/types'
 import { h, icon, logo, tip, toast, confirmBox } from './dom'
 import { newImageDialog } from './newimage'
-import { duplicate, groupLayer, layersPanel, newAdjust, newFolder, removeLayer, ungroup } from './layers'
+import { addMask, applyMask, deleteMask, duplicate, groupLayer, invertMask, layersPanel, mergeDown, mergeVisible, newAdjust, newFolder, removeLayer, toggleMask, ungroup } from './layers'
 import { FILTERS, openFilter } from '../tools/filters'
 import { exportDialog, helpDialog, settingsDialog } from './dialogs'
-import { ACTIONS, comboOf } from './keys'
+import { ACTIONS, comboOf, fmtCombo } from './keys'
 import { Viewport } from '../view/viewport'
 import { native, RecentItem } from '../native'
 import { applySelection, deletePixels, invert, selectAll } from '../tools/select'
@@ -50,6 +50,14 @@ export function buildShell(app: App, root: HTMLElement) {
     lastFilter: () => app.doc && openFilter(app),
     ...Object.fromEntries(FILTERS.map(f => ['filter:' + f.id, () => { if (app.doc) openFilter(app, f.id) }])),
     dupLayer: () => app.doc && duplicate(app),
+    mergeDown: () => app.doc && mergeDown(app),
+    mergeVisible: () => app.doc && mergeVisible(app),
+    addMask: () => app.doc && addMask(app),
+    maskFromSel: () => app.doc && addMask(app, true),
+    invertMask: () => app.doc && invertMask(app),
+    toggleMask: () => app.doc && toggleMask(app),
+    applyMask: () => app.doc && applyMask(app),
+    deleteMask: () => app.doc && deleteMask(app),
     delLayer: () => app.doc && removeLayer(app),
     editAlpha: () => app.setTool('alpha'),
     levels: () => app.setTool('levels'),
@@ -67,10 +75,20 @@ export function buildShell(app: App, root: HTMLElement) {
     selectAll: () => app.doc && selectAll(app),
     deselect: () => app.doc?.selection && applySelection(app, null, 'new', 'Deselect'),
     invert: () => app.doc && invert(app),
-    delete: () => { if (!app.doc) return; if (app.doc.selection) deletePixels(app); else if (app.doc.active?.shape || app.doc.active?.kind === 'outline' || app.doc.active?.kind === 'adjust' || app.doc.active?.kind === 'highlight') removeLayer(app) },
+    delete: () => {
+      const d = app.doc
+      if (!d) return
+      if (d.selection) { deletePixels(app); return }
+      // Without a selection, Delete removes the selected layer (Ctrl+Z brings it back).
+      const a = d.active
+      if (!a) return
+      const n = d.layers.length
+      removeLayer(app)
+      if (d.layers.length < n) toast(`Deleted ${a.name}`, { action: 'Undo', onAction: () => app.undo() })
+    },
     zoomIn: () => app.view.zoomStep(1),
     zoomOut: () => app.view.zoomStep(-1),
-    fit: () => app.view.fit(),
+    fit: () => app.view.fit(true),
     actual: () => app.view.setZoom(1),
     compare: () => { app.view.compare = app.view.compare === 'split' ? 'off' : 'split'; app.emit('compare'); app.view.draw() },
     swap: () => app.setColors(app.bgc, app.fg),
@@ -116,16 +134,26 @@ export function buildShell(app: App, root: HTMLElement) {
       for (const it of typeof items === 'function' ? items() : items) {
         if (it === '-') { dd.appendChild(h('hr')); continue }
         const [label, act, ic] = it
-        dd.appendChild(h('button', { role: 'menuitem', onclick: () => { closeMenus(); run[act]?.() } }, ic ? icon(ic) : h('span', { style: { width: '16px' } }), label))
+        const key = keymap().get('#' + act)
+        dd.appendChild(h('button', { role: 'menuitem', onclick: () => { closeMenus(); run[act]?.() } }, ic ? icon(ic) : h('span', { style: { width: '16px' } }), label,
+          key ? h('span', { class: 'kb' }, fmtCombo(key)) : null))
       }
       mn.classList.add('on'); openMenu = mn
+      ;(dd.querySelector('button') as HTMLElement | null)?.focus()
     } }, title), dd)
+    // Arrow keys move through an open menu, Escape closes it.
+    dd.addEventListener('keydown', e => {
+      const items = [...dd.querySelectorAll('button')] as HTMLElement[]
+      const i = items.indexOf(document.activeElement as HTMLElement)
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus() }
+      else if (e.key === 'Escape') { e.stopPropagation(); closeMenus() }
+    })
     return mn
   }
 
   const dname = h('span', { class: 'dname' })
   const status = h('span', { class: 'status' }, h('i', { class: 'dot' }), h('span'))
-  const zoomLbl = tip(h('button', { class: 'zoom', onclick: () => app.view.fit() }, '100%'), 'Fit to screen')
+  const zoomLbl = tip(h('button', { class: 'zoom', onclick: () => app.view.fit(true) }, '100%'), 'Fit to screen')
   const ib = (ic: string, label: string, act: string) => tip(h('button', { class: 'ic', onclick: () => run[act]() }, icon(ic)), label)
   const undoB = ib('undo', 'Undo', 'undo'), redoB = ib('redo', 'Redo', 'redo')
   const cmpB = ib('compare', 'Before and after', 'compare')
@@ -135,7 +163,7 @@ export function buildShell(app: App, root: HTMLElement) {
     menu('File', () => [['New image', 'newImage', 'plus'], ['Open image', 'open', 'open'], ['Open project', 'openProject', 'folder'], ['New image from clipboard', 'newPaste', 'image'], '-', ['Save project', 'save', 'save'], ['Save project as', 'saveAs'], ['Export image', 'export', 'download'], '-', ['Close image', 'close', 'x']]),
     menu('Edit', [['Undo', 'undo', 'undo'], ['Redo', 'redo', 'redo'], '-', ['Cut', 'cut', 'cut'], ['Copy', 'copy', 'copy'], ['Paste as layer', 'paste'], ['Paste as new image', 'newPaste', 'image'], ['Delete', 'delete', 'trash'], '-', ['Select all', 'selectAll'], ['Deselect', 'deselect'], ['Invert selection', 'invert'], '-', ['Settings', 'settings', 'gear']]),
     menu('Image', [['Resize', 'resize', 'resize'], ['Crop to selection', 'cropSel', 'crop'], ['Free transform', 'transform', 'transform'], ['Distort', 'distort'], ['Warp', 'warp'], '-', ['Rotate left', 'rotl', 'rotl'], ['Rotate right', 'rotr', 'rotr'], ['Flip horizontal', 'fliph', 'fliph'], ['Flip vertical', 'flipv', 'flipv'], '-', ['Flatten image', 'flattenImg', 'layers']]),
-    menu('Layer', [['New layer', 'newLayer', 'plus'], ['New folder', 'newFolder', 'folder'], ['New adjustment layer', 'newAdjust', 'sliders'], ['Duplicate layer', 'dupLayer', 'copy'], ['Delete layer', 'delLayer', 'trash'], '-', ['Put in folder', 'groupLayer'], ['Remove folder, keep layers', 'ungroup'], '-', ['Layer effects', 'effects', 'fx'], ['Free transform', 'transform', 'transform'], ['Distort', 'distort'], ['Warp', 'warp'], ['Edit layer alpha', 'editAlpha', 'alpha'], ['Levels', 'levels', 'levels'], '-', ['Flatten image', 'flattenImg', 'layers']]),
+    menu('Layer', [['New layer', 'newLayer', 'plus'], ['New folder', 'newFolder', 'folder'], ['New adjustment layer', 'newAdjust', 'sliders'], ['Duplicate layer', 'dupLayer', 'copy'], ['Delete layer', 'delLayer', 'trash'], '-', ['Merge down', 'mergeDown'], ['Merge visible', 'mergeVisible'], ['Put in folder', 'groupLayer'], ['Remove folder, keep layers', 'ungroup'], '-', ['Add mask', 'addMask', 'mask'], ['Mask from selection', 'maskFromSel'], ['Disable or enable mask', 'toggleMask'], ['Invert mask', 'invertMask'], ['Apply mask', 'applyMask'], ['Delete mask', 'deleteMask'], '-', ['Layer effects', 'effects', 'fx'], ['Free transform', 'transform', 'transform'], ['Distort', 'distort'], ['Warp', 'warp'], ['Edit layer alpha', 'editAlpha', 'alpha'], ['Levels', 'levels', 'levels'], '-', ['Flatten image', 'flattenImg', 'layers']]),
     menu('Filter', () => {
       const out: ([string, string, string?] | '-')[] = []
       let cat = ''
@@ -306,12 +334,25 @@ export function buildShell(app: App, root: HTMLElement) {
       drop, rec)
     start.appendChild(card)
     if (native) {
-      const rb = await native.loadRecovery()
-      if (rb && !app.doc) {
-        rec.before(h('div', { class: 'job' }, h('div', { class: 'fr' }, h('span', 'Unsaved work from your last session can be recovered.'),
+      const got = await native.loadRecovery()
+      const items = !got ? [] : got instanceof ArrayBuffer ? [{ id: 'legacy', data: got }] : got
+      if (items.length && !app.doc) {
+        const n = items.length
+        rec.before(h('div', { class: 'job' }, h('div', { class: 'fr' }, h('span', n > 1 ? `Unsaved work on ${n} images from your last session can be recovered.` : 'Unsaved work from your last session can be recovered.'),
           h('span', { style: { display: 'flex', gap: '6px' } },
             h('button', { onclick: () => native!.clearRecovery().then(renderStart) }, 'Discard'),
-            h('button', { class: 'pri', onclick: async () => { const d = await loadProject(rb, 'Recovered.cocoashot'); app.setDoc(d); d.modified = true } }, 'Recover')))))
+            h('button', { class: 'pri', onclick: async () => {
+              for (const it of items) {
+                try {
+                  const d = await loadProject(it.data, 'Recovered.cocoashot')
+                  d.modified = true
+                  // Keep the copy on disk until the image is saved or closed, under the same name.
+                  if (it.id !== 'legacy') d.rid = it.id
+                  app.setDoc(d)
+                  if (it.id === 'legacy') native!.saveRecovery(it.data as any, d.rid).then(() => native!.clearRecovery('legacy'))
+                } catch { toast('One recovered image could not be read', { err: true }) }
+              }
+            } }, n > 1 ? 'Recover all' : 'Recover')))))
       }
       const list: RecentItem[] = await native.recent()
       if (list.length) {
@@ -369,20 +410,24 @@ export function buildShell(app: App, root: HTMLElement) {
   desk.addEventListener('dragleave', () => desk.classList.remove('drop'))
   desk.addEventListener('drop', async e => {
     e.preventDefault(); desk.classList.remove('drop')
-    const f = e.dataTransfer?.files[0]
-    if (!f) return
-    const path = (window as any).cocoaNative ? (f as any).path : undefined
-    app.openFile({ name: f.name, path, data: await f.arrayBuffer() })
+    const files = [...(e.dataTransfer?.files || [])]
+    if (!files.length) return
+    // Electron 32 and later only give a dropped file's path through webUtils.
+    for (const f of files) {
+      const path = native?.pathForFile?.(f) || (f as any).path || undefined
+      await app.openFile({ name: f.name, path, data: await f.arrayBuffer() })
+    }
   })
 
-  const keymap = () => {
+  /** Shortcut to action, plus '#action' to shortcut for showing keys in the menus. */
+  function keymap() {
     const m = new Map<string, string>()
-    for (const a of ACTIONS) { const k = app.settings.shortcuts[a.id] ?? a.key; if (k) m.set(k, a.id) }
+    for (const a of ACTIONS) { const k = app.settings.shortcuts[a.id] ?? a.key; if (k) { m.set(k, a.id); m.set('#' + a.id, k) } }
     return m
   }
   addEventListener('keydown', e => {
     const t = e.target as HTMLElement
-    if (t.closest('input,textarea,select,[contenteditable]') || document.querySelector('.modal')) return
+    if (t?.closest?.('input,textarea,select,[contenteditable]') || document.querySelector('.modal')) return
     if (e.key === ' ' && !e.repeat) { app.view.space = true; app.view.updateCursor(); e.preventDefault(); return }
     if (app.tool?.key?.(e)) { e.preventDefault(); return }
     let c = comboOf(e)
@@ -396,7 +441,7 @@ export function buildShell(app: App, root: HTMLElement) {
     }
     e.preventDefault()
     if (id.startsWith('tool:')) { if (app.doc) app.setTool(app.settings.uiStyle === 'ps' ? groupKey(app, id.slice(5)) : id.slice(5)) }
-    else if (app.doc || ['open', 'paste', 'newPaste', 'updates', 'fullscreen', 'panels'].includes(id)) run[id]?.()
+    else if (app.doc || ['newImage', 'open', 'openProject', 'paste', 'newPaste', 'updates', 'fullscreen', 'panels', 'settings', 'help'].includes(id)) run[id]?.()
   })
   addEventListener('keyup', e => { if (e.key === ' ') { app.view.space = false; app.view.updateCursor() } })
   addEventListener('blur', () => { app.view.space = false })

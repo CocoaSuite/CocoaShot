@@ -4,13 +4,15 @@ import { encode, EXT, ExportFormat, ExportOpts, FORMATS } from '../core/io'
 import { job } from '../core/jobs'
 import { canvas, ctx2d, getData, putData, mkID } from '../core/util'
 import { native, downloadLocal, isMac } from '../native'
-import { h, icon, logo, modal, toast } from './dom'
+import { confirmBox, h, icon, logo, modal, toast } from './dom'
 import { hint, sec, seg, select, slider, toggle, numField } from './controls'
 import { mb } from '../tools/common'
 import { checkForUpdates } from './update'
 import { ACTIONS, comboOf, fmtCombo } from './keys'
 import { appIconSettings } from './appicon'
 
+
+export const BG_MODELS: ['isnet' | 'birefnet' | 'modnet', string][] = [['isnet', 'ISNet, general'], ['birefnet', 'BiRefNet, maximum detail'], ['modnet', 'MODNet, fast, for people']]
 
 export function exportDialog(app: App) {
   const doc = app.doc
@@ -67,6 +69,24 @@ export function exportDialog(app: App) {
         h('button', { class: 'pri', onclick: go }, 'Export'))].filter(Boolean) as Node[])
   }
   const go = async () => {
+    let file = (name.trim() || 'image') + '.' + EXT[o.format]
+    let path: string | null = null
+    if (native) {
+      // Never replace a file without asking: offer to replace it or to keep both under a new name.
+      const dir = folder || (await native.defaultFolder())
+      path = await native.joinPath(dir, file)
+      if (await native.exists?.(path)) {
+        const r = await confirmBox('Replace ' + file + '?', `A file named ${file} is already in this folder. Replacing it overwrites it.`, 'Replace', 'Cancel', 'Keep both')
+        if (r === 'no') return
+        if (r === 'extra') {
+          const stem = name.trim() || 'image'
+          for (let i = 2; i < 1000; i++) {
+            const f = `${stem} (${i}).${EXT[o.format]}`, p = await native.joinPath(dir, f)
+            if (!(await native.exists?.(p))) { file = f; path = p; break }
+          }
+        }
+      }
+    }
     close()
     app.settings.exportFormat = o.format
     app.settings.exportQuality = o.quality
@@ -81,9 +101,8 @@ export function exportDialog(app: App) {
         putData(c, mkID(out, o.w, o.h))
       }
       const bytes = await encode(c, o, doc)
-      const file = (name.trim() || 'image') + '.' + EXT[o.format]
-      if (native) {
-        const p = await native.joinPath(folder || (await native.defaultFolder()), file)
+      if (native && path) {
+        const p = path
         await native.writePath(p, bytes)
         toast(`Exported ${file}`, { action: 'Show in folder', onAction: () => native!.showInFolder(p) })
       } else { downloadLocal(file, bytes); toast(`Exported ${file}`) }
@@ -94,6 +113,9 @@ export function exportDialog(app: App) {
 }
 
 export function settingsDialog(app: App, page = 'general') {
+  /** The key listener waiting for a new shortcut, if any. It must not outlive the dialog. */
+  let capture: ((e: KeyboardEvent) => void) | null = null
+  const stopCapture = () => { if (capture) removeEventListener('keydown', capture, true); capture = null }
   const nav = h('nav')
   const sect = h('section')
   const pages: [string, string, () => any[]][] = [
@@ -139,7 +161,7 @@ export function settingsDialog(app: App, page = 'general') {
       }
       return [
         toggle('Use the graphics card when available', () => app.settings.gpu, v => { app.settings.gpu = v; app.saveSettings(); native?.ai('setGpu', { on: v }) }),
-        select('Background model', [['isnet', 'ISNet, general'], ['birefnet', 'BiRefNet, maximum detail']], () => (app.settings.bgModel === 'modnet' ? 'isnet' : app.settings.bgModel) as any, v => { app.settings.bgModel = v; app.saveSettings() }),
+        select('Background model', BG_MODELS, () => app.settings.bgModel, v => { app.settings.bgModel = v; app.saveSettings() }),
         hint('Models run on this computer. They are downloaded once, from huggingface.co or github.com, the first time a tool needs them. Images are never uploaded.'),
         list,
         h('div', { class: 'fr' }, size, h('span', { class: 'sp' }), native && h('button', { onclick: () => native!.modelsFolder() }, icon('folder'), 'Open models folder'))
@@ -151,15 +173,23 @@ export function settingsDialog(app: App, page = 'general') {
         const cur = app.settings.shortcuts[a.id] ?? a.key
         const b = h('button', { class: 'kbd' }, cur ? fmtCombo(cur) : 'None')
         b.addEventListener('click', () => {
+          stopCapture()
           b.textContent = 'Press keys'
           const k = (e: KeyboardEvent) => {
             e.preventDefault(); e.stopPropagation()
             if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return
-            removeEventListener('keydown', k, true)
-            app.settings.shortcuts[a.id] = e.key === 'Escape' ? '' : comboOf(e)
+            stopCapture()
+            const combo = e.key === 'Escape' ? '' : comboOf(e)
+            // A key does one thing: take it away from whatever had it before.
+            if (combo) for (const o of ACTIONS) if (o.id !== a.id && (app.settings.shortcuts[o.id] ?? o.key) === combo) {
+              app.settings.shortcuts[o.id] = ''
+              toast(`${fmtCombo(combo)} was ${o.label}. That action now has no shortcut.`)
+            }
+            app.settings.shortcuts[a.id] = combo
             app.saveSettings()
             show('keys')
           }
+          capture = k
           addEventListener('keydown', k, true)
         })
         rows.push(h('div', { class: 'mrow' }, h('span', { class: 'grow' }, a.label), b))
@@ -175,6 +205,7 @@ export function settingsDialog(app: App, page = 'general') {
     ]]
   ]
   const show = (id: string) => {
+    stopCapture()
     nav.innerHTML = ''
     for (const [pid, t] of pages) nav.appendChild(h('button', { class: pid === id ? 'on' : '', onclick: () => show(pid) }, t))
     sect.innerHTML = ''
@@ -183,7 +214,7 @@ export function settingsDialog(app: App, page = 'general') {
   show(page)
   modal(close => h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
     h('div', { class: 'fr' }, h('h2', 'Settings'), h('span', { class: 'sp' }), h('button', { class: 'ic', 'aria-label': 'Close', onclick: close }, icon('x'))),
-    h('div', { class: 'set' }, nav, sect)), true)
+    h('div', { class: 'set' }, nav, sect)), true, stopCapture)
 }
 
 export function helpDialog() {

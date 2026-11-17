@@ -115,7 +115,7 @@ export function highlightTools(app: App): Tool[] {
     x.globalCompositeOperation = 'destination-out'
     x.filter = so.soft ? `blur(${so.soft}px)` : 'none'
     draw(x)
-    doc.add(l)
+    doc.add(l, doc.activeId)
     app.hist!.structural('Spotlight', before)
     doc.structure()
   }

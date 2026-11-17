@@ -1,6 +1,6 @@
 import { compose, effectiveMask, layerFull } from '../core/compose'
 import { contours } from '../core/px'
-import { alphaOf, canvas, ctx2d, Rect, rectUnion } from '../core/util'
+import { alphaOf, bboxOfAlpha, canvas, ctx2d, Rect, rectUnion } from '../core/util'
 import type { App } from '../app'
 
 export interface Pt { x: number; y: number; p: number; sx: number; sy: number; rx: number; ry: number; e: PointerEvent }
@@ -20,6 +20,7 @@ export class Viewport {
   flip = false
   showAnts = true
   private alphaTmp: HTMLCanvasElement | null = null
+  private overTmp: HTMLCanvasElement | null = null
   private pending: Rect | null | true = null
   private raf = 0
   private ants: Path2D | null = null
@@ -58,10 +59,11 @@ export class Viewport {
 
   size() { const r = this.desk.getBoundingClientRect(); return { w: r.width, h: r.height } }
 
-  fit() {
+  /** Fits the image in the window. grow: small images are enlarged too (Fit to screen); otherwise at most 100%. */
+  fit(grow = false) {
     if (!this.doc) return
     const { w, h } = this.size()
-    const z = Math.min((w - 60) / this.doc.w, (h - 60) / this.doc.h, 1)
+    const z = Math.min((w - 60) / this.doc.w, (h - 60) / this.doc.h, grow ? 32 : 1)
     this.zoom = Math.max(0.01, z)
     this.ox = (w - this.doc.w * this.zoom) / 2
     this.oy = (h - this.doc.h * this.zoom) / 2
@@ -250,13 +252,23 @@ export class Viewport {
       w = Math.round(W * sc); hh = Math.round(H * sc)
       const t = canvas(w, hh); ctx2d(t).drawImage(s, 0, 0, w, hh); a = alphaOf(t)
     } else a = alphaOf(s)
+    // A soft selection that never reaches 50% still counts: trace it at half its strongest value.
+    let max = 0
+    for (let i = 0; i < a.length; i++) if (a[i] > max) { max = a[i]; if (max >= 128) break }
+    if (!max && sc < 1) { const f = alphaOf(s); for (let i = 0; i < f.length; i++) if (f[i]) { max = 1; break } }
+    const thr = max >= 128 ? 128 : Math.max(1, max / 2)
     const p = new Path2D()
     let any = false
-    for (const l of contours(a, w, hh, 128)) {
+    for (const l of contours(a, w, hh, thr)) {
       any = true
       p.moveTo(l[0] / sc, l[1] / sc)
       for (let i = 2; i < l.length; i += 2) p.lineTo(l[i] / sc, l[i + 1] / sc)
       p.closePath()
+    }
+    if (!any && max && sc < 1) {
+      // Too small to show at the reduced size: mark its box instead of dropping it.
+      const bb = bboxOfAlpha(alphaOf(s), W, H)
+      if (bb) { p.rect(bb.x, bb.y, Math.max(1, bb.w), Math.max(1, bb.h)); any = true }
     }
     if (!any) { this.doc!.selection = null; this.stopAnts(); this.app.emit('selection-empty'); this.draw(); return }
     this.ants = p
@@ -312,8 +324,11 @@ export class Viewport {
       if (this.showOriginal) x.drawImage(doc.original, 0, 0, W, H)
       else x.drawImage(doc.comp, 0, 0, W, H)
       if (this.maskView === 'overlay' && active?.mask && active.canvas) {
-        const t = canvas(Math.min(doc.w, 2400), Math.min(doc.h, Math.round(2400 * doc.h / doc.w)))
+        const tw = Math.min(doc.w, 2400), th = Math.min(doc.h, Math.round(2400 * doc.h / doc.w))
+        if (!this.overTmp || this.overTmp.width !== tw || this.overTmp.height !== th) this.overTmp = canvas(tw, th)
+        const t = this.overTmp
         const tx = ctx2d(t)
+        tx.globalCompositeOperation = 'source-over'; tx.clearRect(0, 0, tw, th)
         tx.fillStyle = 'rgba(255,60,60,.5)'; tx.fillRect(0, 0, t.width, t.height)
         tx.globalCompositeOperation = 'destination-out'
         tx.drawImage(effectiveMask(active)!, 0, 0, t.width, t.height)

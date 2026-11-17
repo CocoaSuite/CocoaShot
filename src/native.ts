@@ -12,9 +12,12 @@ interface Native {
   showInFolder(p: string): Promise<void>
   recent(): Promise<RecentItem[]>
   addRecent(i: RecentItem): Promise<RecentItem[]>
-  saveRecovery(d: Uint8Array): Promise<void>
-  loadRecovery(): Promise<ArrayBuffer | null>
-  clearRecovery(): Promise<void>
+  exists?(p: string): Promise<boolean>
+  pathForFile?(f: File): string | undefined
+  saveRecovery(d: Uint8Array, id?: string): Promise<void>
+  /** Recovery copies of unsaved images, one per image. Older versions returned a single ArrayBuffer. */
+  loadRecovery(): Promise<{ id: string; data: ArrayBuffer }[] | ArrayBuffer | null>
+  clearRecovery(id?: string): Promise<void>
   clipboardImage(): Promise<ArrayBuffer | null>
   copyImage(png: Uint8Array): Promise<void>
   modelsSize(): Promise<number>

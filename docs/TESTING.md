@@ -27,6 +27,9 @@ Run `npm run desktop` and work through this list with a photo of a person and a 
 10. Add every annotation type, edit text, move and reshape shapes.
 11. Undo and redo through the whole session, including jumping in the History tab.
 12. Save a project, close it, reopen it and check everything is still editable.
+12a. Ctrl-click and Shift-click layers, merge down, merge visible, right-click a layer, Alt-click an eye. Add, disable, invert, apply and delete a mask.
+12b. Move with a selection (only the selected pixels move), a folder, arrow keys and Shift+arrows. Turn text and a rectangle with the filled handle, then flip and rotate the image.
+12c. Export twice with the same name (Replace and Keep both), and open two images, edit both, kill the app and check both come back.
 13. Export to every format, with and without transparency, at a different size. Open the PSD in another editor and check its layers and folders; open the PDF and the ICO.
 13a. Make folders inside folders, drag layers in and out, close and open them, hide, lock and fade a folder, duplicate and delete one, and use Put in folder and Remove folder. Undo each step.
 13b. Turn on every layer effect on a cut-out, a painted stroke and a text layer. Paint, move and transform the layer and check the effects follow. Export and flatten.

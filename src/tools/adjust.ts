@@ -141,6 +141,7 @@ function lvSliders(p: number[], o: number, set: () => void, end: () => void, red
 
 export function levelsTool(app: App): Tool {
   let snap: any = null
+  let histKey = '', histCache: ReturnType<typeof histograms> | null = null
   let ch: LvChannel = 'rgb'
   return {
     id: 'levels', label: 'Levels', icon: 'levels',
@@ -157,9 +158,15 @@ export function levelsTool(app: App): Tool {
       const changed = () => { ensure(); doc.changed() }
       const end = () => { if (snap) { app.hist!.structural('Levels', snap); snap = null; app.emit('layers') } }
       const ci = LV_CH.indexOf(ch), o = ci * 5
-      const below = canvas(doc.w, doc.h)
-      compose(doc, below, null, { upTo: ex?.id })
-      const H = histograms(getData(below).data, Math.max(1, Math.round(doc.w * doc.h / 400000)))
+      // The histogram of everything below is reused until the image changes.
+      const key = doc.rid + ':' + doc.rev + ':' + (ex?.id || '')
+      if (histKey !== key) {
+        const below = canvas(doc.w, doc.h)
+        compose(doc, below, null, { upTo: ex?.id })
+        histCache = histograms(getData(below).data, Math.max(1, Math.round(doc.w * doc.h / 400000)))
+        histKey = key
+      }
+      const H = histCache!
       const graph = levelsGraph(H[ci], a.lv, o, LV_TINT[ch])
       const redraw = () => (graph as any).draw()
       const reset = (all: boolean) => { snap = snapshot(doc); ensure(); a.lv.splice(all ? 0 : o, all ? LV0.length : 5, ...LV0.slice(all ? 0 : o, all ? LV0.length : o + 5)); changed(); end(); app.emit('panel') }

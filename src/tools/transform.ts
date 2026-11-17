@@ -1,6 +1,7 @@
 import type { App } from '../app'
 import type { Tool } from './types'
-import { Doc, Layer, snapshot } from '../core/doc'
+import { Doc, Layer, Shape, shownLocked, snapshot, subtree } from '../core/doc'
+import { shapeBounds, transformShape } from '../core/shapes'
 import { holdFx, touch } from '../core/compose'
 import type { History } from '../core/history'
 import { alphaOf, bboxOfAlpha, canvas, copyCanvas, ctx2d, getData, putData } from '../core/util'
@@ -22,6 +23,10 @@ interface Pose { mode: Mode; cx: number; cy: number; sx: number; sy: number; a: 
 /** Box being transformed: its untransformed size (bw, bh) and centre (bx, by), and where it is now. */
 interface State extends Pose {
   doc: Doc; hist: History; l: Layer
+  /** Transforming a folder: the folder, its other pixel layers, and its text and shapes. */
+  group: Layer | null
+  extras: { l: Layer; orig: HTMLCanvasElement; origMask: HTMLCanvasElement | null }[]
+  shapes: { l: Layer; shape: Shape }[]
   orig: HTMLCanvasElement; origMask: HTMLCanvasElement | null; origSel: HTMLCanvasElement | null
   float: HTMLCanvasElement; base: HTMLCanvasElement | null
   bx: number; by: number; bw: number; bh: number
@@ -130,9 +135,12 @@ export function transformTool(app: App): Tool {
     // It is taken before repainting, so it matches the pose the drag started from.
     if (st.mode !== 'box') paintMesh(st.l.canvas!, st.base, st.float, meshOf(st))
     else {
-      if (drag && !st.base && !hold) { hold = holdFx(st.doc, st.l); holdFrom = matrix({ ...st, ...drag.s0 }) }
+      if (drag && !st.base && !hold && !st.group) { hold = holdFx(st.doc, st.l); holdFrom = matrix({ ...st, ...drag.s0 }) }
       paint(st.l.canvas!, st.base, st.float, matrix(st))
       hold?.draw(matrix(st).multiply(holdFrom.inverse()))
+      const m = matrix(st)
+      for (const e of st.extras) { paint(e.l.canvas!, null, e.orig, m); touch(e.l) }
+      for (const e of st.shapes) { e.l.shape = shapeThrough(e.shape, m, st); touch(e.l) }
     }
     touch(st.l)
     st.doc.changed()
@@ -144,7 +152,8 @@ export function transformTool(app: App): Tool {
     const doc = app.doc
     if (!doc) return false
     const a = doc.active
-    if (a && (a.shape || a.kind === 'text')) { toast('Use Move to resize text and shapes: drag their round handles'); return false }
+    if (a && (a.shape || a.kind === 'text')) { app.setTool('move'); toast('Text and shapes: drag their round handles to resize, and the filled handle above them to turn them'); return false }
+    if (a?.kind === 'group') return beginGroup(doc, a)
     const l = app.activeRaster()
     if (!l || !l.canvas) return false
     const orig = copyCanvas(l.canvas)
@@ -162,7 +171,7 @@ export function transformTool(app: App): Tool {
     if (!bb) { toast(`${l.name} is empty`); return false }
     const mb = { x: bb.x - 1, y: bb.y - 1, w: bb.w + 2, h: bb.h + 2 }
     st = {
-      doc, hist: app.hist!, l, orig, origMask: l.mask && !doc.selection ? copyCanvas(l.mask) : null, origSel: doc.selection,
+      doc, hist: app.hist!, l, group: null, extras: [], shapes: [], orig, origMask: l.mask && !doc.selection ? copyCanvas(l.mask) : null, origSel: doc.selection,
       float, base, bx: bb.x + bb.w / 2, by: bb.y + bb.h / 2, bw: bb.w, bh: bb.h, cx: bb.x + bb.w / 2, cy: bb.y + bb.h / 2, sx: 1, sy: 1, a: 0,
       mb, mode, cols: warpCells, rows: warpCells, quad: [], grid: []
     }
@@ -175,13 +184,99 @@ export function transformTool(app: App): Tool {
     return true
   }
 
+  /** A transformed copy of a shape: its points through m, its size by m's scale, and its angle by m's turn. */
+  const shapeThrough = (sh: Shape, m: DOMMatrix, s: State): Shape => {
+    const c = { ...sh }
+    transformShape(c, (x, y) => { const q = new DOMPoint(x, y).matrixTransform(m); return [q.x, q.y] }, Math.sqrt(Math.abs(s.sx * s.sy)), s.a, s.sx * s.sy < 0)
+    return c
+  }
+
+  /** A folder transforms as one: every pixel layer inside it, and its text and shapes. Box mode only. */
+  const beginGroup = (doc: Doc, g: Layer): boolean => {
+    if (shownLocked(doc, g)) { toast(`${g.name} is locked`); return false }
+    if (mode !== 'box') { mode = 'box'; toast('Folders can be scaled, turned and moved. Distort and Warp work on one layer at a time.') }
+    const kids = subtree(doc, g).filter(k => k !== g && !shownLocked(doc, k))
+    const ras = kids.filter(k => k.canvas && (k.kind === 'image' || k.kind === 'paint' || k.kind === 'highlight'))
+    const shp = kids.filter(k => k.shape)
+    if (!ras.length && !shp.length) { toast(`${g.name} has nothing to transform`); return false }
+    let bb: { x: number; y: number; w: number; h: number } | null = null
+    const add = (r: { x: number; y: number; w: number; h: number } | null) => {
+      if (!r) return
+      if (!bb) { bb = { ...r }; return }
+      const x = Math.min(bb.x, r.x), y = Math.min(bb.y, r.y)
+      bb = { x, y, w: Math.max(bb.x + bb.w, r.x + r.w) - x, h: Math.max(bb.y + bb.h, r.y + r.h) - y }
+    }
+    for (const k of ras) add(bboxOfAlpha(alphaOf(k.canvas!), doc.w, doc.h))
+    for (const k of shp) add(shapeBounds(k.shape!))
+    if (!bb) { toast(`${g.name} is empty`); return false }
+    const b = bb as { x: number; y: number; w: number; h: number }
+    // The first pixel layer leads (an empty stand-in when the folder holds only text and shapes).
+    const lead = ras[0] || null
+    const leadL: Layer = lead || { ...shp[0], canvas: canvas(doc.w, doc.h), mask: null, shape: null, kind: 'paint' } as Layer
+    const orig = copyCanvas(leadL.canvas!)
+    st = {
+      doc, hist: app.hist!, l: leadL, group: g,
+      extras: ras.slice(1).map(k => ({ l: k, orig: copyCanvas(k.canvas!), origMask: k.mask ? copyCanvas(k.mask) : null })),
+      shapes: shp.map(k => ({ l: k, shape: { ...k.shape! } })),
+      orig, origMask: lead?.mask ? copyCanvas(lead.mask) : null, origSel: null, float: orig, base: null,
+      bx: b.x + b.w / 2, by: b.y + b.h / 2, bw: b.w, bh: b.h, cx: b.x + b.w / 2, cy: b.y + b.h / 2, sx: 1, sy: 1, a: 0,
+      mb: { x: b.x - 1, y: b.y - 1, w: b.w + 2, h: b.h + 2 }, mode: 'box', cols: warpCells, rows: warpCells, quad: [], grid: []
+    }
+    st.quad = restQuad(st); st.grid = restGrid(st)
+    if (!lead) st.l = leadL
+    picked.clear()
+    inner.reset()
+    app.hist!.pending = commit
+    app.emit('panel')
+    return true
+  }
+  /** Is l the lead layer of a folder transform made from text and shapes only (not in the document)? */
+  const stand = (s: State) => !s.doc.layers.includes(s.l)
+  /** Puts a folder's other layers and shapes back as they were. */
+  const restoreGroup = (s: State) => {
+    for (const e of s.extras) { paint(e.l.canvas!, null, e.orig, new DOMMatrix()); touch(e.l) }
+    for (const e of s.shapes) { e.l.shape = { ...e.shape }; touch(e.l) }
+  }
+
   const clear = () => { if (st && st.hist.pending === commit) st.hist.pending = null; hold?.end(); hold = null; st = null; drag = null; mdrag = null; picked.clear(); inner.reset() }
   function commit() {
     const s = st
     if (!s) return
     clear()
-    if (!changed(s)) { paint(s.l.canvas!, null, s.orig, new DOMMatrix()); touch(s.l); s.doc.changed(); app.emit('panel'); return }
+    if (!changed(s)) { paint(s.l.canvas!, null, s.orig, new DOMMatrix()); touch(s.l); restoreGroup(s); s.doc.changed(); app.emit('panel'); return }
     const before = snapshot(s.doc)
+    if (s.group) {
+      // A folder: every layer inside gets its transformed pixels (and mask), text and shapes their new place.
+      const m = matrix(s)
+      const all = [...(stand(s) ? [] : [{ l: s.l, orig: s.orig, origMask: s.origMask }]), ...s.extras]
+      for (const e of all) {
+        const bl = before.layers.find(x => x.ref === e.l)!.p
+        bl.canvas = e.orig
+        const after = canvas(s.doc.w, s.doc.h)
+        paint(after, null, e.orig, m)
+        e.l.canvas = after
+        if (e.origMask && e.l.mask) {
+          bl.mask = e.origMask
+          const nm = canvas(s.doc.w, s.doc.h), x = ctx2d(nm)
+          x.fillStyle = '#fff'; x.fillRect(0, 0, nm.width, nm.height)
+          x.globalCompositeOperation = 'destination-out'
+          x.setTransform(m); x.fillStyle = '#000'; x.fillRect(0, 0, s.doc.w, s.doc.h); x.setTransform(1, 0, 0, 1, 0, 0)
+          x.globalCompositeOperation = 'source-over'
+          paint(nm, null, e.origMask, m)
+          e.l.mask = nm; e.l.maskDirty = true
+        }
+        touch(e.l)
+      }
+      for (const e of s.shapes) {
+        before.layers.find(x => x.ref === e.l)!.p.shape = { ...e.shape }
+        e.l.shape = shapeThrough(e.shape, m, s)
+        touch(e.l)
+      }
+      s.hist.structural('Transform ' + s.group.name, before)
+      s.doc.structure()
+      app.emit('panel')
+      return
+    }
     const bl = before.layers.find(x => x.ref === s.l)!.p
     bl.canvas = s.orig
     if (s.mode !== 'box') {
@@ -235,6 +330,7 @@ export function transformTool(app: App): Tool {
     clear()
     paint(s.l.canvas!, null, s.orig, new DOMMatrix())
     touch(s.l)
+    restoreGroup(s)
     s.doc.changed()
     app.emit('panel')
   }
@@ -245,6 +341,7 @@ export function transformTool(app: App): Tool {
    */
   const setMode = (m: Mode) => {
     if (m === mode && (!st || st.mode === m)) return
+    if (m !== 'box' && (st?.group || app.doc?.active?.kind === 'group')) { toast('Distort and Warp work on one layer at a time. Open the folder and select a layer.'); app.emit('panel'); return }
     const s = st
     const order: Mode[] = ['box', 'distort', 'warp']
     if (s && order.indexOf(m) < order.indexOf(s.mode) && changed(s)) {
@@ -388,7 +485,7 @@ export function transformTool(app: App): Tool {
     deactivate() { commit() },
     down(p) {
       if (!begin() || !st) return
-      if (app.doc !== st.doc || app.doc.active !== st.l) { commit(); if (!begin() || !st) return }
+      if (app.doc !== st.doc || app.doc.active !== (st.group || st.l)) { commit(); if (!begin() || !st) return }
       if (st.mode === 'box') {
         const k = hit(p)!
         // Ctrl-drag a corner to move it on its own, as in Distort.
@@ -526,8 +623,8 @@ export function transformTool(app: App): Tool {
     },
     panel() {
       const l = app.doc?.active
-      if (!st && !(l && l.canvas && ['image', 'paint', 'highlight'].includes(l.kind))) {
-        return h('div', { class: 'ib' }, sec('Free transform'), hint('Select an image or paint layer to scale, rotate, distort or warp it. For text and shapes, use Move and drag their handles.'))
+      if (!st && !(l && ((l.canvas && ['image', 'paint', 'highlight'].includes(l.kind)) || l.kind === 'group'))) {
+        return h('div', { class: 'ib' }, sec('Free transform'), hint('Select an image or paint layer, or a folder, to scale, rotate, distort or warp it. For text and shapes, use Move: drag their handles, and the filled handle above them to turn them.'))
       }
       const s = st
       const deg = s ? ((s.a * 180) / Math.PI) : 0
@@ -539,7 +636,7 @@ export function transformTool(app: App): Tool {
         h('button', { class: 'pri', disabled: !s, onclick: () => commit() }, 'Apply'))
       if (m === 'distort') {
         return h('div', { class: 'ib' },
-          sec('Distort' + (s ? ': ' + s.l.name : '')), modes,
+          sec('Distort' + (s ? ': ' + (s.group || s.l).name : '')), modes,
           hint(sel + 'Drag a corner to move it on its own, or an edge to slide it. Drag inside to move, outside to rotate. Shift-click corners to move several, and use the arrow keys to nudge. Enter applies, Esc cancels, Ctrl+Z steps back.'),
           toggle('High-quality preview', () => quality, v => { quality = v; render() }),
           btn('Reset corners', resetShape, 'wide'),
@@ -547,7 +644,7 @@ export function transformTool(app: App): Tool {
       }
       if (m === 'warp') {
         return h('div', { class: 'ib' },
-          sec('Warp' + (s ? ': ' + s.l.name : '')), modes,
+          sec('Warp' + (s ? ': ' + (s.group || s.l).name : '')), modes,
           hint(sel + 'Drag a grid point to bend the layer, or drag anywhere inside to pull the surface. Alt-drag inside moves it, drag outside rotates. Shift-click points to move several together. Enter applies, Esc cancels, Ctrl+Z steps back.'),
           select('Grid', GRIDS, () => String(s ? s.cols : warpCells), v => setCells(+v)),
           toggle('High-quality preview', () => quality, v => { quality = v; render() }),
@@ -556,7 +653,7 @@ export function transformTool(app: App): Tool {
       }
       const edit = (fn: () => void) => () => { if (begin() && st) { inner.mark(); fn(); render(); app.emit('panel') } }
       return h('div', { class: 'ib' },
-        sec('Free transform' + (s ? ': ' + s.l.name : '')), modes,
+        sec('Free transform' + (s ? ': ' + (s.group || s.l).name : '')), modes,
         hint(sel + 'Drag inside to move, a handle to resize, or just outside a corner to rotate. Hold Shift to ' + (keepRatio ? 'resize freely' : 'keep the proportions') + ' or snap rotation, Alt to resize from the centre, Ctrl to drag a corner on its own. Enter applies, Esc cancels.'),
         toggle('Keep proportions at the corners', () => keepRatio, v => { keepRatio = v; app.emit('panel') }),
         toggle('High-quality resampling', () => quality, v => { quality = v; render() }),

@@ -2,7 +2,7 @@ import type { App } from '../app'
 import type { Tool } from './types'
 import { Layer, makeLayer, Shape, ShapeType, snapshot } from '../core/doc'
 import { touch } from '../core/compose'
-import { newShape, SHAPE_NAMES, textBox } from '../core/shapes'
+import { canRotate, newShape, shapeCenter, SHAPE_NAMES, textBox, turn } from '../core/shapes'
 import { h } from '../ui/dom'
 import { hint, sec, seg, select, slider, toggle } from '../ui/controls'
 import { colorWheel } from '../ui/color'
@@ -13,6 +13,7 @@ const ICONS: Record<ShapeType, string> = { text: 'text', arrow: 'arrow', line: '
 export function annotateTools(app: App): Tool[] {
   const style: Partial<Shape> = {}
   let editor: HTMLTextAreaElement | null = null
+  let placeEditor: (() => void) | null = null
 
   const editText = (l: Layer) => {
     closeEditor()
@@ -25,9 +26,12 @@ export function annotateTools(app: App): Tool[] {
     const place = () => {
       const x = document.createElement('canvas').getContext('2d')!
       const b = textBox(x, s)
-      const p = v.screenOf(s.type === 'callout' ? Math.min(s.x1, s.x2) : s.x1, s.type === 'callout' ? Math.min(s.y1, s.y2) : s.y1)
+      const rot = s.rot || 0
+      const tl = turn(s.type === 'callout' ? Math.min(s.x1, s.x2) : s.x1, s.type === 'callout' ? Math.min(s.y1, s.y2) : s.y1, shapeCenter(s, x), (rot * Math.PI) / 180)
+      const p = v.screenOf(tl.x, tl.y)
+      const deg = (v.flip ? -rot : rot) + v.angle
       Object.assign(ta.style, {
-        left: p.x + 'px', top: p.y + 'px', transformOrigin: '0 0', transform: v.rotated ? `rotate(${v.angle}deg)${v.flip ? ' scaleX(-1)' : ''}` : '', width: Math.max(40, (s.type === 'callout' ? Math.abs(s.x2 - s.x1) : b.w + s.size) * v.zoom) + 'px',
+        left: p.x + 'px', top: p.y + 'px', transformOrigin: '0 0', transform: v.rotated || rot ? `rotate(${deg}deg)${v.flip ? ' scaleX(-1)' : ''}` : '', width: Math.max(40, (s.type === 'callout' ? Math.abs(s.x2 - s.x1) : b.w + s.size) * v.zoom) + 'px',
         height: Math.max(20, (s.type === 'callout' ? Math.abs(s.y2 - s.y1) : b.h + s.size * 0.3) * v.zoom) + 'px',
         font: `${s.italic ? 'italic ' : ''}${s.bold ? 600 : 400} ${s.size * v.zoom}px "${s.font}"`, color: 'transparent', caretColor: s.color === '#ffffff' ? '#fff' : s.color,
         textAlign: s.align
@@ -43,11 +47,15 @@ export function annotateTools(app: App): Tool[] {
     })
     app.view.desk.appendChild(ta)
     editor = ta
+    placeEditor = place
     place()
     setTimeout(() => { ta.focus(); ta.select() }, 0)
   }
-  const closeEditor = () => { if (editor) { const e = editor; editor = null; e.blur(); e.remove() } }
-  app.on('zoom', closeEditor)
+  const closeEditor = () => { if (editor) { const e = editor; editor = null; placeEditor = null; e.blur(); e.remove() } }
+  // The editor sits over the text on screen, so it follows every pan, zoom and view rotation.
+  let rafPlace = 0
+  app.on('view', () => { if (placeEditor && !rafPlace) rafPlace = requestAnimationFrame(() => { rafPlace = 0; placeEditor?.() }) })
+  app.on('doc', closeEditor)
 
   const make = (type: ShapeType): Tool => {
     let cur: Layer | null = null, start: any = null, before: any = null
@@ -68,14 +76,14 @@ export function annotateTools(app: App): Tool[] {
         const sc = Math.max(doc.w, doc.h) / 1400
         const s = { ...newShape(type, p.x, p.y, app.fg, sc), ...style } as Shape
         s.x1 = s.x2 = p.x; s.y1 = s.y2 = p.y
-        if (type === 'marker') s.num = doc.layers.filter(l => l.shape?.type === 'marker').length + 1
+        if (type === 'marker') s.num = Math.max(0, ...doc.layers.filter(l => l.shape?.type === 'marker').map(l => l.shape!.num)) + 1
         if (type === 'label' || type === 'callout') { s.fill = style.fill || '#ffffff'; s.color = style.color || '#111111' }
         if (type === 'text') s.color = app.fg
         else if (type !== 'label' && type !== 'callout' && type !== 'marker') s.stroke = app.fg
         else if (type === 'marker') s.fill = app.fg
         const l = makeLayer(type === 'text' ? 'text' : 'shape', SHAPE_NAMES[type], doc.w, doc.h)
         l.shape = s
-        doc.add(l)
+        doc.add(l, doc.activeId)
         cur = l; start = { x: p.x, y: p.y }
         touch(l); doc.changed(); app.emit('layers')
       },
@@ -160,6 +168,7 @@ function shapePanel(app: App, type: ShapeType, style: Partial<Shape>, editText: 
     out.push(slider('Line width', () => g('width'), v => set('width', v), { min: 0, max: 80, onEnd: end }))
     if (type !== 'marker' && type !== 'label') out.push(toggle('Dashed', () => g('dash'), v => { set('dash', v); end() }))
   }
+  if (l && canRotate(l.shape!)) out.push(slider('Rotation', () => Math.round(g('rot') || 0), v => set('rot', v), { min: -180, max: 180, def: 0, unit: '°', onEnd: end }))
   if (type === 'rect' || type === 'callout' || type === 'label') out.push(slider('Corners', () => g('radius'), v => set('radius', v), { min: 0, max: 200, onEnd: end }))
   if (type === 'rect' || type === 'ellipse' || type === 'callout' || type === 'label') out.push(toggle('Fill', () => g('fillOn'), v => { set('fillOn', v); end() }))
   out.push(toggle('Shadow', () => g('shadow'), v => { set('shadow', v); end() }))

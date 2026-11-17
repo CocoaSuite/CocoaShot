@@ -369,3 +369,9 @@ input.val{text-align:right}
 .bgopt{display:flex;align-items:center;gap:7px;justify-content:flex-start}
 .bgopt.on{outline:2px solid var(--sel);outline-offset:-2px}
 .bgopt .sw{width:16px;height:16px;border-radius:3px;border:1px solid var(--line);flex:none}
+.dd .kb{margin-left:auto;padding-left:18px;color:var(--mute);font-size:11.5px;white-space:nowrap}
+.dd button:focus-visible{background:var(--hov);outline:none}
+.dd.ctx{display:flex;flex-direction:column;position:fixed;z-index:90;left:0;top:0}
+.dd button[disabled]{opacity:.45;pointer-events:none}
+.lr.pk{background:color-mix(in srgb,var(--sel) 16%,transparent)}
+.lb.off{opacity:.45;text-decoration:line-through}

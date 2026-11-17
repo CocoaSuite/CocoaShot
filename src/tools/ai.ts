@@ -4,11 +4,11 @@ import { Layer, snapshot } from '../core/doc'
 import { touch } from '../core/compose'
 import { job } from '../core/jobs'
 import { resizeDoc } from '../core/transform'
-import { alphaOf, bboxOfAlpha, canvas, canvasFromAlpha, ctx2d, getData, putData, Rect, rectClip, mkID } from '../core/util'
+import { alphaOf, bboxOfAlpha, canvas, canvasFromAlpha, ctx2d, fingerprint, getData, putData, Rect, rectClip, mkID } from '../core/util'
 import { morph } from '../core/px'
 import { h, icon, toast } from '../ui/dom'
 import { btn, hint, sec, seg, slider, toggle } from '../ui/controls'
-import { ai, drawBrushCursor, jobBox, rgbaOf } from './common'
+import { ai, drawBrushCursor, jobBox, rgbaOf, samCache } from './common'
 import { targetLayer } from './background'
 import { adjLayer, autoAdjust } from './adjust'
 import { applySelection } from './select'
@@ -43,7 +43,7 @@ function maskBrush(app: App, size: { v: number }, onDone: (mask: HTMLCanvasEleme
 }
 
 export async function inpaintLayer(app: App, l: Layer, mask: HTMLCanvasElement, method: 'ai' | 'quick', label: string) {
-  const doc = app.doc!
+  const doc = app.doc!, hist = app.hist!
   const a = alphaOf(mask)
   const bb = bboxOfAlpha(a, doc.w, doc.h)
   if (!bb) return
@@ -88,7 +88,7 @@ export async function inpaintLayer(app: App, l: Layer, mask: HTMLCanvasElement, 
   lx.drawImage(soft, R.x, R.y)
   lx.restore()
   touch(l, R)
-  app.hist!.raster(label, l, 'canvas', R, before)
+  hist.raster(label, l, 'canvas', R, before)
   doc.changed(R)
 }
 
@@ -144,14 +144,15 @@ export function aiTools(app: App): Tool[] {
         class: 'wide', onclick: () => {
           const l = target()
           if (!l) return
+          const doc = app.doc!, hist = app.hist!
           app.run('Reducing noise', async () => {
             const d = getData(l.canvas!)
             const before = getData(l.canvas!)
             const out: Uint8ClampedArray = await job('denoise', { data: d.data, w: d.width, h: d.height, strength: cl.noise / 100 }, [d.data.buffer])
             putData(l.canvas!, mkID(out, d.width, d.height))
             touch(l)
-            app.hist!.raster('Reduce noise', l, 'canvas', { x: 0, y: 0, w: d.width, h: d.height }, before)
-            app.doc!.changed()
+            hist.raster('Reduce noise', l, 'canvas', { x: 0, y: 0, w: d.width, h: d.height }, before)
+            doc.changed()
           })
         }
       }, 'Reduce noise'),
@@ -172,12 +173,13 @@ export function aiTools(app: App): Tool[] {
             const l = targetLayer(app)
             if (!l) return
             if (d.w * d.h * scale * scale > 120e6) { toast('The result would be too large. Crop or resize first.'); return }
+            const hist = app.hist!
             app.run('Upscaling', async p => {
               const src = rgbaOf(l.canvas!)
               const r = await ai(app, 'upscale', { ...src, scale }, p)
               p(null, 'Finishing')
               const W = d.w * scale, H = d.h * scale
-              await resizeDoc(d, app.hist!, W, H, 'lanczos')
+              await resizeDoc(d, hist, W, H, 'lanczos')
               const up = canvas(W, H)
               putData(up, mkID(r.data, W, H))
               const ux = ctx2d(up)
@@ -186,7 +188,7 @@ export function aiTools(app: App): Tool[] {
               const before = getData(l.canvas!)
               putData(l.canvas!, getData(up))
               touch(l)
-              app.hist!.raster('Upscale detail', l, 'canvas', { x: 0, y: 0, w: W, h: H }, before)
+              hist.raster('Upscale detail', l, 'canvas', { x: 0, y: 0, w: W, h: H }, before)
               d.structure()
               app.view.fit()
             })
@@ -206,7 +208,7 @@ export function aiTools(app: App): Tool[] {
       toggle('Reduce noise', () => en.noise, v => (en.noise = v)),
       h('button', {
         class: 'pri big wide', onclick: () => app.run('Enhancing', async () => {
-          const doc = app.doc!
+          const doc = app.doc!, hist = app.hist!
           if (en.noise) {
             const l = targetLayer(app)
             if (l?.canvas && !l.locked) {
@@ -214,7 +216,7 @@ export function aiTools(app: App): Tool[] {
               const out: Uint8ClampedArray = await job('denoise', { data: d.data, w: d.width, h: d.height, strength: 0.3 }, [d.data.buffer])
               putData(l.canvas, mkID(out, d.width, d.height))
               touch(l)
-              app.hist!.raster('Reduce noise', l, 'canvas', { x: 0, y: 0, w: d.width, h: d.height }, before)
+              hist.raster('Reduce noise', l, 'canvas', { x: 0, y: 0, w: d.width, h: d.height }, before)
             }
           }
           if (en.color || en.sharpen) {
@@ -224,7 +226,7 @@ export function aiTools(app: App): Tool[] {
             if (!en.color) { auto.levels = [0, 255, 0, 255, 0, 255]; auto.exposure = 0; auto.vibrance = 0; auto.shadows = 0; auto.highlights = 0 }
             if (!en.sharpen) { auto.sharpness = 0; auto.clarity = 0 }
             Object.assign(l.adjust!, auto)
-            app.hist!.structural('Enhance', before)
+            hist.structural('Enhance', before)
           }
           doc.structure()
         })
@@ -272,7 +274,9 @@ export function aiTools(app: App): Tool[] {
         await app.run('Selecting', async p => {
           const src = rgbaOf(doc.comp, 1024)
           const s = src.w / doc.w
+          samCache.key = ''
           await ai(app, 'samEmbed', src, p)
+          samCache.key = doc.rid + ':' + fingerprint(src.data)
           const full = canvas(doc.w, doc.h), fx = ctx2d(full)
           fx.imageSmoothingQuality = 'high'
           for (const f of list) {
@@ -301,7 +305,7 @@ export function aiTools(app: App): Tool[] {
             if (!(await selectFound())) return
             const l = targetLayer(app)
             if (!l || !doc.selection) return
-            await app.hist!.op('Keep selected objects', () => { l.mask = canvas(doc.w, doc.h); ctx2d(l.mask).drawImage(doc.selection!, 0, 0); l.maskAI = canvas(doc.w, doc.h); ctx2d(l.maskAI).drawImage(doc.selection!, 0, 0); touch(l); l.maskDirty = true })
+            await app.hist!.op('Keep selected objects', () => { l.mask = canvas(doc.w, doc.h); l.maskOff = false; ctx2d(l.mask).drawImage(doc.selection!, 0, 0); l.maskAI = canvas(doc.w, doc.h); ctx2d(l.maskAI).drawImage(doc.selection!, 0, 0); touch(l); l.maskDirty = true })
           })))
     }
   }

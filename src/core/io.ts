@@ -162,7 +162,7 @@ export function pngWithSrgb(png: Uint8Array): Uint8Array {
 async function png(c: HTMLCanvasElement) { return new Uint8Array(await (await blob(c, 'image/png')).arrayBuffer()) }
 async function fromPng(b: Uint8Array) { const bm = await createImageBitmap(new Blob([b as any]), { premultiplyAlpha: 'none' } as any); const c = canvas(bm.width, bm.height); ctx2d(c).drawImage(bm, 0, 0); bm.close(); return c }
 
-const LAYER_KEYS = ['id', 'name', 'kind', 'visible', 'locked', 'opacity', 'blend', 'alphaLock', 'clip', 'maskOpts', 'shape', 'outline', 'adjust', 'bgFor', 'parent', 'collapsed', 'fx'] as const
+const LAYER_KEYS = ['id', 'name', 'kind', 'visible', 'locked', 'opacity', 'blend', 'alphaLock', 'clip', 'maskOff', 'maskOpts', 'shape', 'outline', 'adjust', 'bgFor', 'parent', 'collapsed', 'fx'] as const
 
 export async function saveProject(doc: Doc): Promise<Uint8Array> {
   const files: Record<string, Uint8Array> = {}
@@ -186,6 +186,7 @@ export async function loadProject(data: ArrayBuffer, fileName: string): Promise<
   const z = unzipSync(new Uint8Array(data))
   if (!z['project.json']) throw new Error('This is not a CocoaShot project')
   const p = JSON.parse(strFromU8(z['project.json']))
+  if (!Array.isArray(p.layers) || !z['original.png']) throw new Error('This project is damaged')
   const orig = await fromPng(z['original.png'])
   const doc = new Doc(orig, p.name || fileName.replace(/\.cocoashot$/i, ''))
   doc.w = p.w; doc.h = p.h
@@ -206,6 +207,7 @@ export async function loadProject(data: ArrayBuffer, fileName: string): Promise<
     doc.layers.push(l)
   }
   normalizeTree(doc)
+  if (!doc.layers.length) throw new Error('This project has no layers')
   if (z['selection.png']) doc.selection = await fromPng(z['selection.png'])
   doc.activeId = doc.layer(p.active) ? p.active : doc.layers[doc.layers.length - 1].id
   doc.modified = false

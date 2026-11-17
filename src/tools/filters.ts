@@ -321,10 +321,11 @@ export function filterTool(app: App): Tool {
     const f = FILTERS.find(x => x.id === current)!
     put(preview ? result(app, target, base, f, params()) : base)
   }
-  const clear = () => { target = null; base = null; if (app.hist?.pending === commit) app.hist.pending = null }
+  const clear = () => { clearTimeout(pause); target = null; base = null; if (app.hist?.pending === commit) app.hist.pending = null }
   function commit() {
     if (!target || !base || !app.hist) return clear()
-    if (raf) { cancelAnimationFrame(raf); raf = 0 }
+    // Apply what the sliders say now, even if the preview hasn't caught up yet.
+    if (raf || pause) { cancelAnimationFrame(raf); clearTimeout(pause); pause = 0; raf = 0; if (preview) render() }
     if (!preview) { preview = true; render() }
     const l = target, b = getData(base)
     const f = FILTERS.find(x => x.id === current)!
@@ -349,7 +350,14 @@ export function filterTool(app: App): Tool {
     app.hist!.pending = commit
     return true
   }
-  const changed = () => { if (start() && !raf) raf = requestAnimationFrame(render) }
+  // Big images: wait for a short pause in slider movement before redrawing the preview, so dragging stays smooth.
+  let pause = 0
+  const changed = () => {
+    if (!start()) return
+    const big = (app.doc?.w || 0) * (app.doc?.h || 0) > 6e6
+    if (big) { clearTimeout(pause); pause = window.setTimeout(() => { pause = 0; if (!raf) raf = requestAnimationFrame(render) }, 140) }
+    else if (!raf) raf = requestAnimationFrame(render)
+  }
   app.on('filter-change', () => { if (target && base) { put(base) } changed(); app.emit('panel') })
   return {
     id: 'filter', label: 'Filter', icon: 'filter',
