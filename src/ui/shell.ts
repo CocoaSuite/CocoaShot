@@ -24,8 +24,8 @@ export function buildShell(app: App, root: HTMLElement) {
     save: () => app.saveProject(),
     saveAs: () => app.saveProject(true),
     export: () => exportDialog(app),
-    undo: () => { if (!app.stroke) app.hist?.undo() },
-    redo: () => { if (!app.stroke) app.hist?.redo() },
+    undo: () => app.undo(),
+    redo: () => app.redo(),
     copy: () => app.copy(),
     cut: async () => {
       const d = app.doc
@@ -44,6 +44,8 @@ export function buildShell(app: App, root: HTMLElement) {
     ungroup: () => app.doc && ungroup(app),
     effects: () => app.doc && app.setTool('effects'),
     transform: () => app.doc && app.setTool('transform'),
+    distort: () => { if (app.doc) { app.setTool('transform'); app.emit('transform-mode', 'distort') } },
+    warp: () => { if (app.doc) { app.setTool('transform'); app.emit('transform-mode', 'warp') } },
     gradient: () => app.doc && app.setTool('gradient'),
     lastFilter: () => app.doc && openFilter(app),
     ...Object.fromEntries(FILTERS.map(f => ['filter:' + f.id, () => { if (app.doc) openFilter(app, f.id) }])),
@@ -132,8 +134,8 @@ export function buildShell(app: App, root: HTMLElement) {
     h('div', { class: 'brand' }, logo(), 'CocoaShot'),
     menu('File', () => [['New image', 'newImage', 'plus'], ['Open image', 'open', 'open'], ['Open project', 'openProject', 'folder'], ['New image from clipboard', 'newPaste', 'image'], '-', ['Save project', 'save', 'save'], ['Save project as', 'saveAs'], ['Export image', 'export', 'download'], '-', ['Close image', 'close', 'x']]),
     menu('Edit', [['Undo', 'undo', 'undo'], ['Redo', 'redo', 'redo'], '-', ['Cut', 'cut', 'cut'], ['Copy', 'copy', 'copy'], ['Paste as layer', 'paste'], ['Paste as new image', 'newPaste', 'image'], ['Delete', 'delete', 'trash'], '-', ['Select all', 'selectAll'], ['Deselect', 'deselect'], ['Invert selection', 'invert'], '-', ['Settings', 'settings', 'gear']]),
-    menu('Image', [['Resize', 'resize', 'resize'], ['Crop to selection', 'cropSel', 'crop'], ['Free transform', 'transform', 'transform'], '-', ['Rotate left', 'rotl', 'rotl'], ['Rotate right', 'rotr', 'rotr'], ['Flip horizontal', 'fliph', 'fliph'], ['Flip vertical', 'flipv', 'flipv'], '-', ['Flatten image', 'flattenImg', 'layers']]),
-    menu('Layer', [['New layer', 'newLayer', 'plus'], ['New folder', 'newFolder', 'folder'], ['New adjustment layer', 'newAdjust', 'sliders'], ['Duplicate layer', 'dupLayer', 'copy'], ['Delete layer', 'delLayer', 'trash'], '-', ['Put in folder', 'groupLayer'], ['Remove folder, keep layers', 'ungroup'], '-', ['Layer effects', 'effects', 'fx'], ['Free transform', 'transform', 'transform'], ['Edit layer alpha', 'editAlpha', 'alpha'], ['Levels', 'levels', 'levels'], '-', ['Flatten image', 'flattenImg', 'layers']]),
+    menu('Image', [['Resize', 'resize', 'resize'], ['Crop to selection', 'cropSel', 'crop'], ['Free transform', 'transform', 'transform'], ['Distort', 'distort'], ['Warp', 'warp'], '-', ['Rotate left', 'rotl', 'rotl'], ['Rotate right', 'rotr', 'rotr'], ['Flip horizontal', 'fliph', 'fliph'], ['Flip vertical', 'flipv', 'flipv'], '-', ['Flatten image', 'flattenImg', 'layers']]),
+    menu('Layer', [['New layer', 'newLayer', 'plus'], ['New folder', 'newFolder', 'folder'], ['New adjustment layer', 'newAdjust', 'sliders'], ['Duplicate layer', 'dupLayer', 'copy'], ['Delete layer', 'delLayer', 'trash'], '-', ['Put in folder', 'groupLayer'], ['Remove folder, keep layers', 'ungroup'], '-', ['Layer effects', 'effects', 'fx'], ['Free transform', 'transform', 'transform'], ['Distort', 'distort'], ['Warp', 'warp'], ['Edit layer alpha', 'editAlpha', 'alpha'], ['Levels', 'levels', 'levels'], '-', ['Flatten image', 'flattenImg', 'layers']]),
     menu('Filter', () => {
       const out: ([string, string, string?] | '-')[] = []
       let cat = ''
@@ -334,8 +336,8 @@ export function buildShell(app: App, root: HTMLElement) {
     ;(status.lastChild as HTMLElement).textContent = d ? (d.modified ? 'Edited' : d.projectPath ? 'Saved' : 'Not saved') : ''
     status.hidden = !d
     ;(status.firstChild as HTMLElement).className = 'dot' + (d?.modified ? ' busy' : '')
-    undoB.toggleAttribute('disabled', !app.hist?.past.length)
-    redoB.toggleAttribute('disabled', !app.hist?.future.length)
+    undoB.toggleAttribute('disabled', !app.canUndo())
+    redoB.toggleAttribute('disabled', !app.canRedo())
     exportB.toggleAttribute('disabled', !d)
     cmpB.classList.toggle('on', app.view.compare === 'split')
     zoomLbl.textContent = Math.round(app.view.zoom * 100) + '%'
@@ -348,6 +350,8 @@ export function buildShell(app: App, root: HTMLElement) {
   app.on('history', () => { renderTop(); if (tab === 'hist') renderInsp() })
   app.on('zoom', () => { renderTop(); renderFoot() })
   app.on('compare', renderTop)
+  app.on('steps', renderTop)
+  app.on('tool', renderTop)
   let jt = 0
   app.on('job', () => {
     renderFoot()

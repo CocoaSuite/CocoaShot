@@ -64,6 +64,20 @@ export class App extends Emitter {
 
   get tool() { return this.tools.get(this.toolId) }
 
+  /** Undo the last action: a step inside the current tool first (a polygon corner, a handle drag), then the document history. */
+  undo() {
+    if (this.stroke) return
+    if (this.tool?.steps?.undo()) { this.view.draw(); this.emit('panel'); return }
+    this.hist?.undo()
+  }
+  redo() {
+    if (this.stroke) return
+    if (this.tool?.steps?.redo()) { this.view.draw(); this.emit('panel'); return }
+    this.hist?.redo()
+  }
+  canUndo() { return !!(this.tool?.steps?.canUndo || this.hist?.past.length) }
+  canRedo() { return !!(this.tool?.steps?.canRedo || this.hist?.future.length) }
+
   saveSettings() { try { localStorage.setItem('cocoashot.settings', JSON.stringify(this.settings)) } catch {} }
   setColors(fg: string, bg = this.bgc) {
     this.fg = fg; this.bgc = bg

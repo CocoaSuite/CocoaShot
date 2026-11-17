@@ -199,11 +199,11 @@ export function saiBar(app: App, run: Record<string, () => void>) {
     if (document.activeElement !== zin) zin.value = (Math.round(app.view.zoom * 1000) / 10) + '%'
     if (document.activeElement !== ain) ain.value = (app.view.angle > 0 ? '+' : '') + app.view.angle + '°'
     flipB.classList.toggle('on', app.view.flip)
-    undoB.toggleAttribute('disabled', !app.hist?.past.length)
-    redoB.toggleAttribute('disabled', !app.hist?.future.length)
+    undoB.toggleAttribute('disabled', !app.canUndo())
+    redoB.toggleAttribute('disabled', !app.canRedo())
   }
   let raf = 0
-  for (const ev of ['view', 'zoom', 'history', 'doc']) app.on(ev, () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; sync() }) })
+  for (const ev of ['view', 'zoom', 'history', 'doc', 'steps', 'tool']) app.on(ev, () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; sync() }) })
   sync()
   return bar
 }

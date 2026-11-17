@@ -1,5 +1,6 @@
 import type { Pt, Viewport } from '../view/viewport'
 import type { BrushOpts } from '../core/brush'
+import type { StepLike } from '../core/steps'
 
 export interface BrushHandle {
   getSize(): number
@@ -31,6 +32,8 @@ export interface Tool {
   brush?(): BrushHandle | null
   /** Alt+click samples the colour under the cursor instead of using the tool. */
   altPick?: boolean
+  /** Work in progress inside the tool (polygon corners, handle drags). Undo and redo step through it before the document history. */
+  steps?: StepLike
 }
 
 export interface Group { id: string; name: string; icon: string; tools: string[] }

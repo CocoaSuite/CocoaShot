@@ -6,6 +6,7 @@ import { btn, hint, numField, sec, seg, select, slider, toggle } from '../ui/con
 import { selectionBBox } from './select'
 import { jobBox } from './common'
 import type { Viewport } from '../view/viewport'
+import { toolSteps } from '../core/steps'
 
 const RATIOS: [string, string, number | null, number?, number?][] = [
   ['free', 'Free', null], ['orig', 'Original', -1], ['1:1', 'Square', 1], ['16:9', '16:9', 16 / 9], ['4:3', '4:3', 4 / 3], ['3:2', '3:2', 3 / 2], ['9:16', '9:16', 9 / 16],
@@ -23,7 +24,9 @@ export function cropTools(app: App): Tool[] {
     if (it[2] === 0) return st.cw / st.ch
     return it[2]
   }
-  const reset = () => { const d = app.doc; if (d) st.r = { x: 0, y: 0, w: d.w, h: d.h }; st.angle = 0; fitRatio(); app.view.draw() }
+  // Every box drag, ratio or straighten change is an undo step until the crop is applied.
+  const cropSteps = toolSteps(app, () => ({ r: { ...st.r }, angle: st.angle, ratio: st.ratio }), v => { st.r = v.r; st.angle = v.angle; st.ratio = v.ratio; app.emit('crop-rect') })
+  const reset = () => { const d = app.doc; if (d) st.r = { x: 0, y: 0, w: d.w, h: d.h }; st.angle = 0; fitRatio(); cropSteps.reset(); app.view.draw() }
   const fitRatio = () => {
     const d = app.doc, k = ratioVal()
     if (!d || !k) return
@@ -60,8 +63,9 @@ export function cropTools(app: App): Tool[] {
   })
   app.on('doc', reset)
 
+  let straightening = false
   const crop: Tool = {
-    id: 'crop', label: 'Crop', icon: 'crop',
+    id: 'crop', label: 'Crop', icon: 'crop', steps: cropSteps,
     activate: reset,
     cursor(p) {
       if (!p) return 'crosshair'
@@ -75,6 +79,7 @@ export function cropTools(app: App): Tool[] {
       const r = st.r
       const inside = p.x > r.x && p.y > r.y && p.x < r.x + r.w && p.y < r.y + r.h
       st.drag = { kind: hd ? hd[2] : inside ? 'move' : 'new', x: p.x, y: p.y, r: { ...r } }
+      cropSteps.mark()
     },
     move(p, pressed) {
       if (!pressed || !st.drag) return
@@ -103,7 +108,11 @@ export function cropTools(app: App): Tool[] {
       st.r = { x, y, w, h: hh }
       app.emit('crop-rect')
     },
-    up() { st.drag = null },
+    up() {
+      const g = st.drag
+      st.drag = null
+      if (g && g.r.x === st.r.x && g.r.y === st.r.y && g.r.w === st.r.w && g.r.h === st.r.h) cropSteps.unmark()
+    },
     dbl: apply,
     key(e) { if (e.key === 'Enter') { apply(); return true } if (e.key === 'Escape') { reset(); return true } return false },
     overlay(x, v) {
@@ -142,9 +151,9 @@ export function cropTools(app: App): Tool[] {
       const custom = h('div', { class: 'g2', hidden: st.ratio !== 'custom' }, cw.el, ch.el)
       return h('div', { class: 'ib' },
         sec('Crop'),
-        select('Ratio', RATIOS.map(r => [r[0], r[1]] as [string, string]), () => st.ratio, v => { st.ratio = v; custom.hidden = v !== 'custom'; fitRatio(); app.view.draw(); app.emit('crop-rect') }),
+        select('Ratio', RATIOS.map(r => [r[0], r[1]] as [string, string]), () => st.ratio, v => { cropSteps.mark(); st.ratio = v; custom.hidden = v !== 'custom'; fitRatio(); app.view.draw(); app.emit('crop-rect') }),
         custom, size,
-        slider('Straighten', () => st.angle, v => { st.angle = v; app.view.draw() }, { min: -45, max: 45, step: 0.1, def: 0 }),
+        slider('Straighten', () => st.angle, v => { if (!straightening) { straightening = true; cropSteps.mark() } st.angle = v; app.view.draw() }, { min: -45, max: 45, step: 0.1, def: 0, onEnd: () => { straightening = false } }),
         h('div', { class: 'g2' }, btn('Reset', reset), h('button', { class: 'pri', onclick: apply }, 'Apply crop')),
         sec('Rotate and flip'),
         h('div', { class: 'g2' },
@@ -183,17 +192,19 @@ export function cropTools(app: App): Tool[] {
   }
 
   let quad: number[] = []
-  let dragI = -1
+  let dragI = -1, moved = false
+  const perspSteps = toolSteps(app, () => quad.slice(), v => { quad = v })
   const persp: Tool = {
-    id: 'persp', label: 'Perspective', icon: 'persp',
-    activate() { const d = app.doc; if (d) quad = [0, 0, d.w, 0, d.w, d.h, 0, d.h] },
+    id: 'persp', label: 'Perspective', icon: 'persp', steps: perspSteps,
+    activate() { const d = app.doc; if (d) quad = [0, 0, d.w, 0, d.w, d.h, 0, d.h]; perspSteps.reset() },
     cursor: () => 'crosshair',
     down(p) {
-      dragI = -1
+      dragI = -1; moved = false
       for (let i = 0; i < 4; i++) { const s = app.view.toScreen(quad[i * 2], quad[i * 2 + 1]); if (Math.hypot(s.x - p.sx, s.y - p.sy) < 12) dragI = i }
+      if (dragI >= 0) perspSteps.mark()
     },
-    move(p, pressed) { if (pressed && dragI >= 0) { quad[dragI * 2] = p.x; quad[dragI * 2 + 1] = p.y } },
-    up() { dragI = -1 },
+    move(p, pressed) { if (pressed && dragI >= 0) { quad[dragI * 2] = p.x; quad[dragI * 2 + 1] = p.y; moved = true } },
+    up() { if (dragI >= 0 && !moved) perspSteps.unmark(); dragI = -1 },
     overlay(x, v) {
       if (quad.length < 8) return
       x.save()
