@@ -69,13 +69,21 @@ async function download(k, progress) {
     const tmp = file + '.part'
     const out = fs.createWriteStream(tmp)
     let got = 0, last = 0
-    for await (const chunk of res.body) {
-      out.write(chunk)
-      got += chunk.length
-      if (got - last > 2e6) { last = got; progress({ loaded: got, total }) }
+    try {
+      for await (const chunk of res.body) {
+        // Wait for the disk when it falls behind, rather than holding the whole model in memory.
+        if (!out.write(chunk)) await new Promise(r => out.once('drain', r))
+        got += chunk.length
+        if (got - last > 2e6) { last = got; progress({ loaded: got, total }) }
+      }
+      await new Promise((r, j) => out.end(e => (e ? j(e) : r())))
+      if (m.bytes && got !== m.bytes) throw new Error('The download was incomplete. Try again.')
+      await fsp.rename(tmp, file)
+    } catch (e) {
+      out.destroy()
+      await fsp.rm(tmp, { force: true }).catch(() => {})
+      throw e
     }
-    await new Promise(r => out.end(r))
-    await fsp.rename(tmp, file)
     return
   }
   {

@@ -9,7 +9,7 @@ It shares its look and feel with CocoaAuthor.
 - **Background removal**: one click, with ISNet (general), BiRefNet (maximum detail) or MODNet (people). Hair and fur detail is matched at full resolution. The background is hidden with an editable mask, so nothing is lost.
 - **Refine**: Keep, Remove and Restore brushes, feather, smooth, shift edge, snap edges to detail, and transparent, mask and overlay previews.
 - **Replace background**: colour, image or a blurred copy of the original.
-- **Select**: rectangle, ellipse, lasso, magic wand, click to select an object (AI), select subject (AI), add, subtract, intersect, feather, grow or shrink, invert, copy to layer, delete, crop to selection.
+- **Select**: rectangle, ellipse, lasso, polygon, brush select, magic wand, click to select an object (AI), select subject (AI), add, subtract, intersect, feather, grow or shrink, invert, copy to layer, delete, crop to selection.
 - **Crop and resize**: free and fixed ratios, social media sizes, custom output size, straighten, rotate, flip, perspective correction, resize by pixels or percent with Lanczos resampling.
 - **Free transform**: scale, rotate, flip and move a layer, or just the selected part of it, with handles or exact numbers. **Distort** moves each corner on its own, and **Warp** bends the layer with a grid of points (2 × 2 up to 6 × 6).
 - **Step-by-step undo**: Ctrl+Z takes back the last action inside a tool before the document history, such as the last polygon corner, crop box change or transform handle drag.
@@ -19,12 +19,12 @@ It shares its look and feel with CocoaAuthor.
 - **Filters**: Gaussian, motion and zoom blur, unsharp mask, add noise, pixelate, posterize, emboss, find edges and vignette, with a live preview. They follow the selection, and Ctrl+F repeats the last one.
 - **AI tools**: remove objects (LaMa), heal spots and damage, reduce noise, upscale 2x or 4x (Swin2SR), one-step enhance, and find people, animals, vehicles and objects to select, highlight, outline or cut out.
 - **Text and annotations**: text, arrows, lines, rectangles, ellipses, callouts, labels and numbered markers. Each is its own editable layer.
-- **Layers**: image, paint, text, shape, highlight, outline, adjustment and background layers with visibility, rename, reorder, opacity, blend modes, duplicate, delete, lock, masks, lock transparency and clipping. Folders group layers (and other folders) and have their own visibility, opacity and blend mode.
+- **Layers**: image, paint, text, shape, highlight, outline, adjustment and background layers with visibility, rename, reorder, opacity, blend modes, duplicate, delete, merge down, merge visible, lock, masks (add, from selection, disable, invert, apply), lock transparency and clipping. Pick several layers with Ctrl- or Shift-click, and right-click a layer for its menu. Folders group layers (and other folders) and have their own visibility, opacity and blend mode.
 - **Layer effects**: drop shadow, outer glow, stroke (outside, centre or inside), inner shadow and colour overlay. They stay editable and follow the layer as it changes.
 - **History**: undo, redo and a history list for the whole session.
 - **New image**: start from a blank canvas at any size up to 16384 px, with presets for screens, social media, print at 300 dpi and icons, and a white, black, transparent or any-colour background.
 - **Files**: opens PNG, JPG, WEBP, AVIF, HEIC and HEIF (iPhone photos), BMP, TIFF, GIF (first frame), SVG, ICO, TGA and PSD (with layers and folders). Exports PNG, JPG, WEBP, AVIF, TIFF, BMP, PDF, ICO (every icon size) and PSD (with layers and folders), with quality, size, transparency, compression and colour tagging. Projects save as `.cocoashot` with layers, masks, text and settings intact.
-- **Reliability**: autosave with crash recovery, non-destructive editing wherever possible, heavy work in background threads, cancellable AI tasks.
+- **Reliability**: autosave with crash recovery for every open image, non-destructive editing wherever possible, heavy work in background threads, cancellable AI tasks.
 
 ## Privacy
 

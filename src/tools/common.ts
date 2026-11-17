@@ -7,6 +7,9 @@ import { canvas, ctx2d, fitSize, getData } from '../core/util'
 import type { BrushOpts } from '../core/brush'
 import type { Viewport } from '../view/viewport'
 
+/** Which image the AI engine's object-selection cache was built from (one cache for the whole app). */
+export const samCache = { key: '' }
+
 export const mb = (n: number) => (n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : Math.max(1, Math.round(n / 1e6)) + ' MB')
 
 export async function ai(app: App, op: string, args: any, progress: (p: number | null, d?: string) => void): Promise<any> {
@@ -85,9 +88,16 @@ export function colorPanel(app: App, alpha = false, onAlpha?: (a: number) => voi
   fgB.addEventListener('click', () => { editing = 'fg'; (wheel as any).set(app.fg); fgB.style.outlineColor = 'var(--sel)'; bgB.style.outlineColor = '' })
   bgB.addEventListener('click', () => { editing = 'bg'; (wheel as any).set(app.bgc); bgB.style.outlineColor = 'var(--sel)'; fgB.style.outlineColor = '' })
   const swap = tip(h('button', { class: 'ic', onclick: () => { app.setColors(app.bgc, app.fg); fgB.style.background = app.fg; bgB.style.background = app.bgc; (wheel as any).set(editing === 'fg' ? app.fg : app.bgc) } }, icon('swap')), 'Swap colours')
-  const off = app.on('colors', () => { fgB.style.background = app.fg; bgB.style.background = app.bgc; (wheel as any).set(editing === 'fg' ? app.fg : app.bgc) })
+  // Panels are rebuilt often; a panel that has left the page stops listening the next time colours change.
+  let shown = false
+  const off = app.on('colors', () => {
+    if (!el.isConnected) { if (shown) off(); return }
+    shown = true
+    fgB.style.background = app.fg; bgB.style.background = app.bgc; (wheel as any).set(editing === 'fg' ? app.fg : app.bgc)
+  })
   const el = h('div', { class: 'cw' }, h('div', { class: 'cwrow' }, h('div', { class: 'fgbg' }, bgB, fgB), swap, h('span', { class: 'sp' })), wheel)
   ;(el as any).dispose = off
+  requestAnimationFrame(() => { if (el.isConnected) shown = true; else setTimeout(() => { if (!el.isConnected) off() }, 2000) })
   return el
 }
 

@@ -35,6 +35,8 @@ export interface Shape {
   stroke: string; fill: string; fillOn: boolean; width: number; dash: boolean; radius: number
   text: string; font: string; size: number; bold: boolean; italic: boolean; align: 'left' | 'center' | 'right'
   color: string; shadow: boolean; outline: number; outlineColor: string; num: number
+  /** Rotation in degrees about the shape's centre (text, labels, rectangles, ellipses, callouts). */
+  rot?: number
 }
 
 export interface OutlineOpts {
@@ -82,6 +84,8 @@ export interface Layer {
   clip: boolean
   canvas: HTMLCanvasElement | null
   mask: HTMLCanvasElement | null
+  /** The mask is kept but not used (Disable mask). */
+  maskOff?: boolean
   maskAI: HTMLCanvasElement | null
   maskOpts: MaskOpts
   shape: Shape | null
@@ -129,6 +133,10 @@ export class Doc extends Emitter {
   original: HTMLCanvasElement
   comp: HTMLCanvasElement
   modified = false
+  /** Names this image's crash-recovery copy. */
+  rid = uid()
+  /** Layers picked together in the Layers panel (Ctrl- or Shift-click), besides the active one. Not saved. */
+  picked = new Set<string>()
 
   constructor(img: CanvasImageSource & { width: number; height: number }, name: string) {
     super()
@@ -147,13 +155,16 @@ export class Doc extends Emitter {
   layer(id: string) { return this.layers.find(l => l.id === id) }
   index(id: string) { return this.layers.findIndex(l => l.id === id) }
 
+  /** Counts edits, so work derived from the pixels (histograms, AI analysis) knows when to redo itself. */
+  rev = 0
   changed(rect?: Rect | null) {
     this.modified = true
+    this.rev++
     // Effects reach beyond what changed (a shadow follows its layer), so redraw everything.
     if (rect && this.layers.some(l => l.visible && fxActive(l.fx))) rect = null
     this.emit('change', rect || null)
   }
-  structure() { normalizeTree(this); this.modified = true; this.emit('layers'); this.emit('change', null) }
+  structure() { normalizeTree(this); this.modified = true; this.rev++; this.emit('layers'); this.emit('change', null) }
 
   /** Adds l above the layer `above`, in the same folder. Above an open folder, l goes to the top of that folder. */
   add(l: Layer, above?: string) {
@@ -228,12 +239,12 @@ export function moveLayer(doc: Doc, id: string, refId: string | null, where: 'ab
 
 export function snapshot(doc: Doc) {
   return {
-    w: doc.w, h: doc.h, active: doc.activeId, selection: doc.selection,
+    w: doc.w, h: doc.h, active: doc.activeId, selection: doc.selection, original: doc.original,
     layers: doc.layers.map(l => ({
       ref: l,
       p: {
         name: l.name, visible: l.visible, locked: l.locked, opacity: l.opacity, blend: l.blend, alphaLock: l.alphaLock,
-        clip: l.clip, canvas: l.canvas, mask: l.mask, maskAI: l.maskAI, maskOpts: { ...l.maskOpts },
+        clip: l.clip, canvas: l.canvas, mask: l.mask, maskOff: !!l.maskOff, maskAI: l.maskAI, maskOpts: { ...l.maskOpts },
         shape: l.shape && { ...l.shape }, outline: l.outline && { ...l.outline },
         adjust: l.adjust && cloneAdjust(l.adjust), bg: l.bg && { ...l.bg }, bgFor: l.bgFor,
         parent: l.parent, collapsed: l.collapsed, fx: cloneFx(l.fx)
@@ -247,6 +258,7 @@ export function restore(doc: Doc, s: Snap) {
   doc.w = s.w; doc.h = s.h
   if (doc.comp.width !== s.w || doc.comp.height !== s.h) doc.comp = canvas(s.w, s.h)
   doc.selection = s.selection
+  doc.original = s.original
   doc.layers = s.layers.map(({ ref, p }) => {
     Object.assign(ref, p, { maskOpts: { ...p.maskOpts }, shape: p.shape && { ...p.shape }, outline: p.outline && { ...p.outline }, adjust: p.adjust && cloneAdjust(p.adjust), bg: p.bg && { ...p.bg }, fx: cloneFx(p.fx) })
     ref.fxKey = ''; ref.dirty = true; ref.maskDirty = true; ref.cache = null; ref.maskCache = null

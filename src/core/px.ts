@@ -280,16 +280,21 @@ export function resizeLanczos(rgba: Uint8ClampedArray, sw: number, sh: number, d
 export function warpPerspective(rgba: Uint8ClampedArray, sw: number, sh: number, quad: number[], dw: number, dh: number): Uint8ClampedArray {
   const H = homography([0, 0, dw, 0, dw, dh, 0, dh], quad)
   const out = new Uint8ClampedArray(dw * dh * 4)
+  // Colours are weighted by their alpha, so transparent pixels don't bleed dark fringes into edges.
+  const acc = [0, 0, 0, 0]
   for (let y = 0; y < dh; y++) for (let x = 0; x < dw; x++) {
     const X = x + 0.5, Y = y + 0.5
     const z = H[6] * X + H[7] * Y + H[8]
     const u = (H[0] * X + H[1] * Y + H[2]) / z - 0.5, v = (H[3] * X + H[4] * Y + H[5]) / z - 0.5
     const x0 = Math.floor(u), y0 = Math.floor(v), fx = u - x0, fy = v - y0
     const o = (y * dw + x) * 4
-    for (let c = 0; c < 4; c++) {
-      const p = (xx: number, yy: number) => (xx < 0 || yy < 0 || xx >= sw || yy >= sh ? 0 : rgba[(yy * sw + xx) * 4 + c])
-      out[o + c] = (p(x0, y0) * (1 - fx) + p(x0 + 1, y0) * fx) * (1 - fy) + (p(x0, y0 + 1) * (1 - fx) + p(x0 + 1, y0 + 1) * fx) * fy
+    acc[0] = acc[1] = acc[2] = acc[3] = 0
+    for (const [xx, yy, wt] of [[x0, y0, (1 - fx) * (1 - fy)], [x0 + 1, y0, fx * (1 - fy)], [x0, y0 + 1, (1 - fx) * fy], [x0 + 1, y0 + 1, fx * fy]]) {
+      if (xx < 0 || yy < 0 || xx >= sw || yy >= sh || !wt) continue
+      const i = (yy * sw + xx) * 4, a = rgba[i + 3] * wt
+      acc[0] += rgba[i] * a; acc[1] += rgba[i + 1] * a; acc[2] += rgba[i + 2] * a; acc[3] += a
     }
+    if (acc[3] > 0) { out[o] = acc[0] / acc[3]; out[o + 1] = acc[1] / acc[3]; out[o + 2] = acc[2] / acc[3]; out[o + 3] = acc[3] }
   }
   return out
 }

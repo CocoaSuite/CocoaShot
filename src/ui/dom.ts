@@ -163,12 +163,29 @@ export function toast(msg: string, opts: { err?: boolean; action?: string; onAct
 export function modal(build: (close: () => void) => HTMLElement, wide = false, onClose?: () => void) {
   const m = h('div', { class: 'modal' })
   const close = () => { m.remove(); document.removeEventListener('keydown', key, true); onClose?.() }
-  const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close() } }
-  const box = h('div', { class: 'box' + (wide ? ' wide' : ''), role: 'dialog' }, build(close))
+  const key = (e: KeyboardEvent) => {
+    // Only the topmost dialog answers keys.
+    const all = document.querySelectorAll('.modal')
+    if (all[all.length - 1] !== m) return
+    if (e.key === 'Escape') { e.stopPropagation(); close(); return }
+    // Enter confirms with the main button, except where Enter already means something.
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      const t = e.target as HTMLElement
+      if (t.closest('textarea,button,select,a,.kbd')) return
+      const pri = box.querySelector('button.pri:not([disabled])') as HTMLButtonElement | null
+      if (pri && !pri.hidden) { e.preventDefault(); e.stopPropagation(); pri.click() }
+    }
+  }
+  const box = h('div', { class: 'box' + (wide ? ' wide' : ''), role: 'dialog', 'aria-modal': 'true' }, build(close))
   m.appendChild(box)
   m.addEventListener('mousedown', e => { if (e.target === m) close() })
   document.addEventListener('keydown', key, true)
   document.body.appendChild(m)
+  // Start with the keyboard in the dialog: the first text field, or else the main button.
+  requestAnimationFrame(() => {
+    const f = (box.querySelector('input[type=text],input[type=number]') || box.querySelector('button.pri') || box.querySelector('button')) as HTMLElement | null
+    f?.focus()
+  })
   return close
 }
 

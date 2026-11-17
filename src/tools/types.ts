@@ -39,7 +39,7 @@ export interface Tool {
 export interface Group { id: string; name: string; icon: string; tools: string[] }
 
 export const GROUPS: Group[] = [
-  { id: 'select', name: 'Select', icon: 'select', tools: ['move', 'transform', 'marquee', 'ellipse-sel', 'lasso', 'poly', 'wand', 'obj-sel', 'subject'] },
+  { id: 'select', name: 'Select', icon: 'select', tools: ['move', 'transform', 'marquee', 'ellipse-sel', 'lasso', 'poly', 'sel-brush', 'wand', 'obj-sel', 'subject'] },
   { id: 'crop', name: 'Crop & Resize', icon: 'crop', tools: ['crop', 'resize', 'persp'] },
   { id: 'bg', name: 'Background', icon: 'bg', tools: ['bg-remove', 'bg-refine', 'bg-replace'] },
   { id: 'hl', name: 'Highlight & Outline', icon: 'outline', tools: ['highlight', 'spotlight', 'outline'] },

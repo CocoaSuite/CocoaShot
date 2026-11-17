@@ -10,7 +10,7 @@ export type UIStyle = 'classic' | 'ps' | 'sai'
 
 /** Toolbar slots for the Photoshop-style layout. Each slot is a group; the first tool is its default face. */
 export const SLOTS: (string[] | '-')[] = [
-  ['move', 'transform'], ['marquee', 'ellipse-sel'], ['lasso', 'poly'], ['wand', 'obj-sel', 'subject'], ['crop', 'persp', 'resize'], ['picker'], '-',
+  ['move', 'transform'], ['marquee', 'ellipse-sel'], ['lasso', 'poly', 'sel-brush'], ['wand', 'obj-sel', 'subject'], ['crop', 'persp', 'resize'], ['picker'], '-',
   ['ai-remove', 'ai-cleanup', 'ai-enhance', 'ai-upscale', 'ai-detect'], ['brush', 'pencil', 'highlight'], ['clone'], ['eraser', 'bg-remove', 'bg-refine'], ['fill', 'gradient'], ['blur', 'sharpen', 'smudge'], '-',
   ['text'], ['arrow', 'line', 'rect', 'ellipse', 'callout', 'label', 'marker'], ['outline', 'spotlight'], '-', ['hand'], ['zoom']
 ]
@@ -81,7 +81,7 @@ export function psOptions(app: App, run: Record<string, () => void>) {
     } else bar.append(h('span', { class: 'mute', style: { fontSize: '12px' } }, 'Settings for this tool are in Properties on the right.'))
     bar.append(h('span', { class: 'sp' }))
     if (b) bar.append(h('span', { class: 'mute', style: { fontSize: '12px', display: 'flex', gap: '12px' } }, h('span', 'Ctrl-drag size'), h('span', 'Alt-drag opacity')), h('span', { class: 'sep' }))
-    const z = h('button', { class: 'zoom', onclick: () => app.view.fit() }, Math.round(app.view.zoom * 100) + '%')
+    const z = h('button', { class: 'zoom', onclick: () => app.view.fit(true) }, Math.round(app.view.zoom * 100) + '%')
     bar.append(tip(h('button', { class: 'ic', onclick: () => run.zoomOut() }, icon('minus')), 'Zoom out'), tip(z, 'Fit to screen'), tip(h('button', { class: 'ic', onclick: () => run.zoomIn() }, icon('plus')), 'Zoom in'),
       tip(h('button', { class: 'ic' + (app.view.compare === 'split' ? ' on' : ''), onclick: () => run.compare() }, icon('compare')), 'Before and after'),
       tip(h('button', { class: 'ic', onclick: () => run.fullscreen() }, icon('fullscreen')), 'Full screen (F11)'),

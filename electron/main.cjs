@@ -14,6 +14,8 @@ const DATA = () => app.getPath('userData')
 const MODELS = () => path.join(DATA(), 'models')
 const RECENT = () => path.join(DATA(), 'recent.json')
 const RECOVERY = () => path.join(DATA(), 'recovery.cocoashot')
+const RECOVERY_DIR = () => path.join(DATA(), 'recovery')
+const recoveryFile = id => path.join(RECOVERY_DIR(), String(id || 'doc').replace(/[^\w-]/g, '').slice(0, 40) + '.cocoashot')
 const OPENABLE = /\.(png|jpe?g|jfif|webp|avif|heic|heif|bmp|tiff?|gif|psd|svg|ico|cur|tga|cocoashot)$/i
 
 let win = null
@@ -140,9 +142,25 @@ ipcMain.handle('addRecent', async (_e, item) => {
   await writeAtomic(RECENT(), JSON.stringify(list))
   return list
 })
-ipcMain.handle('saveRecovery', (_e, data) => writeAtomic(RECOVERY(), Buffer.from(data)))
-ipcMain.handle('loadRecovery', async () => { try { return ab(await fsp.readFile(RECOVERY())) } catch { return null } })
-ipcMain.handle('clearRecovery', () => fsp.rm(RECOVERY(), { force: true }))
+// One recovery file per open image, so every unsaved tab can come back after a crash.
+ipcMain.handle('saveRecovery', (_e, data, id) => writeAtomic(recoveryFile(id), Buffer.from(data)))
+ipcMain.handle('loadRecovery', async () => {
+  const out = []
+  try { out.push({ id: 'legacy', data: ab(await fsp.readFile(RECOVERY())) }) } catch {}
+  try {
+    for (const n of await fsp.readdir(RECOVERY_DIR())) {
+      if (!n.endsWith('.cocoashot')) continue
+      try { out.push({ id: n.slice(0, -10), data: ab(await fsp.readFile(path.join(RECOVERY_DIR(), n))) }) } catch {}
+    }
+  } catch {}
+  return out
+})
+ipcMain.handle('clearRecovery', async (_e, id) => {
+  if (id === 'legacy' || !id) await fsp.rm(RECOVERY(), { force: true })
+  if (id && id !== 'legacy') await fsp.rm(recoveryFile(id), { force: true })
+  else if (!id) await fsp.rm(RECOVERY_DIR(), { recursive: true, force: true })
+})
+ipcMain.handle('exists', async (_e, p) => { try { await fsp.access(p); return true } catch { return false } })
 
 ipcMain.handle('clipboardImage', async () => {
   if (clipboard.readImage) {
@@ -180,7 +198,6 @@ let aiSeq = 0
 const aiWait = new Map()
 
 let aiLog = ''
-let aiStopping = false
 const AILOG = () => path.join(DATA(), 'ai.log')
 function logAI(t) {
   aiLog = (aiLog + t).slice(-4000)
@@ -191,37 +208,48 @@ let aiCpu = false
 function startAI() {
   if (ai) return ai
   aiLog = ''
-  aiStopping = false
   const env = { ...process.env, COCOA_MODELS: MODELS() }
   if (aiCpu) env.COCOA_AI_CPU = '1'
-  ai = utilityProcess.fork(path.join(__dirname, 'ai.mjs'), [], { env, serviceName: 'CocoaShot AI', stdio: 'pipe' })
+  const proc = utilityProcess.fork(path.join(__dirname, 'ai.mjs'), [], { env, serviceName: 'CocoaShot AI', stdio: 'pipe' })
+  ai = proc
   logAI(`\n--- ${new Date().toISOString()} AI engine started\n`)
-  ai.stdout?.on('data', d => logAI(String(d)))
-  ai.stderr?.on('data', d => logAI(String(d)))
-  ai.on('message', m => {
+  proc.stdout?.on('data', d => logAI(String(d)))
+  proc.stderr?.on('data', d => logAI(String(d)))
+  proc.on('message', m => {
     const w = aiWait.get(m.id)
     if (!w) return
     if (m.progress) { w.sender.send('ai-progress', { id: w.cid, ...m.progress }); return }
     aiWait.delete(m.id)
     m.ok ? w.res(m.result) : w.rej(new Error(m.error))
   })
-  ai.on('exit', code => {
-    ai = null
+  proc.on('exit', code => {
     logAI(`--- AI engine stopped, code ${code}\n`)
-    if (!aiStopping && !aiCpu && aiWait.size && [...aiWait.values()].every(w => !w.retried)) {
+    // A process that was stopped on purpose (Cancel) may exit after a new one has started:
+    // it must not touch the new engine or its waiting requests.
+    if (proc.stopped || ai !== proc) return
+    ai = null
+    if (!aiCpu && aiWait.size && [...aiWait.values()].every(w => !w.retried)) {
       aiCpu = true
       logAI('--- restarting the AI engine on the CPU\n')
       const p = startAI()
       for (const [id, w] of aiWait) { w.retried = true; p.postMessage({ id, op: w.op, args: w.args }) }
       return
     }
-    const why = aiStopping ? 'Cancelled' : 'The AI engine stopped unexpectedly (code ' + code + '). ' + (aiLog.trim().split('\n').filter(l => /error|cannot|failed|not found/i.test(l)).slice(-2).join(' ') || 'Details are in ai.log in the CocoaShot data folder.')
+    const why = 'The AI engine stopped unexpectedly (code ' + code + '). ' + (aiLog.trim().split('\n').filter(l => /error|cannot|failed|not found/i.test(l)).slice(-2).join(' ') || 'Details are in ai.log in the CocoaShot data folder.')
     for (const w of aiWait.values()) w.rej(new Error(why))
     aiWait.clear()
   })
   return ai
 }
-function stopAI() { if (ai) { aiStopping = true; ai.kill(); ai = null } }
+function stopAI() {
+  if (!ai) return
+  const p = ai
+  p.stopped = true
+  ai = null
+  p.kill()
+  for (const w of aiWait.values()) w.rej(new Error('Cancelled'))
+  aiWait.clear()
+}
 
 ipcMain.handle('ai', (e, cid, op, args) => new Promise((res, rej) => {
   const id = ++aiSeq

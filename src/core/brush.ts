@@ -67,7 +67,7 @@ export class Stroke {
   rem = 0
   cloneOff: { x: number; y: number } | null = null
 
-  constructor(public doc: Doc, public layer: Layer, public mode: BrushMode, public o: BrushOpts, public hist: History, cloneSrc?: { x: number; y: number } | null, public label = 'Brush') {
+  constructor(public doc: Doc, public layer: Layer, public mode: BrushMode, public o: BrushOpts, public hist: History, cloneSrc?: { x: number; y: number } | null, public label = 'Brush', public cloneImg: HTMLCanvasElement | null = null) {
     if (mode.startsWith('mask')) {
       if (!layer.mask) { layer.mask = canvas(doc.w, doc.h); const x = ctx2d(layer.mask); x.fillStyle = '#fff'; x.fillRect(0, 0, doc.w, doc.h) }
       this.target = layer.mask
@@ -172,7 +172,7 @@ export class Stroke {
       case 'clone': {
         if (!this.cloneOff) break
         const c = dabTmp(1, d), cx = ctx2d(c)
-        cx.drawImage(this.before, left + this.cloneOff.x, top + this.cloneOff.y, d, d, 0, 0, d, d)
+        cx.drawImage(this.cloneImg || this.before, left + this.cloneOff.x, top + this.cloneOff.y, d, d, 0, 0, d, d)
         cx.globalCompositeOperation = 'destination-in'
         cx.drawImage(m, 0, 0)
         tx.globalAlpha = a * o.opacity

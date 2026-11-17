@@ -16,7 +16,31 @@ const RATIOS: [string, string, number | null, number?, number?][] = [
 ]
 
 export function cropTools(app: App): Tool[] {
-  const st = { r: { x: 0, y: 0, w: 0, h: 0 }, ratio: 'free', angle: 0, cw: 1080, ch: 1080, drag: null as any }
+  const st = { r: { x: 0, y: 0, w: 0, h: 0 }, ratio: 'free', angle: 0, cw: 1080, ch: 1080, drag: null as any, extend: false }
+  /** Where the crop box may go: the image, or anywhere when the canvas may grow. */
+  const bounds = () => {
+    const d = app.doc!
+    if (st.extend) return { x0: -d.w * 4, y0: -d.h * 4, x1: d.w * 5, y1: d.h * 5 }
+    return { x0: 0, y0: 0, x1: d.w, y1: d.h }
+  }
+  /** Shrinks the box about its centre until a straightened crop has no empty corners. */
+  const fitStraight = () => {
+    const d = app.doc
+    if (!d || !st.angle || st.extend) return
+    const a = (st.angle * Math.PI) / 180, c = Math.cos(a), sn = Math.sin(a)
+    const cx = st.r.x + st.r.w / 2, cy = st.r.y + st.r.h / 2
+    const inside = (f: number) => [[-1, -1], [1, -1], [1, 1], [-1, 1]].every(([u, v]) => {
+      const px = (u * st.r.w * f) / 2, py = (v * st.r.h * f) / 2
+      const ix = cx + px * c - py * sn, iy = cy + px * sn + py * c
+      return ix >= -0.01 && iy >= -0.01 && ix <= d.w + 0.01 && iy <= d.h + 0.01
+    })
+    if (inside(1)) return
+    let lo = 0, hi = 1
+    for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (inside(m)) lo = m; else hi = m }
+    const w = st.r.w * lo, hh = st.r.h * lo
+    st.r = { x: cx - w / 2, y: cy - hh / 2, w, h: hh }
+    app.emit('crop-rect')
+  }
   const ratioVal = () => {
     const d = app.doc!
     const it = RATIOS.find(r => r[0] === st.ratio)!
@@ -64,6 +88,9 @@ export function cropTools(app: App): Tool[] {
   app.on('doc', reset)
 
   let straightening = false
+  // One listener for the size label of whichever crop panel is showing.
+  let sizeLabel: HTMLElement | null = null
+  app.on('crop-rect', () => { if (sizeLabel) sizeLabel.textContent = `${Math.round(st.r.w)} × ${Math.round(st.r.h)} px` + (out()[0] ? `, saved as ${out()[0]} × ${out()[1]}` : '') })
   const crop: Tool = {
     id: 'crop', label: 'Crop', icon: 'crop', steps: cropSteps,
     activate: reset,
@@ -83,28 +110,44 @@ export function cropTools(app: App): Tool[] {
     },
     move(p, pressed) {
       if (!pressed || !st.drag) return
-      const d = app.doc!, g = st.drag, o = g.r
+      const g = st.drag, o = g.r
       const dx = p.x - g.x, dy = p.y - g.y
+      const B = bounds()
+      const cl = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
       let { x, y, w, h: hh } = o
       const k = ratioVal()
-      if (g.kind === 'move') { x = Math.max(0, Math.min(d.w - w, o.x + dx)); y = Math.max(0, Math.min(d.h - hh, o.y + dy)) }
+      if (g.kind === 'move') { x = cl(o.x + dx, B.x0, B.x1 - w); y = cl(o.y + dy, B.y0, B.y1 - hh) }
       else if (g.kind === 'new') {
-        x = Math.min(g.x, p.x); y = Math.min(g.y, p.y); w = Math.abs(dx); hh = Math.abs(dy)
-        if (k) { hh = w / k; if (p.y < g.y) y = g.y - hh }
+        const px = cl(p.x, B.x0, B.x1), py = cl(p.y, B.y0, B.y1)
+        w = Math.abs(px - g.x); hh = Math.abs(py - g.y)
+        if (k) {
+          // Keep the ratio and shrink the whole box until it fits, rather than clipping one side.
+          hh = w / k
+          const f = Math.min(1, (py >= g.y ? B.y1 - g.y : g.y - B.y0) / Math.max(1e-6, hh))
+          w *= f; hh *= f
+        }
+        x = px >= g.x ? g.x : g.x - w; y = py >= g.y ? g.y : g.y - hh
       } else {
         const K = g.kind
-        if (K.includes('e')) w = o.w + dx
-        if (K.includes('w')) { w = o.w - dx; x = o.x + dx }
-        if (K.includes('s')) hh = o.h + dy
-        if (K.includes('n')) { hh = o.h - dy; y = o.y + dy }
+        // Each dragged edge stops at the image border; the opposite edge never moves.
+        let L = o.x, T = o.y, R = o.x + o.w, Bt = o.y + o.h
+        if (K.includes('e')) R = cl(R + dx, L + 1, B.x1)
+        if (K.includes('w')) L = cl(L + dx, B.x0, R - 1)
+        if (K.includes('s')) Bt = cl(Bt + dy, T + 1, B.y1)
+        if (K.includes('n')) T = cl(T + dy, B.y0, Bt - 1)
+        w = R - L; hh = Bt - T
         if (k) {
-          if (K === 'n' || K === 's') { w = hh * k; x = o.x + (o.w - w) / 2 }
-          else { const nh = w / k; if (K.includes('n')) y = o.y + o.h - nh; else if (K === 'e' || K === 'w') y = o.y + (o.h - nh) / 2; hh = nh }
-        }
+          if (K === 'n' || K === 's') w = hh * k; else hh = w / k
+          const cx = o.x + o.w / 2, cy = o.y + o.h / 2
+          const maxW = K.includes('w') ? R - B.x0 : K.includes('e') ? B.x1 - L : 2 * Math.min(cx - B.x0, B.x1 - cx)
+          const maxH = K.includes('n') ? Bt - B.y0 : K.includes('s') ? B.y1 - T : 2 * Math.min(cy - B.y0, B.y1 - cy)
+          const f = Math.min(1, maxW / w, maxH / hh)
+          w *= f; hh *= f
+          x = K.includes('w') ? R - w : K.includes('e') ? L : cx - w / 2
+          y = K.includes('n') ? Bt - hh : K.includes('s') ? T : cy - hh / 2
+        } else { x = L; y = T }
       }
       if (w < 1 || hh < 1) return
-      x = Math.max(0, x); y = Math.max(0, y)
-      w = Math.min(w, d.w - x); hh = Math.min(hh, d.h - y)
       st.r = { x, y, w, h: hh }
       app.emit('crop-rect')
     },
@@ -145,7 +188,7 @@ export function cropTools(app: App): Tool[] {
       const d = app.doc!
       const [ow, oh] = out()
       const size = h('span', { class: 'hint' }, `${Math.round(st.r.w)} × ${Math.round(st.r.h)} px` + (ow ? `, saved as ${ow} × ${oh}` : ''))
-      app.on('crop-rect', () => { size.textContent = `${Math.round(st.r.w)} × ${Math.round(st.r.h)} px` + (out()[0] ? `, saved as ${out()[0]} × ${out()[1]}` : '') })
+      sizeLabel = size
       const cw = numField('Width', () => st.cw, v => { st.cw = v; fitRatio(); app.view.draw() })
       const ch = numField('Height', () => st.ch, v => { st.ch = v; fitRatio(); app.view.draw() })
       const custom = h('div', { class: 'g2', hidden: st.ratio !== 'custom' }, cw.el, ch.el)
@@ -153,7 +196,13 @@ export function cropTools(app: App): Tool[] {
         sec('Crop'),
         select('Ratio', RATIOS.map(r => [r[0], r[1]] as [string, string]), () => st.ratio, v => { cropSteps.mark(); st.ratio = v; custom.hidden = v !== 'custom'; fitRatio(); app.view.draw(); app.emit('crop-rect') }),
         custom, size,
-        slider('Straighten', () => st.angle, v => { if (!straightening) { straightening = true; cropSteps.mark() } st.angle = v; app.view.draw() }, { min: -45, max: 45, step: 0.1, def: 0, onEnd: () => { straightening = false } }),
+        slider('Straighten', () => st.angle, v => { if (!straightening) { straightening = true; cropSteps.mark() } st.angle = v; fitStraight(); app.view.draw() }, { min: -45, max: 45, step: 0.1, def: 0, onEnd: () => { straightening = false } }),
+        toggle('Allow the frame outside the image', () => st.extend, v => {
+          cropSteps.mark(); st.extend = v
+          if (!v) { const d = app.doc!; const x = Math.max(0, st.r.x), y = Math.max(0, st.r.y); st.r = { x, y, w: Math.min(st.r.x + st.r.w, d.w) - x, h: Math.min(st.r.y + st.r.h, d.h) - y }; fitRatio(); fitStraight() }
+          app.view.draw(); app.emit('crop-rect')
+        }),
+        st.extend ? hint('Areas outside the image become transparent.') : null,
         h('div', { class: 'g2' }, btn('Reset', reset), h('button', { class: 'pri', onclick: apply }, 'Apply crop')),
         sec('Rotate and flip'),
         h('div', { class: 'g2' },

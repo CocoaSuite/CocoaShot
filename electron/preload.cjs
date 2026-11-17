@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron')
+const { contextBridge, ipcRenderer, webUtils } = require('electron')
 
 let seq = 0
 const progress = new Map()
@@ -19,9 +19,11 @@ contextBridge.exposeInMainWorld('cocoaNative', {
   showInFolder: p => ipcRenderer.invoke('showInFolder', p),
   recent: () => ipcRenderer.invoke('recent'),
   addRecent: item => ipcRenderer.invoke('addRecent', item),
-  saveRecovery: data => ipcRenderer.invoke('saveRecovery', data),
+  exists: p => ipcRenderer.invoke('exists', p),
+  pathForFile: f => { try { return webUtils.getPathForFile(f) || undefined } catch { return undefined } },
+  saveRecovery: (data, id) => ipcRenderer.invoke('saveRecovery', data, id),
   loadRecovery: () => ipcRenderer.invoke('loadRecovery'),
-  clearRecovery: () => ipcRenderer.invoke('clearRecovery'),
+  clearRecovery: id => ipcRenderer.invoke('clearRecovery', id),
   clipboardImage: () => ipcRenderer.invoke('clipboardImage'),
   copyImage: png => ipcRenderer.invoke('copyImage', png),
   modelsSize: () => ipcRenderer.invoke('modelsSize'),

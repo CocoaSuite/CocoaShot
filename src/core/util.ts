@@ -121,3 +121,10 @@ export function mkID(a: any, w: number, h: number): ImageData {
   const u = a instanceof ArrayBuffer ? new Uint8ClampedArray(a, 0, w * h * 4) : new Uint8ClampedArray(a.buffer, a.byteOffset, w * h * 4)
   return new ImageData(u as any, w, h)
 }
+
+/** A quick hash of pixel data, to tell whether an image changed. */
+export function fingerprint(d: Uint8Array | Uint8ClampedArray) {
+  let h = 2166136261
+  for (let i = 0; i < d.length; i += 7) h = Math.imul(h ^ d[i], 16777619)
+  return (h >>> 0).toString(36) + ':' + d.length
+}

@@ -59,7 +59,11 @@ Remove the background first, or select the object. In **Outline**, choose **Outl
 
 ### Free transform
 
-**Layer, Free transform** (Ctrl+T) puts a box with handles around the selected layer, or around the selected part of it if there is a selection. Drag inside the box to move, a handle to resize, or just outside a corner to rotate. Corners keep the proportions; hold Shift to resize freely, or to snap rotation to 15° steps. Alt resizes from the centre, and the arrow keys nudge. The panel takes exact sizes and angles, flips, and **Fit to image**. Enter or **Apply** keeps the change, Esc or **Cancel** puts it back. Text and shapes are resized with **Move** instead.
+**Layer, Free transform** (Ctrl+T) puts a box with handles around the selected layer, or around the selected part of it if there is a selection. Drag inside the box to move, a handle to resize, or just outside a corner to rotate. Corners keep the proportions; hold Shift to resize freely, or to snap rotation to 15° steps. Alt resizes from the centre, and the arrow keys nudge. The panel takes exact sizes and angles, flips, and **Fit to image**. Enter or **Apply** keeps the change, Esc or **Cancel** puts it back. With a folder selected, everything in it (pixels, text and shapes) is scaled, turned and moved together; Distort and Warp work on one layer at a time. Text and shapes on their own are resized with **Move** instead.
+
+### Move
+
+**Move** (V) drags the selected layer. With a selection, only the selected pixels move, and the selection moves with them. With a folder selected, everything in it moves. The arrow keys nudge by 1 px, Shift+arrow by 10 px, and Shift-dragging keeps the move straight. Ctrl-click picks the layer under the cursor, or turn on **Pick layer by clicking** to do that with every click. Text and shapes show round handles to reshape them and a filled handle above them to turn them (Shift snaps to 15°); the text and shape panels also have a **Rotation** slider.
 
 The **Scale**, **Distort** and **Warp** buttons at the top of the panel switch how the layer is reshaped. **Image, Distort** and **Image, Warp** (Ctrl+Alt+T) open them directly, and Ctrl-dragging a corner in Scale switches to Distort.
 
@@ -70,7 +74,11 @@ In both, Shift-click points to move several together, and the arrow keys nudge t
 
 ### Folders
 
-**New folder** (the folder button above the layers, or **Layer, New folder**) adds an empty folder. Drag a layer onto the middle of a folder to put it inside, or above or below another layer to take it out. **Layer, Put in folder** (Ctrl+G) wraps the selected layer in a new folder, and **Remove folder, keep layers** (Ctrl+Shift+G) undoes that. The arrow beside a folder opens or closes it. Hiding, locking or fading a folder affects everything in it, and adjustment layers inside a folder only change the layers below them in that folder.
+**New folder** (the folder button above the layers, or **Layer, New folder**) adds an empty folder. Drag a layer onto the middle of a folder to put it inside, or above or below another layer to take it out. **Layer, Put in folder** (Ctrl+G) wraps the selected layer in a new folder, and **Remove folder, keep layers** (Ctrl+Shift+G) undoes that. The arrow beside a folder opens or closes it. Ctrl-click layers to pick several, or Shift-click to pick a run of them; Delete, Put in folder and Merge then apply to all of them. **Merge down** (Ctrl+Alt+E) merges the selected layer into the one below, or merges all picked layers. **Merge visible** (Ctrl+Shift+Alt+E) merges everything that shows into one layer and leaves hidden layers alone. Right-click a layer for these and more, and Alt-click an eye to show only that layer (Alt-click again to show them all).
+
+### Masks
+
+**Layer, Add mask** gives the selected layer a mask that hides nothing; **Mask from selection** hides everything outside the selection. Paint the mask with Refine edges. The mask button on a layer turns the mask off and on; **Invert mask**, **Apply mask** (makes it permanent) and **Delete mask** are in the Layer menu and the right-click menu. Hiding, locking or fading a folder affects everything in it, and adjustment layers inside a folder only change the layers below them in that folder.
 
 ### Layer effects
 
@@ -86,7 +94,9 @@ Choose **Paint & Erase, Gradient** (Shift+G) and drag across the image. Pick the
 
 ### Paint and draw
 
-**Paint & Erase** has a brush, pencil, eraser, fill, colour picker, clone, blur, sharpen and smudge. Painting on the photo creates a new paint layer so the photo stays untouched. **Lock transparency** paints only where the layer already has pixels. **Clip to layer below** shows the layer only inside the one beneath it.
+**Paint & Erase** has a brush, pencil, eraser, fill, colour picker, clone, blur, sharpen and smudge. Painting on the photo creates a new paint layer so the photo stays untouched. **Lock transparency** paints only where the layer already has pixels. **Clip to layer below** shows the layer only inside the one beneath it. Clone is **Aligned** by default: the source keeps its distance from the brush from one stroke to the next (turn it off to start every stroke at the source point), and **Sample all layers** copies from the whole picture rather than the selected layer.
+
+**Select, Brush select** paints a selection; Alt-paint, or the Subtract button, takes away from it.
 
 ### Brush size and opacity
 
@@ -106,7 +116,9 @@ Choose a tool in **Text & Annotations** and click or drag on the image. Click te
 
 ## Cut, copy and paste
 
-With a selection, **Ctrl+X** copies the selected part of the current layer to the clipboard and removes it from the layer. Ctrl+C copies, Ctrl+V pastes as a new layer.
+With a selection, **Ctrl+X** copies the selected part of the current layer to the clipboard and removes it from the layer. Ctrl+C copies (just the selected area, with masks applied), Ctrl+V pastes as a new layer. Something copied in CocoaShot pastes back in the same place; other images are centred, and only images larger than this one are shrunk to fit.
+
+Delete removes the selected pixels, or, with no selection, the selected layer (Ctrl+Z brings it back).
 
 ## Updates
 
