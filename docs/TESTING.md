@@ -13,6 +13,7 @@ The unit tests cover the image processing core, freeform warp and distort maths,
 
 Run `npm run desktop` and work through this list with a photo of a person and a product shot.
 
+0. First launch (clear the app's data folder, or run `localStorage.clear()` in the developer tools and restart): "hello" is written with the sound, then the tour rings each part of the window. Pick a layout on the last step. Restart: no hello. Open Settings and type hello: the tour runs again.
 1. Open PNG, JPG, WEBP, AVIF, HEIC (an iPhone photo), TIFF, BMP, GIF, SVG, ICO, TGA and a layered PSD with folders. Drag and drop and clipboard paste also open images.
 1a. File, New image (and Ctrl+N, and the start screen button): each preset, portrait and landscape, every background, a typed size, a size over 200 megapixels (Create is disabled), and that the next New image remembers the last choice.
 2. Remove a background with each model. Refine with Keep, Remove and Restore. Change feather, smooth and shift edge. Check all three previews.
