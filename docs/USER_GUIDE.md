@@ -63,7 +63,7 @@ Remove the background first, or select the object. In **Outline**, choose **Outl
 
 ### Move
 
-**Move** (V) drags the selected layer. With a selection, only the selected pixels move, and the selection moves with them. With a folder selected, everything in it moves. The arrow keys nudge by 1 px, Shift+arrow by 10 px, and Shift-dragging keeps the move straight. Ctrl-click picks the layer under the cursor, or turn on **Pick layer by clicking** to do that with every click. Text and shapes show round handles to reshape them and a filled handle above them to turn them (Shift snaps to 15°); the text and shape panels also have a **Rotation** slider.
+**Move** (V) drags the selected layer. With a selection, only the selected pixels move, and the selection moves with them. With a folder selected, everything in it moves. The arrow keys nudge by 1 px, Shift+arrow by 10 px, and Shift-dragging keeps the move straight. Ctrl-click picks the layer under the cursor, or turn on **Pick layer by clicking** to do that with every click. Shift-click things in the image to pick several layers at once (Shift-click again takes one out, Esc clears the picks); they then move, nudge and turn together. Text and shapes show round handles to reshape them and a filled handle above them to turn them (Shift snaps to 15°); the text and shape panels also have a **Rotation** slider. A folder or several picked layers show one box with a turn handle above it, and **Free transform** (Ctrl+T) scales and turns them together.
 
 The **Scale**, **Distort** and **Warp** buttons at the top of the panel switch how the layer is reshaped. **Image, Distort** and **Image, Warp** (Ctrl+Alt+T) open them directly, and Ctrl-dragging a corner in Scale switches to Distort.
 

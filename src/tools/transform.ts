@@ -1,7 +1,8 @@
 import type { App } from '../app'
 import type { Tool } from './types'
 import { Doc, Layer, Shape, shownLocked, snapshot, subtree } from '../core/doc'
-import { shapeBounds, transformShape } from '../core/shapes'
+import { transformShape } from '../core/shapes'
+import { boundsOf, chosenKey, chosenName, isMulti, transformable } from './multi'
 import { holdFx, touch } from '../core/compose'
 import type { History } from '../core/history'
 import { alphaOf, bboxOfAlpha, canvas, copyCanvas, ctx2d, getData, putData } from '../core/util'
@@ -23,8 +24,8 @@ interface Pose { mode: Mode; cx: number; cy: number; sx: number; sy: number; a: 
 /** Box being transformed: its untransformed size (bw, bh) and centre (bx, by), and where it is now. */
 interface State extends Pose {
   doc: Doc; hist: History; l: Layer
-  /** Transforming a folder: the folder, its other pixel layers, and its text and shapes. */
-  group: Layer | null
+  /** Transforming a folder or several layers: their name and which layers they were, the other pixel layers, and the text and shapes. */
+  group: { name: string; key: string } | null
   extras: { l: Layer; orig: HTMLCanvasElement; origMask: HTMLCanvasElement | null }[]
   shapes: { l: Layer; shape: Shape }[]
   orig: HTMLCanvasElement; origMask: HTMLCanvasElement | null; origSel: HTMLCanvasElement | null
@@ -152,8 +153,8 @@ export function transformTool(app: App): Tool {
     const doc = app.doc
     if (!doc) return false
     const a = doc.active
+    if (isMulti(doc)) return beginGroup(doc)
     if (a && (a.shape || a.kind === 'text')) { app.setTool('move'); toast('Text and shapes: drag their round handles to resize, and the filled handle above them to turn them'); return false }
-    if (a?.kind === 'group') return beginGroup(doc, a)
     const l = app.activeRaster()
     if (!l || !l.canvas) return false
     const orig = copyCanvas(l.canvas)
@@ -191,31 +192,25 @@ export function transformTool(app: App): Tool {
     return c
   }
 
-  /** A folder transforms as one: every pixel layer inside it, and its text and shapes. Box mode only. */
-  const beginGroup = (doc: Doc, g: Layer): boolean => {
-    if (shownLocked(doc, g)) { toast(`${g.name} is locked`); return false }
-    if (mode !== 'box') { mode = 'box'; toast('Folders can be scaled, turned and moved. Distort and Warp work on one layer at a time.') }
-    const kids = subtree(doc, g).filter(k => k !== g && !shownLocked(doc, k))
-    const ras = kids.filter(k => k.canvas && (k.kind === 'image' || k.kind === 'paint' || k.kind === 'highlight'))
-    const shp = kids.filter(k => k.shape)
-    if (!ras.length && !shp.length) { toast(`${g.name} has nothing to transform`); return false }
-    let bb: { x: number; y: number; w: number; h: number } | null = null
-    const add = (r: { x: number; y: number; w: number; h: number } | null) => {
-      if (!r) return
-      if (!bb) { bb = { ...r }; return }
-      const x = Math.min(bb.x, r.x), y = Math.min(bb.y, r.y)
-      bb = { x, y, w: Math.max(bb.x + bb.w, r.x + r.w) - x, h: Math.max(bb.y + bb.h, r.y + r.h) - y }
-    }
-    for (const k of ras) add(bboxOfAlpha(alphaOf(k.canvas!), doc.w, doc.h))
-    for (const k of shp) add(shapeBounds(k.shape!))
-    if (!bb) { toast(`${g.name} is empty`); return false }
-    const b = bb as { x: number; y: number; w: number; h: number }
+  /**
+   * A folder, or several picked layers, transform as one: every pixel layer, text and shape in them.
+   * Box mode only.
+   */
+  const beginGroup = (doc: Doc): boolean => {
+    const name = chosenName(doc)
+    const a = doc.active
+    if (a && doc.picked.size === 0 && shownLocked(doc, a)) { toast(`${a.name} is locked`); return false }
+    if (mode !== 'box') { mode = 'box'; toast('Several layers or a folder can be scaled, turned and moved. Distort and Warp work on one layer at a time.') }
+    const { pixels: ras, shapes: shp } = transformable(doc)
+    if (!ras.length && !shp.length) { toast(`${name} has nothing to transform`); return false }
+    const b = boundsOf(doc, { pixels: ras, shapes: shp })
+    if (!b) { toast(`${name} is empty`); return false }
     // The first pixel layer leads (an empty stand-in when the folder holds only text and shapes).
     const lead = ras[0] || null
     const leadL: Layer = lead || { ...shp[0], canvas: canvas(doc.w, doc.h), mask: null, shape: null, kind: 'paint' } as Layer
     const orig = copyCanvas(leadL.canvas!)
     st = {
-      doc, hist: app.hist!, l: leadL, group: g,
+      doc, hist: app.hist!, l: leadL, group: { name, key: chosenKey(doc) },
       extras: ras.slice(1).map(k => ({ l: k, orig: copyCanvas(k.canvas!), origMask: k.mask ? copyCanvas(k.mask) : null })),
       shapes: shp.map(k => ({ l: k, shape: { ...k.shape! } })),
       orig, origMask: lead?.mask ? copyCanvas(lead.mask) : null, origSel: null, float: orig, base: null,
@@ -341,7 +336,7 @@ export function transformTool(app: App): Tool {
    */
   const setMode = (m: Mode) => {
     if (m === mode && (!st || st.mode === m)) return
-    if (m !== 'box' && (st?.group || app.doc?.active?.kind === 'group')) { toast('Distort and Warp work on one layer at a time. Open the folder and select a layer.'); app.emit('panel'); return }
+    if (m !== 'box' && (st?.group || (app.doc && isMulti(app.doc)))) { toast('Distort and Warp work on one layer at a time. Pick a single layer.'); app.emit('panel'); return }
     const s = st
     const order: Mode[] = ['box', 'distort', 'warp']
     if (s && order.indexOf(m) < order.indexOf(s.mode) && changed(s)) {
@@ -485,7 +480,7 @@ export function transformTool(app: App): Tool {
     deactivate() { commit() },
     down(p) {
       if (!begin() || !st) return
-      if (app.doc !== st.doc || app.doc.active !== (st.group || st.l)) { commit(); if (!begin() || !st) return }
+      if (app.doc !== st.doc || (st.group ? chosenKey(app.doc) !== st.group.key : app.doc.active !== st.l || isMulti(app.doc))) { commit(); if (!begin() || !st) return }
       if (st.mode === 'box') {
         const k = hit(p)!
         // Ctrl-drag a corner to move it on its own, as in Distort.
@@ -623,7 +618,7 @@ export function transformTool(app: App): Tool {
     },
     panel() {
       const l = app.doc?.active
-      if (!st && !(l && ((l.canvas && ['image', 'paint', 'highlight'].includes(l.kind)) || l.kind === 'group'))) {
+      if (!st && !(l && ((l.canvas && ['image', 'paint', 'highlight'].includes(l.kind)) || isMulti(app.doc!)))) {
         return h('div', { class: 'ib' }, sec('Free transform'), hint('Select an image or paint layer, or a folder, to scale, rotate, distort or warp it. For text and shapes, use Move: drag their handles, and the filled handle above them to turn them.'))
       }
       const s = st

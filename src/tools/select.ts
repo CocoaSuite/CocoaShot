@@ -3,8 +3,9 @@ import type { Tool } from './types'
 import { cloneAdjust, cloneFx, Layer, shownLocked, shownVisible, snapshot, subtree } from '../core/doc'
 import { effectiveMask, holdFx, layerFull, touch } from '../core/compose'
 import { flood, morph, gauss } from '../core/px'
-import { canRotate, flatBounds, hitShape, shapeCenter, turn } from '../core/shapes'
-import { alphaOf, bboxOfAlpha, canvas, canvasFromAlpha, copyCanvas, ctx2d, fingerprint, getData, uid } from '../core/util'
+import { canRotate, flatBounds, hitShape, shapeCenter, transformShape, turn } from '../core/shapes'
+import { boundsOf, chosenKey, chosenLayers, chosenName, isMulti, transformable } from './multi'
+import { alphaOf, bboxOfAlpha, canvas, canvasFromAlpha, copyCanvas, ctx2d, fingerprint, getData, uid, type Rect } from '../core/util'
 import { h, icon, toast } from '../ui/dom'
 import { btn, hint, sec, seg, slider, toggle } from '../ui/controls'
 import { ai, drawBrushCursor, jobBox, rgbaOf, samCache } from './common'
@@ -331,58 +332,194 @@ export function selectTools(app: App): Tool[] {
     }
     return out
   }
+  /** Starts moving everything chosen: one layer (or folder) as before, or every picked layer together. */
+  const beginChosen = (x: number, y: number): Drag[] => {
+    const doc = app.doc!
+    if (!doc.picked.size) return doc.active ? beginAll(doc.active, x, y) : []
+    const t = transformable(doc)
+    return [...t.pixels, ...t.shapes].map(k => begin(k, x, y, -1, true)).filter(Boolean) as Drag[]
+  }
+
+  // The box around several picked layers or a folder, with a handle above it to turn them all.
+  let boxCache: { key: string; box: Rect | null } = { key: '', box: null }
+  const multiBox = (): Rect | null => {
+    const doc = app.doc!
+    const key = doc.rid + ':' + doc.rev + ':' + chosenKey(doc)
+    if (boxCache.key !== key) boxCache = { key, box: boundsOf(doc, transformable(doc)) }
+    return boxCache.box
+  }
+  const spinHandle = (b: Rect) => ({ x: b.x + b.w / 2, y: b.y - 24 / app.view.zoom })
+  type Spin = {
+    c: { x: number; y: number }; box: Rect; a0: number; a: number
+    pix: { l: Layer; orig: HTMLCanvasElement; mask: HTMLCanvasElement | null }[]
+    shp: { l: Layer; shape: any }[]
+  }
+  let spin: Spin | null = null
+  /** Removed from the picked layers when Shift-clicked without dragging. */
+  let unpick: Layer | null = null
+
+  const startSpin = (b: Rect, p: Pt) => {
+    const doc = app.doc!
+    const t = transformable(doc)
+    const c = { x: b.x + b.w / 2, y: b.y + b.h / 2 }
+    spin = {
+      c, box: b, a0: Math.atan2(p.y - c.y, p.x - c.x), a: 0,
+      pix: t.pixels.map(l => ({ l, orig: copyCanvas(l.canvas!), mask: l.mask ? copyCanvas(l.mask) : null })),
+      shp: t.shapes.map(l => ({ l, shape: { ...l.shape! } }))
+    }
+  }
+  const spinTo = (sp: Spin, a: number) => {
+    const doc = app.doc!
+    sp.a = a
+    const m = new DOMMatrix().translate(sp.c.x, sp.c.y).rotate((a * 180) / Math.PI).translate(-sp.c.x, -sp.c.y)
+    for (const it of sp.pix) {
+      const x = ctx2d(it.l.canvas!)
+      x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, doc.w, doc.h)
+      x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'
+      x.setTransform(m); x.drawImage(it.orig, 0, 0); x.setTransform(1, 0, 0, 1, 0, 0)
+      if (it.mask && it.l.mask) {
+        // Outside the turned image the mask is unknown, so it stays white (shows everything), like a fresh mask.
+        const mx = ctx2d(it.l.mask)
+        mx.setTransform(1, 0, 0, 1, 0, 0); mx.globalCompositeOperation = 'source-over'
+        mx.fillStyle = '#fff'; mx.fillRect(0, 0, doc.w, doc.h)
+        mx.globalCompositeOperation = 'destination-out'; mx.setTransform(m); mx.fillStyle = '#000'; mx.fillRect(0, 0, doc.w, doc.h)
+        mx.globalCompositeOperation = 'source-over'; mx.drawImage(it.mask, 0, 0); mx.setTransform(1, 0, 0, 1, 0, 0)
+        it.l.maskDirty = true
+      }
+      touch(it.l)
+    }
+    for (const it of sp.shp) {
+      const c = { ...it.shape }
+      transformShape(c, (px, py) => { const q = new DOMPoint(px, py).matrixTransform(m); return [q.x, q.y] }, 1, a, false)
+      it.l.shape = c
+      touch(it.l)
+    }
+    doc.changed()
+  }
+  const endSpin = (sp: Spin) => {
+    const doc = app.doc!
+    if (Math.abs(sp.a) < 1e-4) { spinTo(sp, 0); return }
+    const before = snapshot(doc)
+    for (const it of sp.pix) { const bl = before.layers.find(x => x.ref === it.l)!.p; bl.canvas = it.orig; if (it.mask) bl.mask = it.mask }
+    for (const it of sp.shp) before.layers.find(x => x.ref === it.l)!.p.shape = it.shape
+    app.hist!.structural('Turn ' + chosenName(doc), before)
+    doc.structure()
+  }
+
   const move: Tool = {
     id: 'move', label: 'Move', icon: 'move',
     cursor: () => 'move',
     down(p) {
       const doc = app.doc!
+      unpick = null
+      // Several layers or a folder: the handle above their box turns them all.
+      if (isMulti(doc)) {
+        const b = multiBox()
+        if (b) { const hp = spinHandle(b); if (Math.hypot(hp.x - p.x, hp.y - p.y) < 9 / app.view.zoom) { startSpin(b, p); return } }
+      }
       let l = doc.active
-      if (l?.shape && !shownLocked(doc, l)) {
+      if (!isMulti(doc) && l?.shape && !shownLocked(doc, l)) {
         const hit = handles(l).find(([hx, hy]) => Math.hypot(hx - p.x, hy - p.y) < 8 / app.view.zoom)
         if (hit) { const d = begin(l, p.x, p.y, hit[2]); drag = d ? [d] : null; dragName = ''; return }
       }
-      // Text and shapes are picked by clicking them; any layer is picked with Ctrl-click or Pick layer.
-      const pickAny = moveOpts.autoPick || p.e.ctrlKey || p.e.metaKey
       const tol = 6 / app.view.zoom
-      const hit = pickAny ? layerAt(p.x, p.y) : [...doc.layers].reverse().find(x => shownVisible(doc, x) && !shownLocked(doc, x) && x.shape && hitShape(x.shape, p.x, p.y, tol))
-      if (hit && hit !== l) { doc.activeId = hit.id; l = hit; app.emit('layers') }
+      const shapeHit = [...doc.layers].reverse().find(x => shownVisible(doc, x) && !shownLocked(doc, x) && x.shape && hitShape(x.shape, p.x, p.y, tol))
+      if (p.e.shiftKey) {
+        // Shift-click adds the layer under the cursor to the picked layers, or takes it out again.
+        const hit = shapeHit || layerAt(p.x, p.y)
+        if (hit) {
+          const set = chosenLayers(doc)
+          if (set.includes(hit)) { if (set.length > 1) unpick = hit }
+          else { doc.picked.add(doc.activeId); doc.picked.delete(hit.id); doc.activeId = hit.id; app.emit('layers') }
+          l = hit
+        }
+      } else {
+        // Text and shapes are picked by clicking them; any layer with Ctrl-click or Pick layer.
+        const pickAny = moveOpts.autoPick || p.e.ctrlKey || p.e.metaKey
+        const hit = pickAny ? layerAt(p.x, p.y) : shapeHit
+        // Clicking something already picked moves the whole set; anything else becomes the only pick.
+        if (hit && !chosenLayers(doc).includes(hit)) { doc.picked.clear(); doc.activeId = hit.id; l = hit; app.emit('layers') }
+      }
       if (!l) return
-      if (shownLocked(doc, l)) { toast(`${l.name} is locked`); return }
-      if (!shownVisible(doc, l)) toast(`${l.name} is hidden`)
-      drag = beginAll(l, p.x, p.y)
-      dragName = l.kind === 'group' ? 'Move ' + l.name : ''
+      if (!doc.picked.size && shownLocked(doc, l)) { toast(`${l.name} is locked`); return }
+      if (!doc.picked.size && !shownVisible(doc, l)) toast(`${l.name} is hidden`)
+      drag = beginChosen(p.x, p.y)
+      dragName = doc.picked.size || l.kind === 'group' ? 'Move ' + chosenName(doc) : ''
       if (!drag.length) drag = null
     },
     move(p, pressed) {
-      if (!pressed || !drag) return
+      if (!pressed) return
+      if (spin) {
+        let a = Math.atan2(p.y - spin.c.y, p.x - spin.c.x) - spin.a0
+        if (p.e.shiftKey) a = Math.round(a / (Math.PI / 12)) * (Math.PI / 12)
+        spinTo(spin, a)
+        return
+      }
+      if (!drag) return
       const d0 = drag[0]
       let dx = p.x - d0.x, dy = p.y - d0.y
-      if (p.e.shiftKey && d0.handle < 0) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0 }
+      if (Math.hypot(dx, dy) > 2 / app.view.zoom) unpick = null
+      if (p.e.shiftKey && d0.handle < 0 && !unpick) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0 }
       rotSnap = p.e.shiftKey
       for (const d of drag) apply(d, dx, dy)
     },
     up() {
-      if (!drag) return
-      const d = drag
-      drag = null
-      finish(d, dragName || undefined)
+      if (spin) { const sp = spin; spin = null; endSpin(sp); return }
+      const doc = app.doc!
+      if (drag) { const d = drag; drag = null; finish(d, dragName || undefined) }
+      if (unpick) {
+        const u = unpick
+        unpick = null
+        if (u.id === doc.activeId) { const next = [...doc.picked].pop(); if (next) { doc.picked.delete(next); doc.activeId = next } }
+        else doc.picked.delete(u.id)
+        app.emit('layers'); app.view.draw()
+      }
     },
     key(e) {
       const dir: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }
+      if (e.key === 'Escape' && app.doc?.picked.size && !drag && !spin) { app.doc.picked.clear(); app.emit('layers'); app.view.draw(); return true }
       const v = dir[e.key]
-      if (!v || drag || e.ctrlKey || e.metaKey || e.altKey) return false
+      if (!v || drag || spin || e.ctrlKey || e.metaKey || e.altKey) return false
       const doc = app.doc
       const l = doc?.active
       if (!doc || !l) return true
-      if (shownLocked(doc, l)) { toast(`${l.name} is locked`); return true }
+      if (!doc.picked.size && shownLocked(doc, l)) { toast(`${l.name} is locked`); return true }
       const k = e.shiftKey ? 10 : 1
-      const list = beginAll(l, 0, 0)
+      const list = beginChosen(0, 0)
       for (const d of list) apply(d, v[0] * k, v[1] * k)
-      finish(list, 'Nudge ' + (doc.selection && l.kind !== 'group' ? 'selection' : l.name))
+      finish(list, 'Nudge ' + (doc.selection && !isMulti(doc) ? 'selection' : chosenName(doc)))
       return true
     },
     overlay(x, v) {
-      const l = app.doc?.active
+      const doc = app.doc
+      if (!doc) return
+      if (isMulti(doc)) {
+        // Box around everything picked (turning with it while the handle is dragged), and the turn handle.
+        const b = spin ? spin.box : multiBox()
+        if (!b) return
+        const c = { x: b.x + b.w / 2, y: b.y + b.h / 2 }, a = spin ? spin.a : 0
+        const pts = [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]].map(([px, py]) => { const q = turn(px, py, c, a); return v.toScreen(q.x, q.y) })
+        const hp = spinHandle(b), hq = turn(hp.x, hp.y, c, a), h0 = turn(c.x, b.y, c, a)
+        const H = v.toScreen(hq.x, hq.y), T = v.toScreen(h0.x, h0.y)
+        x.save()
+        x.strokeStyle = '#8AA7D9'; x.lineWidth = 1; x.setLineDash([4, 3])
+        x.beginPath(); pts.forEach((q, i) => (i ? x.lineTo(q.x, q.y) : x.moveTo(q.x, q.y))); x.closePath(); x.stroke()
+        x.setLineDash([])
+        x.beginPath(); x.moveTo(T.x, T.y); x.lineTo(H.x, H.y); x.stroke()
+        x.fillStyle = '#8AA7D9'; x.strokeStyle = '#fff'; x.lineWidth = 1.5
+        x.beginPath(); x.arc(H.x, H.y, 5, 0, Math.PI * 2); x.fill(); x.stroke()
+        if (spin) {
+          const deg = Math.round((spin.a * 180) / Math.PI)
+          const t = deg + '°'
+          x.font = '500 11px Inter, sans-serif'
+          const w = x.measureText(t).width + 12
+          x.fillStyle = 'rgba(18,18,18,.8)'; x.beginPath(); x.roundRect(H.x - w / 2, H.y - 30, w, 20, 4); x.fill()
+          x.fillStyle = '#fff'; x.textAlign = 'center'; x.fillText(t, H.x, H.y - 16)
+        }
+        x.restore()
+        return
+      }
+      const l = doc.active
       if (!l?.shape) return
       const s = l.shape
       const b = flatBounds(s)
@@ -402,7 +539,7 @@ export function selectTools(app: App): Tool[] {
       x.restore()
     },
     panel: () => h('div', { class: 'ib' }, sec('Move'),
-      hint('Drag to move the selected layer, or only the selected pixels when there is a selection. Arrow keys nudge by 1 px, Shift+arrow by 10 px, and Shift-drag keeps the move straight. Ctrl-click picks the layer under the cursor. Drag the filled handle above text and shapes to turn them.'),
+      hint('Drag to move the selected layer, or only the selected pixels when there is a selection. Arrow keys nudge by 1 px, Shift+arrow by 10 px, and Shift-drag keeps the move straight. Ctrl-click picks the layer under the cursor. Shift-click things in the image to pick several, and Shift-click again to take one out. Drag the filled handle above text, shapes, a folder or several picked layers to turn them (Shift snaps to 15°); Ctrl+T also scales them.'),
       toggle('Pick layer by clicking', () => moveOpts.autoPick, v => (moveOpts.autoPick = v)),
       ...selectionOps(app))
   }
