@@ -179,7 +179,7 @@ export async function saveProject(doc: Doc): Promise<Uint8Array> {
   }
   files['original.png'] = await png(doc.original)
   if (doc.selection) files['selection.png'] = await png(doc.selection)
-  files['project.json'] = strToU8(JSON.stringify({ app: 'CocoaShot', version: 1, w: doc.w, h: doc.h, name: doc.name, active: doc.activeId, layers }))
+  files['project.json'] = strToU8(JSON.stringify({ app: 'CocoaShot', version: 1, w: doc.w, h: doc.h, name: doc.name, active: doc.activeId, layers, guides: doc.guides }))
   return zipSync(files, { level: 1 })
 }
 
@@ -211,6 +211,8 @@ export async function loadProject(data: ArrayBuffer, fileName: string): Promise<
   if (!doc.layers.length) throw new Error(tr('This project has no layers'))
   if (z['selection.png']) doc.selection = await fromPng(z['selection.png'])
   doc.activeId = doc.layer(p.active) ? p.active : doc.layers[doc.layers.length - 1].id
+  const num = (a: any) => (Array.isArray(a) ? a.filter((v: any) => typeof v === 'number' && isFinite(v)) : [])
+  if (p.guides) doc.guides = { x: num(p.guides.x), y: num(p.guides.y) }
   doc.modified = false
   return doc
 }

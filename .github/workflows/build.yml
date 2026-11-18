@@ -25,6 +25,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+        env:
+          # The CUDA build of ONNX Runtime is not used (and its download can be missing); the CPU one is bundled.
+          ONNXRUNTIME_NODE_INSTALL_CUDA: skip
       - run: npm run typecheck
       - run: npm test
       - run: npm run ${{ matrix.script }}

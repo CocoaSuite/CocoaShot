@@ -419,3 +419,91 @@ export function distanceTo(inside: (i: number) => boolean, w: number, h: number)
   for (let i = 0; i < w * h; i++) f[i] = Math.sqrt(f[i])
   return f
 }
+
+/**
+ * A curve through the given points ([x0, y0, x1, y1, …], 0 to 255, any order) as 256 values from 0 to 1.
+ * A natural cubic spline, like Photoshop's curves; flat beyond the first and last points.
+ */
+export function curveLUT(pts: ArrayLike<number>): Float32Array {
+  const P: [number, number][] = []
+  for (let i = 0; i + 1 < pts.length; i += 2) P.push([pts[i], pts[i + 1]])
+  P.sort((a, b) => a[0] - b[0])
+  // Points on the same x: keep the last one.
+  const xs: number[] = [], ys: number[] = []
+  for (const [x, y] of P) { if (xs.length && Math.abs(x - xs[xs.length - 1]) < 1e-6) ys[ys.length - 1] = y; else { xs.push(x); ys.push(y) } }
+  const out = new Float32Array(256)
+  const n = xs.length
+  if (!n) { for (let i = 0; i < 256; i++) out[i] = i / 255; return out }
+  if (n === 1) { out.fill(Math.min(1, Math.max(0, ys[0] / 255))); return out }
+  // Second derivatives of the natural spline (tridiagonal solve).
+  const m = new Float64Array(n), u = new Float64Array(n)
+  for (let i = 1; i < n - 1; i++) {
+    const sig = (xs[i] - xs[i - 1]) / (xs[i + 1] - xs[i - 1])
+    const p = sig * m[i - 1] + 2
+    m[i] = (sig - 1) / p
+    u[i] = (ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]) - (ys[i] - ys[i - 1]) / (xs[i] - xs[i - 1])
+    u[i] = ((6 * u[i]) / (xs[i + 1] - xs[i - 1]) - sig * u[i - 1]) / p
+  }
+  m[n - 1] = 0
+  for (let k = n - 2; k >= 0; k--) m[k] = m[k] * m[k + 1] + u[k]
+  let k = 0
+  for (let i = 0; i < 256; i++) {
+    let y: number
+    if (i <= xs[0]) y = ys[0]
+    else if (i >= xs[n - 1]) y = ys[n - 1]
+    else {
+      while (k < n - 2 && i > xs[k + 1]) k++
+      const hh = xs[k + 1] - xs[k], a = (xs[k + 1] - i) / hh, b = (i - xs[k]) / hh
+      y = a * ys[k] + b * ys[k + 1] + ((a * a * a - a) * m[k] + (b * b * b - b) * m[k + 1]) * (hh * hh) / 6
+    }
+    out[i] = Math.min(1, Math.max(0, y / 255))
+  }
+  return out
+}
+
+/** The four curves (RGB, red, green, blue) combined into one table per colour: RGB first, then each channel. */
+export function curvesTable(curves: number[][]): Uint8Array {
+  const [m, r, g, b] = curves.map(curveLUT)
+  const t = new Uint8Array(256 * 4)
+  const at = (lut: Float32Array, v: number) => lut[Math.round(v * 255)]
+  for (let i = 0; i < 256; i++) {
+    const v = m[i]
+    t[i * 4] = Math.round(at(r, v) * 255); t[i * 4 + 1] = Math.round(at(g, v) * 255); t[i * 4 + 2] = Math.round(at(b, v) * 255); t[i * 4 + 3] = 255
+  }
+  return t
+}
+
+/** A gradient's colours at 256 even steps, as RGBA bytes. */
+export function gradientTable(stops: { p: number; c: string }[], reverse = false): Uint8Array {
+  const S = [...stops].map(s => ({ p: reverse ? 1 - s.p : s.p, c: hexRGB(s.c) })).sort((a, b) => a.p - b.p)
+  const t = new Uint8Array(256 * 4)
+  for (let i = 0; i < 256; i++) {
+    const x = i / 255
+    let j = 0
+    while (j < S.length - 1 && S[j + 1].p < x) j++
+    const a = S[j], b = S[Math.min(S.length - 1, j + 1)]
+    const f = x <= a.p ? 0 : x >= b.p ? 1 : (x - a.p) / Math.max(1e-6, b.p - a.p)
+    for (let c = 0; c < 3; c++) t[i * 4 + c] = Math.round(a.c[c] + (b.c[c] - a.c[c]) * f)
+    t[i * 4 + 3] = 255
+  }
+  return t
+}
+
+function hexRGB(h: string): [number, number, number] {
+  let s = String(h || '').replace('#', '')
+  if (s.length === 3) s = s.split('').map(c => c + c).join('')
+  const n = parseInt(s.slice(0, 6), 16) || 0
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+
+/** A small seeded random number generator (mulberry32), so a preview and its result get the same noise. */
+export function rng(seed: number) {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}

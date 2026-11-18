@@ -5,6 +5,8 @@ import { h, icon, tip, toast } from '../ui/dom'
 import { btn, hint, numField, sec, seg, select, slider, toggle } from '../ui/controls'
 import { selectionBBox } from './select'
 import { jobBox } from './common'
+import { fillOutside, type FillMethod } from './expand'
+import { targetLayer } from './background'
 import type { Viewport } from '../view/viewport'
 import { toolSteps } from '../core/steps'
 import { tr, tx } from '../i18n'
@@ -17,7 +19,7 @@ const RATIOS: [string, string, number | null, number?, number?][] = [
 ]
 
 export function cropTools(app: App): Tool[] {
-  const st = { r: { x: 0, y: 0, w: 0, h: 0 }, ratio: 'free', angle: 0, cw: 1080, ch: 1080, drag: null as any, extend: false }
+  const st = { r: { x: 0, y: 0, w: 0, h: 0 }, ratio: 'free', angle: 0, cw: 1080, ch: 1080, drag: null as any, extend: false, fill: 'none' as FillMethod }
   /** Where the crop box may go: the image, or anywhere when the canvas may grow. */
   const bounds = () => {
     const d = app.doc!
@@ -75,14 +77,19 @@ export function cropTools(app: App): Tool[] {
     const d = app.doc!
     if (st.r.w < 1 || st.r.h < 1) return
     const [ow, oh] = out()
-    cropDoc(d, app.hist!, st.r, st.angle, ow as number | undefined, oh as number | undefined)
+    const l = st.extend && st.fill !== 'none' ? targetLayer(app) : null
+    app.record({ kind: 'crop', r: [st.r.x / d.w, st.r.y / d.h, st.r.w / d.w, st.r.h / d.h], angle: st.angle, ow: ow as number | undefined, oh: oh as number | undefined, fill: st.extend ? st.fill : 'none' })
+    const cover = cropDoc(d, app.hist!, st.r, st.angle, ow as number | undefined, oh as number | undefined)
     reset()
     app.view.fit()
+    // Areas the frame added beyond the image are filled in, if asked.
+    if (l && d.layers.includes(l)) { const m = st.fill; app.run(tr('Filling the new area'), p => fillOutside(app, l, cover, m, p, app.bgc)) }
   }
   app.on('crop-to-selection', () => {
     const d = app.doc
     const b = d && selectionBBox(d)
     if (!b) { toast(tr('Make a selection first')); return }
+    app.record({ kind: 'crop', r: [b.x / d!.w, b.y / d!.h, b.w / d!.w, b.h / d!.h], angle: 0, fill: 'none' })
     cropDoc(d!, app.hist!, b)
     reset(); app.view.fit()
   })
@@ -201,16 +208,18 @@ export function cropTools(app: App): Tool[] {
         toggle(tr('Allow the frame outside the image'), () => st.extend, v => {
           cropSteps.mark(); st.extend = v
           if (!v) { const d = app.doc!; const x = Math.max(0, st.r.x), y = Math.max(0, st.r.y); st.r = { x, y, w: Math.min(st.r.x + st.r.w, d.w) - x, h: Math.min(st.r.y + st.r.h, d.h) - y }; fitRatio(); fitStraight() }
-          app.view.draw(); app.emit('crop-rect')
+          app.view.draw(); app.emit('crop-rect'); app.emit('panel')
         }),
-        st.extend ? hint(tr('Areas outside the image become transparent.')) : null,
+        st.extend ? seg<FillMethod>([['none', tr('Transparent')], ['ai', tr('AI')], ['edge', tr('Stretch edges')], ['color', tr('Colour')]], () => st.fill, v => { st.fill = v; app.emit('panel') }, tr('New areas')) : null,
+        st.extend ? hint(st.fill === 'none' ? tr('Areas outside the image become transparent.') : st.fill === 'ai' ? tr('Areas outside the image are filled in by the AI model when you apply the crop.') : st.fill === 'edge' ? tr('Areas outside the image take on the colours at its edges.') : tr('Areas outside the image are filled with the background colour.')) : null,
+        jobBox(app),
         h('div', { class: 'g2' }, btn(tr('Reset'), reset), h('button', { class: 'pri', onclick: apply }, tr('Apply crop'))),
         sec(tr('Rotate and flip')),
         h('div', { class: 'g2' },
-          h('button', { onclick: () => { rotate90(d, app.hist!, -1); reset(); app.view.fit() } }, icon('rotl'), tx('short', 'Rotate left')),
-          h('button', { onclick: () => { rotate90(d, app.hist!, 1); reset(); app.view.fit() } }, icon('rotr'), tx('short', 'Rotate right')),
-          h('button', { onclick: () => { flip(d, app.hist!, true); reset() } }, icon('fliph'), tx('short', 'Flip horizontal')),
-          h('button', { onclick: () => { flip(d, app.hist!, false); reset() } }, icon('flipv'), tx('short', 'Flip vertical'))))
+          h('button', { onclick: () => { app.record({ kind: 'rotate', dir: -1 }); rotate90(d, app.hist!, -1); reset(); app.view.fit() } }, icon('rotl'), tx('short', 'Rotate left')),
+          h('button', { onclick: () => { app.record({ kind: 'rotate', dir: 1 }); rotate90(d, app.hist!, 1); reset(); app.view.fit() } }, icon('rotr'), tx('short', 'Rotate right')),
+          h('button', { onclick: () => { app.record({ kind: 'flip', horiz: true }); flip(d, app.hist!, true); reset() } }, icon('fliph'), tx('short', 'Flip horizontal')),
+          h('button', { onclick: () => { app.record({ kind: 'flip', horiz: false }); flip(d, app.hist!, false); reset() } }, icon('flipv'), tx('short', 'Flip vertical'))))
     }
   }
 
@@ -226,6 +235,8 @@ export function cropTools(app: App): Tool[] {
       const P = numField(tr('Percent'), () => rs.pct, v => { rs.pct = v; rs.w = Math.max(1, Math.round(d.w * v / 100)); rs.h = Math.max(1, Math.round(d.h * v / 100)); W.input.value = String(rs.w); H.input.value = String(rs.h) }, 1, 1000)
       const go = () => app.run(tr('Resizing'), async p => {
         if (rs.w * rs.h > 400e6) throw new Error(tr('That size is too large'))
+        // Kept proportions are recorded as the longest side, so an action resizes any image the same way.
+        app.record(rs.keep ? { kind: 'resize', long: Math.max(rs.w, rs.h), method: rs.method } : { kind: 'resize', w: rs.w, h: rs.h, method: rs.method })
         await resizeDoc(d, app.hist!, rs.w, rs.h, rs.method, p)
         app.view.fit()
       })

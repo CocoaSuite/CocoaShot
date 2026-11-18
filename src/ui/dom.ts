@@ -108,7 +108,14 @@ const P: Record<string, string> = {
   fx: 'M11 4H9a2 2 0 0 0-2 2v14M4 10h6M14 11l7 9M21 11l-7 9',
   transform: 'M6 6h12v12H6zM3 3h4v4H3zM17 3h4v4h-4zM3 17h4v4H3zM17 17h4v4h-4z',
   gradient: 'M3 3h18v18H3zM8 3v18M12 3v18M15.5 3v18M18.5 3v18',
-  filter: 'M3 4h18l-7 8.5V19l-4 2v-8.5z'
+  filter: 'M3 4h18l-7 8.5V19l-4 2v-8.5z',
+  curves: 'M3 3v18h18M4 19c5 0 6-14 16-15',
+  gmap: 'M3 6h18v12H3zM7 6v12M11 6v12M15 6v12M3 21h18',
+  redact: 'M3 5h18v6H3zM3 15h8M15 15h6M3 19h5M12 19h9',
+  expand: 'M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5M8 8h8v8H8z',
+  ruler: 'M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2',
+  actions: 'M6 4l14 8-14 8zM2 4v16',
+  guide: 'M3 9h18M15 3v18'
 }
 
 export function icon(name: string, cls = 'i') {
@@ -188,7 +195,7 @@ export function modal(build: (close: () => void) => HTMLElement, wide = false, o
     // Enter confirms with the main button, except where Enter already means something.
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       const t = e.target as HTMLElement
-      if (t.closest('textarea,button,select,a,.kbd')) return
+      if (t.closest('textarea,button,select,a,.kbd,[data-noenter]')) return
       const pri = box.querySelector('button.pri:not([disabled])') as HTMLButtonElement | null
       if (pri && !pri.hidden) { e.preventDefault(); e.stopPropagation(); pri.click() }
     }

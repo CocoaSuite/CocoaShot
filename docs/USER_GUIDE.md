@@ -10,6 +10,10 @@ Tools are on the left, grouped by task. The selected tool's settings are on the 
 
 Hold Space and drag, or use the scroll wheel, to move around. Hold Ctrl (Cmd on a Mac) and scroll to zoom. **F11** switches to full screen (Esc leaves it) and **Tab** hides or shows the side panels, so the two together give the image the whole screen.
 
+## Settings
+
+The **Settings** tab beside Properties and History has the everyday settings: theme, layout, rulers, guides and snapping, autosave, smoothing and the export format. **All settings** (or the gear at the top right, or Ctrl+,) opens the rest, including shortcuts and AI models.
+
 ## Language
 
 CocoaShot speaks English and Russian. It starts in your computer's language (Russian on a Russian system, English otherwise), and the first-launch greeting follows it: «Привет» instead of hello. **Settings, General, Language** picks one for good; with no images open the window switches straight away, otherwise when CocoaShot next starts or after **Restart now**.
@@ -92,7 +96,33 @@ In both, Shift-click points to move several together, and the arrow keys nudge t
 
 ### Filters
 
-The **Filter** menu has Gaussian blur, Motion blur, Zoom blur, Unsharp mask, Add noise, Pixelate, Posterize, Emboss, Find edges and Vignette. The selected filter shows in the panel on the right with a live preview; **Apply** keeps it, **Cancel** puts the layer back, and switching tools applies it. With a selection, only the selected area changes. **Ctrl+F** applies the last filter again with the same settings.
+The **Filter** menu has Gaussian blur, Motion blur, Zoom blur, Unsharp mask, Add noise, Chromatic aberration, Lens distortion, Pixelate, Posterize, Emboss, Find edges, Halftone and Vignette. The selected filter shows in the panel on the right with a live preview; **Apply** keeps it, **Cancel** puts the layer back, and switching tools applies it. **Fade** mixes the result with the original. With a selection, only the selected area changes. **Ctrl+F** applies the last filter again with the same settings.
+
+**Add noise** has a grain size (larger grain is softer) and Gaussian or Uniform grain; the preview keeps the same grain while you move sliders, and **New grain** shuffles it. **Chromatic aberration** pulls red and blue apart, outward from the centre or along an angle. **Lens distortion** bulges (positive) or pinches (negative) the image; **Zoom to fill** avoids empty corners.
+
+### Curves
+
+**Adjustments, Curves** (Ctrl+M) reshapes brightness for all colours together (RGB) or for Red, Green or Blue alone. Click the curve to add a point, drag points to bend it, and drag a point off the graph (or double-click it) to remove it. **Preset** has common shapes such as Medium contrast and Faded film. Curves live on the adjustment layer with the other adjustments, so they stay editable.
+
+### Gradient map
+
+**Adjustments, Gradient map** recolours the image by brightness: shadows take the colours at the left of the gradient, highlights those at the right. Pick a preset or set your own colour stops, then lower **Amount** to blend it with the original colours.
+
+### Redact
+
+**Highlight & Outline, Redact** (also in the Image menu) hides private details for good. Drag boxes over what to hide, or use **Find faces**, **Find people** or **Use selection**; click a box to leave it out. Choose **Solid box**, **Blur** or **Pixelate**, a rectangle or ellipse, and a margin, then **Redact**. The hidden pixels are replaced, so they cannot be recovered from the exported image. For text such as names or numbers, Solid box is the safest.
+
+### Expand canvas
+
+**Crop & Resize, Expand** (also in the Image menu) adds room around the image: type how much on each side, or pick a quick size such as **To 4:5**. The new area is filled with **AI** (desktop app: it continues backgrounds, sky and walls best), **Stretch edges**, the background **Colour**, or left transparent. In **Crop**, **Allow the frame outside the image** offers the same fills for the areas the frame adds.
+
+### Rulers and guides
+
+**View, Rulers** (Ctrl+R) shows rulers in pixels. Drag from a ruler onto the image to add a guide. With **Move**, drag a guide to place it or drag it back onto the ruler to remove it. **View, Clear guides** removes them all. When **Snap** is on, a moved layer lines up its edges and centre with guides, the image edges and centre, and other layers; hold Alt to move freely. Guides are saved in the project.
+
+### Actions
+
+**File, Actions** (Alt+F9) records and replays a series of edits. Type a name and press **Record**, edit as usual (resize, crop, expand, filters, adjustments, background removal, redaction, enhance, export and more), then press **Stop** in the top bar. **Play** runs the action on the current image; **Play on all** runs it on every open image, one after another. Each step of an action is listed and can be removed. Ready-made actions (Web ready, Blur all faces, Square for social media, Film look) can be played directly or added to your own.
 
 ### Gradients
 

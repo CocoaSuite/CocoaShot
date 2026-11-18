@@ -14,6 +14,8 @@ import { keyOf } from '../ui/keys'
 import type { Viewport, Pt } from '../view/viewport'
 import { toolSteps } from '../core/steps'
 import { tr, tx } from '../i18n'
+import { snapBox, type SnapTargets } from '../core/snap'
+import { alphaBox, snapTargets } from '../core/snaptargets'
 
 type Mode = 'new' | 'add' | 'sub' | 'int'
 export const sel = { mode: 'new' as Mode, feather: 0, tol: 32, contiguous: true, sample: true, grow: 4 }
@@ -205,6 +207,18 @@ export function selectTools(app: App): Tool[] {
   }
   let drag: Drag[] | null = null
   let dragName = ''
+  /** What a move may snap to, worked out once when the drag starts. */
+  let snapCtx: { box: Rect; t: SnapTargets } | null = null
+  const startSnap = (list: Drag[]) => {
+    snapCtx = null
+    const doc = app.doc!
+    if (!app.settings.snap || !list.length || list[0].handle >= 0) return
+    let box: Rect | null = null
+    const add = (b: Rect | null) => { if (!b) return; if (!box) { box = { ...b }; return } const x = Math.min(box.x, b.x), y = Math.min(box.y, b.y); box = { x, y, w: Math.max(box.x + box.w, b.x + b.w) - x, h: Math.max(box.y + box.h, b.y + b.h) - y } }
+    for (const d of list) add(d.shape ? flatBounds(d.shape) : d.float ? alphaBox(d.float) : d.orig ? alphaBox(d.orig) : null)
+    if (!box) return
+    snapCtx = { box, t: snapTargets(doc, app.settings.showGuides ? doc.guides : null, new Set(list.map(d => d.l))) }
+  }
   let rotSnap = false
   let hold: ReturnType<typeof holdFx> = null
   /** Where a shape's handles are on the image: its two points (0, 1) and the rotate handle (2). */
@@ -447,6 +461,7 @@ export function selectTools(app: App): Tool[] {
       drag = beginChosen(p.x, p.y)
       dragName = doc.picked.size || l.kind === 'group' ? tr('Move {0}', chosenName(doc)) : ''
       if (!drag.length) drag = null
+      else startSnap(drag)
     },
     move(p, pressed) {
       if (!pressed) return
@@ -462,10 +477,19 @@ export function selectTools(app: App): Tool[] {
       if (Math.hypot(dx, dy) > 2 / app.view.zoom) unpick = null
       if (p.e.shiftKey && d0.handle < 0 && !unpick) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0 }
       rotSnap = p.e.shiftKey
+      // Edges and centres line up with guides, the image and other layers; Alt moves freely.
+      app.view.snapLines = []
+      if (snapCtx && d0.handle < 0 && !p.e.altKey) {
+        const sn = snapBox(snapCtx.box, dx, dy, snapCtx.t, 7 / app.view.zoom)
+        if (p.e.shiftKey) { if (dx !== 0) dx = sn.dx; if (dy !== 0) dy = sn.dy; app.view.snapLines = sn.lines.filter(l => (l.x !== undefined && dx !== 0) || (l.y !== undefined && dy !== 0)) }
+        else { dx = sn.dx; dy = sn.dy; app.view.snapLines = sn.lines }
+      }
       for (const d of drag) apply(d, dx, dy)
     },
     up() {
       if (spin) { const sp = spin; spin = null; endSpin(sp); return }
+      snapCtx = null
+      if (app.view.snapLines.length) { app.view.snapLines = []; app.view.draw() }
       const doc = app.doc!
       if (drag) { const d = drag; drag = null; finish(d, dragName || undefined) }
       if (unpick) {

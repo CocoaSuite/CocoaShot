@@ -4,15 +4,17 @@ import { autoFit, h, icon, logo, tip, toast, confirmBox } from './dom'
 import { newImageDialog } from './newimage'
 import { addMask, applyMask, deleteMask, duplicate, groupLayer, invertMask, layersPanel, mergeDown, mergeVisible, newAdjust, newFolder, removeLayer, toggleMask, ungroup } from './layers'
 import { FILTERS, openFilter } from '../tools/filters'
-import { exportDialog, helpDialog, settingsDialog } from './dialogs'
+import { exportDialog, helpDialog, quickSettings, settingsDialog } from './dialogs'
+import { actionsDialog } from './actions'
+import { stopRecording } from '../core/actions'
 import { ACTIONS, comboOf, fmtCombo } from './keys'
 import { Viewport } from '../view/viewport'
 import { native, RecentItem } from '../native'
 import { applySelection, deletePixels, invert, selectAll } from '../tools/select'
 import { rotate90, flip } from '../core/transform'
 import { snapshot } from '../core/doc'
-import { flatten } from '../core/compose'
 import { loadProject } from '../core/io'
+import { flattenDoc } from '../core/actions'
 import { jobBox } from '../tools/common'
 import { groupKey, noteTool, psDock, psOptions, psStrip, saiBar, saiColor, saiNavigator, saiSizes, saiTools } from './styles'
 import { checkForUpdates } from './update'
@@ -63,6 +65,23 @@ export function buildShell(app: App, root: HTMLElement) {
     delLayer: () => app.doc && removeLayer(app),
     editAlpha: () => app.setTool('alpha'),
     levels: () => app.setTool('levels'),
+    curves: () => app.doc && app.setTool('curves'),
+    gmap: () => app.doc && app.setTool('gmap'),
+    redact: () => app.doc && app.setTool('redact'),
+    expand: () => app.doc && app.setTool('expand'),
+    actions: () => actionsDialog(app),
+    stopRec: () => { stopRecording(app) },
+    rulers: () => { app.settings.rulers = !app.settings.rulers; app.saveSettings(); app.emit('view-settings'); app.view.draw() },
+    guides: () => { app.settings.showGuides = !app.settings.showGuides; app.saveSettings(); app.emit('view-settings'); app.view.draw() },
+    snap: () => { app.settings.snap = !app.settings.snap; app.saveSettings(); app.emit('view-settings'); toast(app.settings.snap ? tr('Snapping on') : tr('Snapping off')) },
+    clearGuides: () => {
+      const d = app.doc
+      if (!d || (!d.guides.x.length && !d.guides.y.length)) return
+      const before = snapshot(d)
+      d.guides = { x: [], y: [] }
+      app.hist!.structural(tr('Clear guides'), before)
+      d.changed(null)
+    },
     viewRotL: () => app.view.setAngle(app.view.angle - 15),
     viewRotR: () => app.view.setAngle(app.view.angle + 15),
     viewRot0: () => app.view.setAngle(0),
@@ -98,26 +117,15 @@ export function buildShell(app: App, root: HTMLElement) {
     help: () => helpDialog(),
     about: () => settingsDialog(app, 'about'),
     updates: () => checkForUpdates(app),
-    rotl: () => app.doc && (rotate90(app.doc, app.hist!, -1), app.view.fit()),
-    rotr: () => app.doc && (rotate90(app.doc, app.hist!, 1), app.view.fit()),
-    fliph: () => app.doc && flip(app.doc, app.hist!, true),
+    rotl: () => app.doc && (app.record({ kind: 'rotate', dir: -1 }), rotate90(app.doc, app.hist!, -1), app.view.fit()),
+    rotr: () => app.doc && (app.record({ kind: 'rotate', dir: 1 }), rotate90(app.doc, app.hist!, 1), app.view.fit()),
+    fliph: () => app.doc && (app.record({ kind: 'flip', horiz: true }), flip(app.doc, app.hist!, true)),
     flipLayerH: () => app.doc && flipChosen(app, true),
     flipLayerV: () => app.doc && flipChosen(app, false),
-    flipv: () => app.doc && flip(app.doc, app.hist!, false),
+    flipv: () => app.doc && (app.record({ kind: 'flip', horiz: false }), flip(app.doc, app.hist!, false)),
     resize: () => app.setTool('resize'),
     cropSel: () => app.emit('crop-to-selection'),
-    flattenImg: () => {
-      const d = app.doc
-      if (!d) return
-      app.hist!.op(tr('Flatten image'), () => {
-        const c = flatten(d)
-        const base = d.layers.find(l => l.kind === 'image') || d.layers[0]
-        base.canvas = c; base.mask = null; base.maskAI = null; base.visible = true; base.opacity = 1; base.blend = 'source-over'; base.clip = false; base.kind = 'image'; base.name = tr('Image')
-        base.parent = null; base.fx = null; base.fxCache = null
-        base.dirty = true
-        d.layers = [base]; d.activeId = base.id
-      })
-    },
+    flattenImg: () => { if (app.doc) { app.record({ kind: 'flatten' }); flattenDoc(app) } },
     newImage: () => newImageDialog(app),
     newPaste: () => app.newFromClipboard(),
     close: () => app.closeDoc(),
@@ -162,12 +170,23 @@ export function buildShell(app: App, root: HTMLElement) {
   const undoB = ib('undo', tr('Undo'), 'undo'), redoB = ib('redo', tr('Redo'), 'redo')
   const cmpB = ib('compare', tr('Before and after'), 'compare', 3)
   const exportB = h('button', { class: 'pri', style: { marginLeft: '4px' }, onclick: () => run.export() }, tr('Export'))
+  // While an action records: what is recording, how many steps so far, and Stop.
+  const recPill = h('span', { class: 'recpill', hidden: true })
+  const renderRec = () => {
+    const r = app.recording
+    recPill.hidden = !r
+    recPill.innerHTML = ''
+    if (!r) return
+    recPill.append(h('i', { class: 'dot rec' }), h('span', { class: 'rn' }, tr('Recording {0}', r.name)), h('span', { class: 'mute' }, String(r.steps.length)),
+      h('button', { onclick: () => run.stopRec() }, tr('Stop')))
+  }
+  app.on('recording', renderRec)
   const top = h('header', { id: 'top' },
     h('div', { class: 'brand' }, logo(), h('span', { 'data-fit': 7 }, 'CocoaShot')),
-    menu(tr('File'), () => [[tr('New image'), 'newImage', 'plus'], [tr('Open image'), 'open', 'open'], [tr('Open project'), 'openProject', 'folder'], [tr('New image from clipboard'), 'newPaste', 'image'], '-', [tr('Save project'), 'save', 'save'], [tr('Save project as'), 'saveAs'], [tr('Export image'), 'export', 'download'], '-', [tr('Close image'), 'close', 'x']]),
+    menu(tr('File'), () => [[tr('New image'), 'newImage', 'plus'], [tr('Open image'), 'open', 'open'], [tr('Open project'), 'openProject', 'folder'], [tr('New image from clipboard'), 'newPaste', 'image'], '-', [tr('Save project'), 'save', 'save'], [tr('Save project as'), 'saveAs'], [tr('Export image'), 'export', 'download'], '-', [app.recording ? tr('Stop recording') : tr('Actions'), app.recording ? 'stopRec' : 'actions', 'actions'], '-', [tr('Close image'), 'close', 'x']]),
     menu(tr('Edit'), [[tr('Undo'), 'undo', 'undo'], [tr('Redo'), 'redo', 'redo'], '-', [tr('Cut'), 'cut', 'cut'], [tr('Copy'), 'copy', 'copy'], [tr('Paste as layer'), 'paste'], [tr('Paste as new image'), 'newPaste', 'image'], [tr('Delete'), 'delete', 'trash'], '-', [tr('Select all'), 'selectAll'], [tr('Deselect'), 'deselect'], [tr('Invert selection'), 'invert'], '-', [tr('Settings'), 'settings', 'gear']]),
-    menu(tr('Image'), [[tr('Resize'), 'resize', 'resize'], [tr('Crop to selection'), 'cropSel', 'crop'], [tr('Free transform'), 'transform', 'transform'], [tr('Distort'), 'distort'], [tr('Warp'), 'warp'], '-', [tr('Rotate left'), 'rotl', 'rotl'], [tr('Rotate right'), 'rotr', 'rotr'], [tr('Flip image horizontally'), 'fliph', 'fliph'], [tr('Flip image vertically'), 'flipv', 'flipv'], '-', [tr('Flatten image'), 'flattenImg', 'layers']]),
-    menu(tr('Layer'), [[tr('New layer'), 'newLayer', 'plus'], [tr('New folder'), 'newFolder', 'folder'], [tr('New adjustment layer'), 'newAdjust', 'sliders'], [tr('Duplicate layer'), 'dupLayer', 'copy'], [tr('Delete layer'), 'delLayer', 'trash'], '-', [tr('Merge down'), 'mergeDown'], [tr('Merge visible'), 'mergeVisible'], [tr('Put in folder'), 'groupLayer'], [tr('Remove folder, keep layers'), 'ungroup'], '-', [tr('Add mask'), 'addMask', 'mask'], [tr('Mask from selection'), 'maskFromSel'], [tr('Disable or enable mask'), 'toggleMask'], [tr('Invert mask'), 'invertMask'], [tr('Apply mask'), 'applyMask'], [tr('Delete mask'), 'deleteMask'], '-', [tr('Layer effects'), 'effects', 'fx'], [tr('Flip horizontally'), 'flipLayerH', 'fliph'], [tr('Flip vertically'), 'flipLayerV', 'flipv'], [tr('Free transform'), 'transform', 'transform'], [tr('Distort'), 'distort'], [tr('Warp'), 'warp'], [tr('Edit layer alpha'), 'editAlpha', 'alpha'], [tr('Levels'), 'levels', 'levels'], '-', [tr('Flatten image'), 'flattenImg', 'layers']]),
+    menu(tr('Image'), [[tr('Resize'), 'resize', 'resize'], [tr('Crop to selection'), 'cropSel', 'crop'], [tr('Expand canvas'), 'expand', 'expand'], [tr('Redact'), 'redact', 'redact'], [tr('Free transform'), 'transform', 'transform'], [tr('Distort'), 'distort'], [tr('Warp'), 'warp'], '-', [tr('Rotate left'), 'rotl', 'rotl'], [tr('Rotate right'), 'rotr', 'rotr'], [tr('Flip image horizontally'), 'fliph', 'fliph'], [tr('Flip image vertically'), 'flipv', 'flipv'], '-', [tr('Flatten image'), 'flattenImg', 'layers']]),
+    menu(tr('Layer'), [[tr('New layer'), 'newLayer', 'plus'], [tr('New folder'), 'newFolder', 'folder'], [tr('New adjustment layer'), 'newAdjust', 'sliders'], [tr('Duplicate layer'), 'dupLayer', 'copy'], [tr('Delete layer'), 'delLayer', 'trash'], '-', [tr('Merge down'), 'mergeDown'], [tr('Merge visible'), 'mergeVisible'], [tr('Put in folder'), 'groupLayer'], [tr('Remove folder, keep layers'), 'ungroup'], '-', [tr('Add mask'), 'addMask', 'mask'], [tr('Mask from selection'), 'maskFromSel'], [tr('Disable or enable mask'), 'toggleMask'], [tr('Invert mask'), 'invertMask'], [tr('Apply mask'), 'applyMask'], [tr('Delete mask'), 'deleteMask'], '-', [tr('Layer effects'), 'effects', 'fx'], [tr('Flip horizontally'), 'flipLayerH', 'fliph'], [tr('Flip vertically'), 'flipLayerV', 'flipv'], [tr('Free transform'), 'transform', 'transform'], [tr('Distort'), 'distort'], [tr('Warp'), 'warp'], [tr('Edit layer alpha'), 'editAlpha', 'alpha'], [tr('Levels'), 'levels', 'levels'], [tr('Curves'), 'curves', 'curves'], [tr('Gradient map'), 'gmap', 'gmap'], '-', [tr('Flatten image'), 'flattenImg', 'layers']]),
     menu(tr('Filter'), () => {
       const out: ([string, string, string?] | '-')[] = []
       let cat = ''
@@ -175,11 +194,11 @@ export function buildShell(app: App, root: HTMLElement) {
       return out
     }),
     menu(tr('Select'), [[tr('Select all'), 'selectAll'], [tr('Deselect'), 'deselect'], [tr('Invert selection'), 'invert'], '-', [tr('Cut'), 'cut', 'cut'], [tr('Copy'), 'copy', 'copy'], [tr('Delete pixels'), 'delete', 'trash']]),
-    menu(tr('View'), () => [[tr('Zoom in'), 'zoomIn', 'plus'], [tr('Zoom out'), 'zoomOut', 'minus'], [tr('Fit to screen'), 'fit', 'fit'], [tr('Actual pixels'), 'actual'], [tr('Before and after'), 'compare', 'compare'], '-', [tr('Rotate view left'), 'viewRotL', 'rotl'], [tr('Rotate view right'), 'viewRotR', 'rotr'], [tr('Reset rotation'), 'viewRot0'], [tr('Flip view'), 'viewFlip', 'fliph'], '-', [app.fullscreen || document.fullscreenElement ? tr('Exit full screen') : tr('Full screen'), 'fullscreen', 'fullscreen'], [tr('Show or hide panels'), 'panels'], [tr('Show or hide tools'), 'toggleLeft'], [tr('Show or hide properties'), 'toggleRight'], [tr('Restore default layout'), 'resetLayout']]),
+    menu(tr('View'), () => [[tr('Zoom in'), 'zoomIn', 'plus'], [tr('Zoom out'), 'zoomOut', 'minus'], [tr('Fit to screen'), 'fit', 'fit'], [tr('Actual pixels'), 'actual'], [tr('Before and after'), 'compare', 'compare'], '-', [tr('Rotate view left'), 'viewRotL', 'rotl'], [tr('Rotate view right'), 'viewRotR', 'rotr'], [tr('Reset rotation'), 'viewRot0'], [tr('Flip view'), 'viewFlip', 'fliph'], '-', [tr('Rulers'), 'rulers', app.settings.rulers ? 'check' : 'ruler'], [tr('Guides'), 'guides', app.settings.showGuides ? 'check' : 'guide'], [tr('Snap'), 'snap', app.settings.snap ? 'check' : undefined], [tr('Clear guides'), 'clearGuides'], '-', [app.fullscreen || document.fullscreenElement ? tr('Exit full screen') : tr('Full screen'), 'fullscreen', 'fullscreen'], [tr('Show or hide panels'), 'panels'], [tr('Show or hide tools'), 'toggleLeft'], [tr('Show or hide properties'), 'toggleRight'], [tr('Restore default layout'), 'resetLayout']]),
     menu(tr('Help'), () => [[tr('Quick guide'), 'help', 'help'], ...(native ? [[tr('Check for updates'), 'updates', 'update'] as [string, string, string]] : []), [tr('About CocoaShot'), 'about']]),
     h('span', { class: 'sep' }), dname, status, h('span', { class: 'sp' }),
     h('span', { class: 'topc', 'data-fit': 8 }, ib('open', tr('Open image'), 'open', 4), ib('save', tr('Save project'), 'save', 4), h('span', { class: 'sep', 'data-fit': 4 }), undoB, redoB, h('span', { class: 'sep', 'data-fit': 2 }),
-      ib('minus', tr('Zoom out'), 'zoomOut', 2), zoomLbl, ib('plus', tr('Zoom in'), 'zoomIn', 2), ib('fit', tr('Fit to screen'), 'fit', 3), cmpB, ib('gear', tr('Settings'), 'settings', 3)), exportB)
+      ib('minus', tr('Zoom out'), 'zoomOut', 2), zoomLbl, ib('plus', tr('Zoom in'), 'zoomIn', 2), ib('fit', tr('Fit to screen'), 'fit', 3), cmpB), recPill, ib('gear', tr('Settings'), 'settings'), exportB)
   // When the window is narrow the status, then the shortcut icons (they repeat menu items) give way, the menus close
   // up, and only then does the image name shrink; the brand name and the last icons go last.
   status.dataset.fit = '1'
@@ -199,8 +218,8 @@ export function buildShell(app: App, root: HTMLElement) {
   const mid = h('div', { id: 'mid' })
   const foot = h('footer', { id: 'foot' })
   app.view = new Viewport(app, desk)
-  let tab: 'props' | 'hist' = 'props'
-  const showTab = (t: 'props' | 'hist') => { tab = t; renderInsp(); app.emit('insp-tab') }
+  let tab: 'props' | 'hist' | 'set' = 'props'
+  const showTab = (t: 'props' | 'hist' | 'set') => { tab = t; renderInsp(); app.emit('insp-tab') }
   const opts = psOptions(app, run), strip = psStrip(app, run), dock = psDock(app, showTab, () => tab)
   const sbar = saiBar(app, run), nav = saiNavigator(app), scol = saiColor(app), stiles = saiTools(app), ssizes = saiSizes(app)
   const col1 = h('aside', { id: 'col1' }), col2 = h('aside', { id: 'col2' })
@@ -289,9 +308,18 @@ export function buildShell(app: App, root: HTMLElement) {
   let lastActive = ''
   const renderInsp = () => {
     tabs.innerHTML = ''
-    tabs.append(h('button', { class: tab === 'props' ? 'on' : '', onclick: () => showTab('props') }, tr('Properties')), h('button', { class: tab === 'hist' ? 'on' : '', onclick: () => showTab('hist') }, tr('History')))
+    tabs.append(h('button', { class: tab === 'props' ? 'on' : '', onclick: () => showTab('props') }, tr('Properties')), h('button', { class: tab === 'hist' ? 'on' : '', onclick: () => showTab('hist') }, tr('History')),
+      tip(h('button', { class: 'tset' + (tab === 'set' ? ' on' : ''), 'aria-label': tr('Settings'), onclick: () => showTab('set') }, icon('gear'), h('span', { class: 'tl' }, tr('Settings'))), tr('Settings')))
     const sc = insp.scrollTop
     insp.innerHTML = ''
+    if (tab === 'set') {
+      const p = quickSettings(app)
+      p.classList.remove('ib')
+      p.style.display = 'flex'; p.style.flexDirection = 'column'; p.style.gap = '9px'
+      insp.appendChild(p)
+      insp.scrollTop = sc
+      return
+    }
     if (!app.doc) { insp.appendChild(h('p', { class: 'hint' }, tr('Open an image to start.'))); return }
     lastActive = app.doc.activeId
     if (tab === 'hist') {
@@ -397,6 +425,7 @@ export function buildShell(app: App, root: HTMLElement) {
   app.on('panel', renderInsp)
   app.on('doc', () => { renderInsp(); renderTop(); renderStart(); renderFoot(); renderFloat() })
   app.on('layers', () => { if (tab === 'hist' || app.doc?.activeId !== lastActive) renderInsp(); renderFoot(); renderFloat(); renderTop() })
+  app.on('view-settings', () => { if (tab === 'set') renderInsp() })
   app.on('history', () => { renderTop(); if (tab === 'hist') renderInsp() })
   app.on('zoom', () => { renderTop(); renderFoot() })
   app.on('compare', renderTop)
@@ -450,7 +479,7 @@ export function buildShell(app: App, root: HTMLElement) {
     }
     e.preventDefault()
     if (id.startsWith('tool:')) { if (app.doc) app.setTool(app.settings.uiStyle === 'ps' ? groupKey(app, id.slice(5)) : id.slice(5)) }
-    else if (app.doc || ['newImage', 'open', 'openProject', 'paste', 'newPaste', 'updates', 'fullscreen', 'panels', 'settings', 'help'].includes(id)) run[id]?.()
+    else if (app.doc || ['newImage', 'open', 'openProject', 'paste', 'newPaste', 'updates', 'fullscreen', 'panels', 'settings', 'help', 'actions', 'rulers', 'guides', 'snap'].includes(id)) run[id]?.()
   })
   addEventListener('keyup', e => { if (e.key === ' ') { app.view.space = false; app.view.updateCursor() } })
   addEventListener('blur', () => { app.view.space = false })

@@ -26,6 +26,8 @@ export function transformDoc(doc: Doc, hist: History, label: string, w: number, 
     x.imageSmoothingQuality = 'high'
     setup(x)
     x.drawImage(src, 0, 0)
+    // The canvas's context lives on with the layer: leave it untransformed for whatever draws on it next.
+    x.setTransform(1, 0, 0, 1, 0, 0)
     return c
   }
   for (const l of doc.layers) {
@@ -40,6 +42,12 @@ export function transformDoc(doc: Doc, hist: History, label: string, w: number, 
   }
   doc.selection = tf(doc.selection)
   doc.original = tf(doc.original)!
+  // Guides go where the image goes; a turn makes vertical guides horizontal. Ones that end up slanted or off the image are dropped.
+  const g = { x: [] as number[], y: [] as number[] }
+  const keep = (v: number, max: number) => v >= 0 && v <= max
+  for (const gx of doc.guides.x) { const [a0, b0] = pt(gx, 0), [a1, b1] = pt(gx, 1); if (Math.abs(a0 - a1) < 1e-6) { if (keep(a0, w)) g.x.push(a0) } else if (Math.abs(b0 - b1) < 1e-6) { if (keep(b0, h)) g.y.push(b0) } }
+  for (const gy of doc.guides.y) { const [a0, b0] = pt(0, gy), [a1, b1] = pt(1, gy); if (Math.abs(b0 - b1) < 1e-6) { if (keep(b0, h)) g.y.push(b0) } else if (Math.abs(a0 - a1) < 1e-6) { if (keep(a0, w)) g.x.push(a0) } }
+  doc.guides = g
   doc.w = w; doc.h = h
   doc.comp = canvas(w, h)
   hist.structural(label, before)
@@ -47,7 +55,11 @@ export function transformDoc(doc: Doc, hist: History, label: string, w: number, 
   doc.emit('selection')
 }
 
-export function cropDoc(doc: Doc, hist: History, r: { x: number; y: number; w: number; h: number }, angle = 0, outW?: number, outH?: number) {
+/**
+ * Crops (or, with a box beyond the image, grows) the canvas. Returns where the old image lies on the new
+ * canvas, as an alpha mask, so new areas can be filled.
+ */
+export function cropDoc(doc: Doc, hist: History, r: { x: number; y: number; w: number; h: number }, angle = 0, outW?: number, outH?: number, label = tr('Crop')): HTMLCanvasElement {
   // Whole pixels: a box between pixels would resample, and so soften, the whole image.
   const x0 = Math.round(r.x), y0 = Math.round(r.y)
   r = { x: x0, y: y0, w: Math.max(1, Math.round(r.x + r.w) - x0), h: Math.max(1, Math.round(r.y + r.h) - y0) }
@@ -56,15 +68,19 @@ export function cropDoc(doc: Doc, hist: History, r: { x: number; y: number; w: n
   const a = (angle * Math.PI) / 180
   const sx = outW ? outW / w : 1, sy = outH ? outH / hh : 1
   const W = outW || w, H = outH || hh
-  transformDoc(doc, hist, tr('Crop'), W, H, x => {
+  const setup = (x: CanvasRenderingContext2D) => {
     x.scale(sx, sy)
     x.translate(-r.x, -r.y)
     x.translate(cx, cy); x.rotate(-a); x.translate(-cx, -cy)
-  }, (px, py) => {
+  }
+  const cover = canvas(W, H), cx2 = ctx2d(cover)
+  setup(cx2); cx2.fillStyle = '#fff'; cx2.fillRect(0, 0, doc.w, doc.h); cx2.setTransform(1, 0, 0, 1, 0, 0)
+  transformDoc(doc, hist, label, W, H, setup, (px, py) => {
     const dx = px - cx, dy = py - cy
     const rx = dx * Math.cos(-a) - dy * Math.sin(-a) + cx, ry = dx * Math.sin(-a) + dy * Math.cos(-a) + cy
     return [(rx - r.x) * sx, (ry - r.y) * sy]
   }, Math.sqrt(sx * sy))
+  return cover
 }
 
 export function rotate90(doc: Doc, hist: History, dir: 1 | -1) {
@@ -122,6 +138,7 @@ export async function resizeDoc(doc: Doc, hist: History, w: number, h: number, m
     if (l.outline) { l.outline.width *= sc; l.outline.glow *= sc }
     l.cache = null; l.maskCache = null; touch(l); l.maskDirty = true
   }
+  doc.guides = { x: doc.guides.x.map(v => v * sx), y: doc.guides.y.map(v => v * sy) }
   doc.w = w; doc.h = h
   doc.comp = canvas(w, h)
   hist.structural(tr('Resize'), before)
@@ -153,6 +170,7 @@ export async function perspectiveDoc(doc: Doc, hist: History, quad: number[]) {
   for (const l of doc.layers) if (l.shape) transformShape(l.shape, map, 1, 0, false)
   doc.original = await warp(doc.original)
   doc.selection = null
+  doc.guides = { x: [], y: [] }
   doc.w = w; doc.h = h
   doc.comp = canvas(w, h)
   hist.structural(tr('Perspective'), before)

@@ -1,4 +1,5 @@
 import type { App } from '../app'
+import type { Doc } from '../core/doc'
 import { flatten } from '../core/compose'
 import { encode, EXT, ExportFormat, ExportOpts, FORMATS } from '../core/io'
 import { job } from '../core/jobs'
@@ -94,24 +95,43 @@ export function exportDialog(app: App) {
     app.settings.exportQuality = o.quality
     if (folder) app.settings.exportFolder = folder
     app.saveSettings()
-    await app.run(tr('Exporting'), async () => {
-      let c = flat
-      if (o.format !== 'psd' && o.format !== 'ico' && (o.w !== doc.w || o.h !== doc.h)) {
-        const d = getData(flat)
-        const out: Uint8ClampedArray = await job('lanczos', { data: d.data, w: doc.w, h: doc.h, dw: o.w, dh: o.h }, [d.data.buffer])
-        c = canvas(o.w, o.h)
-        putData(c, mkID(out, o.w, o.h))
-      }
-      const bytes = await encode(c, o, doc)
-      if (native && path) {
-        const p = path
-        await native.writePath(p, bytes)
-        toast(tr('Exported {0}', file), { action: tr('Show in folder'), onAction: () => native!.showInFolder(p) })
-      } else { downloadLocal(file, bytes); toast(tr('Exported {0}', file)) }
-    })
+    app.record({ kind: 'export', format: o.format, quality: o.quality, transparent: o.transparent, matte: o.matte, scale: o.w / doc.w })
+    await app.run(tr('Exporting'), () => writeExport(app, doc, flat, o, path, file))
   }
   draw(); estimate()
   const close = modal(() => body)
+}
+
+/** Encodes a flattened image and writes it (desktop) or downloads it (browser). */
+export async function writeExport(app: App, doc: Doc, flat: HTMLCanvasElement, o: ExportOpts, path: string | null, file: string, quiet = false) {
+  let c = flat
+  if (o.format !== 'psd' && o.format !== 'ico' && (o.w !== doc.w || o.h !== doc.h)) {
+    const d = getData(flat)
+    const out: Uint8ClampedArray = await job('lanczos', { data: d.data, w: doc.w, h: doc.h, dw: o.w, dh: o.h }, [d.data.buffer])
+    c = canvas(o.w, o.h)
+    putData(c, mkID(out, o.w, o.h))
+  }
+  const bytes = await encode(c, o, doc)
+  if (native && path) {
+    const p = path
+    await native.writePath(p, bytes)
+    if (!quiet) toast(tr('Exported {0}', file), { action: tr('Show in folder'), onAction: () => native!.showInFolder(p) })
+  } else { downloadLocal(file, bytes); if (!quiet) toast(tr('Exported {0}', file)) }
+}
+
+/** Exports the current image to the export folder without asking, under a name that is free (actions). */
+export async function exportQuick(app: App, s: { format: ExportFormat; quality: number; transparent: boolean; matte: string; scale: number }) {
+  const doc = app.doc!
+  const o: ExportOpts = { format: s.format, quality: s.quality, w: Math.max(1, Math.round(doc.w * (s.scale || 1))), h: Math.max(1, Math.round(doc.h * (s.scale || 1))), transparent: s.transparent, matte: s.matte, srgb: true, maxCompress: false }
+  let file = (doc.name.trim() || 'image') + '.' + EXT[o.format]
+  let path: string | null = null
+  if (native) {
+    const dir = app.settings.exportFolder || (await native.defaultFolder())
+    path = await native.joinPath(dir, file)
+    for (let i = 2; i < 1000 && (await native.exists?.(path)); i++) { file = `${doc.name.trim() || 'image'} (${i}).${EXT[o.format]}`; path = await native.joinPath(dir, file) }
+  }
+  await writeExport(app, doc, flatten(doc), o, path, file, true)
+  return file
 }
 
 export function settingsDialog(app: App, page = 'general') {
@@ -249,4 +269,30 @@ export function helpDialog() {
   modal(close => h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
     h('div', { class: 'fr' }, h('h2', tr('Quick guide')), h('span', { class: 'sp' }), h('button', { class: 'ic', 'aria-label': tr('Close'), onclick: close }, icon('x'))),
     ...steps.map(([t, d]) => h('div', {}, h('b', { style: { fontWeight: 500 } }, t), h('p', { class: 'hint', style: { marginTop: '2px' } }, d)))), true)
+}
+
+/** The everyday settings, in the right-hand panel's Settings tab, with a way into the full Settings. */
+export function quickSettings(app: App) {
+  const set = () => app.saveSettings()
+  const view = () => { app.emit('view-settings'); app.view.draw() }
+  return h('div', { class: 'ib' },
+    sec(tr('Appearance')),
+    seg([['dark', tr('Dark')], ['light', tx('theme', 'Light')]], () => app.settings.theme, v => { app.settings.theme = v as any; set(); app.applyTheme(); app.view.resize() }, tr('Theme')),
+    select(tr('Interface'), [['classic', tr('Classic')], ['ps', tr('Photoshop style')], ['sai', tr('SAI style')]], () => app.settings.uiStyle || 'classic', v => { app.settings.uiStyle = v as any; set(); app.emit('style') }),
+    sec(tr('Rulers and guides')),
+    toggle(tr('Show rulers'), () => app.settings.rulers, v => { app.settings.rulers = v; set(); view() }),
+    toggle(tr('Show guides'), () => app.settings.showGuides, v => { app.settings.showGuides = v; set(); view() }),
+    toggle(tr('Snap to guides, edges and layers'), () => app.settings.snap, v => { app.settings.snap = v; set(); view() }),
+    hint(tr('Drag from a ruler to add a guide. With Move, drag a guide to place it, or back onto the ruler to remove it. Hold Alt to move without snapping.')),
+    sec(tr('Working')),
+    select(tr('Autosave'), [['0', tr('Off')], ['1', tr('Every minute')], ['3', tr('Every 3 minutes')], ['10', tr('Every 10 minutes')]], () => String(app.settings.autosave) as any, v => { app.settings.autosave = +v; set() }),
+    slider(tr('Smoothing'), () => app.settings.stabilizer, v => { app.settings.stabilizer = v; set() }, { min: 0, max: 7, def: 0 }),
+    select(tr('Export format'), FORMATS, () => app.settings.exportFormat, v => { app.settings.exportFormat = v; set() }),
+    native && toggle(tr('Use the graphics card for AI'), () => app.settings.gpu, v => { app.settings.gpu = v; set(); native?.ai('setGpu', { on: v }) }),
+    h('div', { class: 'g2' },
+      h('button', { onclick: () => settingsDialog(app) }, icon('gear'), tr('All settings')),
+      h('button', { onclick: () => settingsDialog(app, 'keys') }, tr('Shortcuts'))),
+    h('div', { class: 'g2' },
+      h('button', { onclick: () => settingsDialog(app, 'ai') }, icon('ai'), tr('AI models')),
+      h('button', { onclick: () => settingsDialog(app, 'about') }, tr('About'))))
 }

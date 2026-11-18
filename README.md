@@ -11,12 +11,16 @@ It shares its look and feel with CocoaAuthor.
 - **Replace background**: colour, image or a blurred copy of the original.
 - **Select**: rectangle, ellipse, lasso, polygon, brush select, magic wand, click to select an object (AI), select subject (AI), add, subtract, intersect, feather, grow or shrink, invert, copy to layer, delete, crop to selection.
 - **Crop and resize**: free and fixed ratios, social media sizes, custom output size, straighten, rotate, flip, perspective correction, resize by pixels or percent with Lanczos resampling.
+- **Expand canvas**: add room on any side or grow to a ratio (1:1, 4:5, 16:9 and more), and fill the new area with AI (LaMa), stretched edges or a colour. A crop frame dragged past the image fills its new areas the same way.
 - **Free transform**: scale, rotate, flip and move a layer, or just the selected part of it, with handles or exact numbers. **Distort** moves each corner on its own, and **Warp** bends the layer with a grid of points (2 × 2 up to 6 × 6).
 - **Step-by-step undo**: Ctrl+Z takes back the last action inside a tool before the document history, such as the last polygon corner, crop box change or transform handle drag.
+- **Redact**: hide faces, names and other private details for good with a solid box, a strong blur or pixelation, as rectangles or ellipses. Find faces (YuNet) or people automatically, use the selection, or drag boxes by hand.
 - **Highlight and outline**: brush, rectangle and ellipse highlights, marker style, spotlight, and outlines that follow the real edge of an object (solid or dashed, outside, centre or inside, glow, rounded or sharp).
 - **Paint and erase**: brush, pencil, eraser, fill, gradient (linear, radial, reflected, angle, diamond), colour picker, clone, blur, sharpen and smudge, with pen pressure, a colour wheel with RGB and hex input and recent colours, lock transparency and clipping to the layer below.
-- **Adjustments**: exposure, brightness, contrast, highlights, shadows, whites, blacks, gamma, temperature, tint, saturation, vibrance, hue, sharpness, clarity, grayscale, sepia and invert, plus auto enhance, white balance, contrast and colour. Adjustments live on a layer and stay editable. GPU accelerated.
-- **Filters**: Gaussian, motion and zoom blur, unsharp mask, add noise, pixelate, posterize, emboss, find edges and vignette, with a live preview. They follow the selection, and Ctrl+F repeats the last one.
+- **Adjustments**: Curves (RGB and each channel, with presets), Gradient map (presets and your own colour stops), Levels, exposure, brightness, contrast, highlights, shadows, whites, blacks, gamma, temperature, tint, saturation, vibrance, hue, sharpness, clarity, grayscale, sepia and invert, plus auto enhance, white balance, contrast and colour. Adjustments live on a layer and stay editable. GPU accelerated.
+- **Filters**: Gaussian, motion and zoom blur, unsharp mask, add noise (grain size, Gaussian or uniform), chromatic aberration, lens distortion, pixelate, posterize, emboss, find edges, halftone and vignette, with a live preview and a Fade slider. They follow the selection, and Ctrl+F repeats the last one.
+- **Actions**: record a series of edits (resize, crop, expand, filters, adjustments, background removal, redaction, export and more) and play it on the current image or on every open image. Four ready-made actions to start from.
+- **Rulers, guides and snapping**: drag guides out of the rulers; moved layers snap to guides, the image edges and centre, and other layers.
 - **AI tools**: remove objects (LaMa), heal spots and damage, reduce noise, upscale 2x or 4x (Swin2SR), one-step enhance, and find people, animals, vehicles and objects to select, highlight, outline or cut out.
 - **Text and annotations**: text, arrows, lines, rectangles, ellipses, callouts, labels and numbered markers. Each is its own editable layer.
 - **Layers**: image, paint, text, shape, highlight, outline, adjustment and background layers with visibility, rename, reorder, opacity, blend modes, duplicate, delete, merge down, merge visible, lock, masks (add, from selection, disable, invert, apply), lock transparency and clipping. Pick several layers with Ctrl- or Shift-click, and right-click a layer for its menu. Folders group layers (and other folders) and have their own visibility, opacity and blend mode.
@@ -36,9 +40,10 @@ Everything runs on your computer. There is no account, no subscription, no telem
 | ISNet | Background removal | 179 MB | Apache-2.0 |
 | BiRefNet Lite | Background removal, maximum detail | 224 MB | MIT |
 | MODNet | Background removal for people | 26 MB | Apache-2.0 |
+| YuNet | Finding faces to redact | 0.2 MB | MIT |
 | SlimSAM | Click to select objects | 40 MB | Apache-2.0 |
 | DETR ResNet-50 | Finding objects | 167 MB | Apache-2.0 |
-| LaMa | Object removal and repair | 208 MB | Apache-2.0 |
+| LaMa | Object removal, repair and filling an expanded canvas | 208 MB | Apache-2.0 |
 | Swin2SR | Upscaling | 53 MB each for 2x and 4x | Apache-2.0 |
 
 On Windows the AI tools use the graphics card through DirectML. Elsewhere they run on the CPU. BiRefNet needs a dedicated graphics card or about 16 GB of memory.

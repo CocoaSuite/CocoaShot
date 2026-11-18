@@ -41,11 +41,11 @@ export interface Group { id: string; name: string; icon: string; tools: string[]
 
 export const GROUPS: Group[] = [
   { id: 'select', name: tr('Select'), icon: 'select', tools: ['move', 'transform', 'marquee', 'ellipse-sel', 'lasso', 'poly', 'sel-brush', 'wand', 'obj-sel', 'subject'] },
-  { id: 'crop', name: tr('Crop & Resize'), icon: 'crop', tools: ['crop', 'resize', 'persp'] },
+  { id: 'crop', name: tr('Crop & Resize'), icon: 'crop', tools: ['crop', 'expand', 'resize', 'persp'] },
   { id: 'bg', name: tr('Background'), icon: 'bg', tools: ['bg-remove', 'bg-refine', 'bg-replace'] },
-  { id: 'hl', name: tr('Highlight & Outline'), icon: 'outline', tools: ['highlight', 'spotlight', 'outline'] },
+  { id: 'hl', name: tr('Highlight & Outline'), icon: 'outline', tools: ['highlight', 'spotlight', 'outline', 'redact'] },
   { id: 'paint', name: tr('Paint & Erase'), icon: 'paint', tools: ['brush', 'pencil', 'eraser', 'fill', 'gradient', 'picker', 'clone', 'blur', 'sharpen', 'smudge'] },
-  { id: 'adjust', name: tr('Adjustments'), icon: 'adjust', tools: ['adjust', 'levels', 'alpha'] },
+  { id: 'adjust', name: tr('Adjustments'), icon: 'adjust', tools: ['adjust', 'levels', 'curves', 'gmap', 'alpha'] },
   { id: 'ai', name: tr('AI Tools'), icon: 'ai', tools: ['ai-remove', 'ai-cleanup', 'ai-upscale', 'ai-enhance', 'ai-detect'] },
   { id: 'text', name: tr('Text & Annotations'), icon: 'text', tools: ['text', 'arrow', 'line', 'rect', 'ellipse', 'callout', 'label', 'marker'] },
   { id: 'view', name: tr('View'), icon: 'hand', tools: ['hand', 'zoom'] }

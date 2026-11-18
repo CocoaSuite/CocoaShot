@@ -11,9 +11,9 @@ export type UIStyle = 'classic' | 'ps' | 'sai'
 
 /** Toolbar slots for the Photoshop-style layout. Each slot is a group; the first tool is its default face. */
 export const SLOTS: (string[] | '-')[] = [
-  ['move', 'transform'], ['marquee', 'ellipse-sel'], ['lasso', 'poly', 'sel-brush'], ['wand', 'obj-sel', 'subject'], ['crop', 'persp', 'resize'], ['picker'], '-',
+  ['move', 'transform'], ['marquee', 'ellipse-sel'], ['lasso', 'poly', 'sel-brush'], ['wand', 'obj-sel', 'subject'], ['crop', 'expand', 'persp', 'resize'], ['picker'], '-',
   ['ai-remove', 'ai-cleanup', 'ai-enhance', 'ai-upscale', 'ai-detect'], ['brush', 'pencil', 'highlight'], ['clone'], ['eraser', 'bg-remove', 'bg-refine'], ['fill', 'gradient'], ['blur', 'sharpen', 'smudge'], '-',
-  ['text'], ['arrow', 'line', 'rect', 'ellipse', 'callout', 'label', 'marker'], ['outline', 'spotlight'], '-', ['hand'], ['zoom']
+  ['text'], ['arrow', 'line', 'rect', 'ellipse', 'callout', 'label', 'marker'], ['outline', 'spotlight', 'redact'], '-', ['hand'], ['zoom']
 ]
 export const slotOf = (id: string) => SLOTS.find(s => s !== '-' && s.includes(id)) as string[] | undefined
 
@@ -157,15 +157,18 @@ export function psStrip(app: App, run: Record<string, () => void>) {
 }
 
 /** Icon column beside the right-hand panels (Photoshop style). */
-export function psDock(app: App, showTab: (t: 'props' | 'hist') => void, curTab: () => string) {
+export function psDock(app: App, showTab: (t: 'props' | 'hist' | 'set') => void, curTab: () => string) {
   const dock = h('div', { id: 'dock' })
   const items: [string, string, () => void, () => boolean][] = [
-    ['props', tr('Properties'), () => showTab('props'), () => curTab() === 'props' && !['adjust', 'levels', 'alpha', 'bg-replace'].includes(app.toolId)],
+    ['props', tr('Properties'), () => showTab('props'), () => curTab() === 'props' && !['adjust', 'levels', 'curves', 'gmap', 'alpha', 'bg-replace'].includes(app.toolId)],
     ['history', tr('History'), () => showTab('hist'), () => curTab() === 'hist'],
     ['adjust', tr('Adjustments'), () => { showTab('props'); app.setTool('adjust') }, () => curTab() === 'props' && app.toolId === 'adjust'],
     ['levels', tr('Levels'), () => { showTab('props'); app.setTool('levels') }, () => curTab() === 'props' && app.toolId === 'levels'],
+    ['curves', tr('Curves'), () => { showTab('props'); app.setTool('curves') }, () => curTab() === 'props' && app.toolId === 'curves'],
+    ['gmap', tr('Gradient map'), () => { showTab('props'); app.setTool('gmap') }, () => curTab() === 'props' && app.toolId === 'gmap'],
     ['alpha', tr('Layer alpha'), () => { showTab('props'); app.setTool('alpha') }, () => curTab() === 'props' && app.toolId === 'alpha'],
-    ['bg', tr('Background'), () => { showTab('props'); app.setTool('bg-replace') }, () => curTab() === 'props' && app.toolId === 'bg-replace']
+    ['bg', tr('Background'), () => { showTab('props'); app.setTool('bg-replace') }, () => curTab() === 'props' && app.toolId === 'bg-replace'],
+    ['gear', tr('Settings'), () => showTab('set'), () => curTab() === 'set']
   ]
   const render = () => {
     dock.innerHTML = ''

@@ -3,6 +3,11 @@ import { contours } from '../core/px'
 import { alphaOf, bboxOfAlpha, canvas, ctx2d, Rect, rectUnion } from '../core/util'
 import type { App } from '../app'
 import { tr } from '../i18n'
+import { snapValue, type SnapLine } from '../core/snap'
+import { snapshot, type Snap } from '../core/doc'
+
+/** Width of the rulers along the top and left of the view, in screen pixels. */
+export const RULER = 18
 
 export interface Pt { x: number; y: number; p: number; sx: number; sy: number; rx: number; ry: number; e: PointerEvent }
 
@@ -31,6 +36,10 @@ export class Viewport {
   private panning: { x: number; y: number; ox: number; oy: number } | null = null
   space = false
   private splitDrag = false
+  /** Lines the moving thing has snapped to, shown while it moves. */
+  snapLines: SnapLine[] = []
+  private guideDrag: { axis: 'x' | 'y'; i: number; before: Snap; fresh: boolean; gone: boolean } | null = null
+  private rulerStyle: { key: string; bg: string; fg: string; line: string } | null = null
   gesture: { kind: 'size' | 'opacity'; sx: number; sy: number; v0: number; at: { x: number; y: number }; click: Pt | null; pick: boolean; moved: boolean } | null = null
 
   constructor(public app: App, public desk: HTMLElement) {
@@ -130,6 +139,7 @@ export class Viewport {
       this.el.style.cursor = 'grabbing'
       return
     }
+    if (e.button === 0 && this.guideStart(e)) return
     if (this.compare === 'split') {
       const p = this.pt(e)
       const sx = this.ox + this.doc.w * this.zoom * this.split
@@ -151,7 +161,60 @@ export class Viewport {
     }
     this.app.tool?.down?.(this.pt(e))
   }
+  get rulersOn() { return this.app.settings.rulers && !this.rotated }
+  private inRuler(p: { rx: number; ry: number }) { return this.rulersOn && (p.rx < RULER || p.ry < RULER) }
+  /** The guide under a screen point (unrotated), if guides show. */
+  guideAt(sx: number, sy: number): { axis: 'x' | 'y'; i: number } | null {
+    const d = this.doc
+    if (!d || !this.app.settings.showGuides) return null
+    for (let i = d.guides.x.length - 1; i >= 0; i--) if (Math.abs(this.toScreen(d.guides.x[i], 0).x - sx) < 5) return { axis: 'x', i }
+    for (let i = d.guides.y.length - 1; i >= 0; i--) if (Math.abs(this.toScreen(0, d.guides.y[i]).y - sy) < 5) return { axis: 'y', i }
+    return null
+  }
+  /** Drag out of a ruler for a new guide; with the Move tool, drag a guide to move it, or back onto a ruler to remove it. */
+  private guideStart(e: PointerEvent) {
+    const d = this.doc!
+    const p = this.pt(e)
+    if (this.inRuler(p)) {
+      if (p.rx < RULER && p.ry < RULER) return true
+      const axis = p.ry < RULER ? 'y' : 'x'
+      const before = snapshot(d)
+      if (!this.app.settings.showGuides) { this.app.settings.showGuides = true; this.app.saveSettings() }
+      d.guides[axis].push(axis === 'x' ? p.x : p.y)
+      this.guideDrag = { axis, i: d.guides[axis].length - 1, before, fresh: true, gone: false }
+      this.el.style.cursor = axis === 'x' ? 'col-resize' : 'row-resize'
+      this.guideMove(p)
+      return true
+    }
+    if (this.app.toolId !== 'move' || e.ctrlKey || e.metaKey || e.shiftKey) return false
+    const g = this.guideAt(p.sx, p.sy)
+    if (!g) return false
+    this.guideDrag = { ...g, before: snapshot(d), fresh: false, gone: false }
+    return true
+  }
+  private guideMove(p: Pt) {
+    const g = this.guideDrag!, d = this.doc!
+    let v = g.axis === 'x' ? p.x : p.y
+    const max = g.axis === 'x' ? d.w : d.h
+    // Snaps to the image edges and middle, then to whole pixels.
+    if (this.app.settings.snap && !p.e.altKey) v = snapValue(v, [0, max / 2, max], 8 / this.zoom)
+    v = Math.round(v)
+    g.gone = this.inRuler(p) || v < 0 || v > max
+    d.guides[g.axis][g.i] = v
+    this.draw()
+  }
+  private guideEnd() {
+    const g = this.guideDrag!, d = this.doc!
+    this.guideDrag = null
+    if (g.gone) d.guides[g.axis].splice(g.i, 1)
+    if (g.fresh && g.gone) { this.draw(); return }
+    this.app.hist!.structural(g.gone ? tr('Remove guide') : g.fresh ? tr('Add guide') : tr('Move guide'), g.before)
+    d.changed(null)
+    this.updateCursor()
+  }
+
   private move(e: PointerEvent) {
+    if (this.guideDrag) { this.guideMove(this.pt(e)); return }
     if (this.panning) {
       const d = this.unrotateVec(e.clientX - this.panning.x, e.clientY - this.panning.y)
       this.ox = this.panning.ox + d.x
@@ -185,6 +248,7 @@ export class Viewport {
   }
   private up(e: PointerEvent) {
     if (this.el.hasPointerCapture(e.pointerId)) this.el.releasePointerCapture(e.pointerId)
+    if (this.guideDrag) { this.guideEnd(); return }
     if (this.panning) { this.panning = null; this.updateCursor(); return }
     if (this.splitDrag) { this.splitDrag = false; return }
     const g = this.gesture
@@ -218,6 +282,8 @@ export class Viewport {
 
   updateCursor(p?: Pt) {
     if (this.space || this.app.toolId === 'hand') { this.el.style.cursor = 'grab'; return }
+    if (p && this.inRuler(p)) { this.el.style.cursor = 'default'; return }
+    if (p && this.app.toolId === 'move' && !p.e.ctrlKey && !p.e.shiftKey) { const g = this.guideAt(p.sx, p.sy); if (g) { this.el.style.cursor = g.axis === 'x' ? 'col-resize' : 'row-resize'; return } }
     this.el.style.cursor = this.app.tool?.cursor?.(p) || 'default'
   }
 
@@ -365,9 +431,89 @@ export class Viewport {
       x.strokeStyle = '#fff'; x.lineDashOffset = (-this.antsOff + 4) / z; x.stroke(this.ants)
       x.restore()
     }
+    this.guidesOverlay(x)
     this.app.tool?.overlay?.(x, this)
     if (this.gesture) this.gestureOverlay(x)
+    if (this.rulersOn) this.rulers(x)
     this.app.emit('view')
+  }
+
+  /** Guides (cyan) and the lines something just snapped to (magenta), across the whole view. */
+  private guidesOverlay(x: CanvasRenderingContext2D) {
+    const d = this.doc!
+    const big = 1e5
+    x.save()
+    x.lineWidth = 1
+    if (this.app.settings.showGuides && (d.guides.x.length || d.guides.y.length)) {
+      x.strokeStyle = 'rgba(0,200,255,.9)'
+      x.beginPath()
+      for (const gx of d.guides.x) { const sx = Math.round(this.toScreen(gx, 0).x) + 0.5; x.moveTo(sx, -big); x.lineTo(sx, big) }
+      for (const gy of d.guides.y) { const sy = Math.round(this.toScreen(0, gy).y) + 0.5; x.moveTo(-big, sy); x.lineTo(big, sy) }
+      x.stroke()
+    }
+    if (this.snapLines.length) {
+      x.strokeStyle = '#ff3dbd'; x.setLineDash([5, 3])
+      x.beginPath()
+      for (const l of this.snapLines) {
+        if (l.x !== undefined) { const sx = Math.round(this.toScreen(l.x, 0).x) + 0.5; x.moveTo(sx, -big); x.lineTo(sx, big) }
+        if (l.y !== undefined) { const sy = Math.round(this.toScreen(0, l.y).y) + 0.5; x.moveTo(-big, sy); x.lineTo(big, sy) }
+      }
+      x.stroke()
+    }
+    x.restore()
+  }
+
+  /** Rulers along the top and left, in image pixels, with the pointer's position marked. */
+  private rulers(x: CanvasRenderingContext2D) {
+    const dpr = devicePixelRatio || 1
+    const key = document.documentElement.className
+    if (this.rulerStyle?.key !== key) {
+      const cs = getComputedStyle(document.documentElement)
+      this.rulerStyle = { key, bg: cs.getPropertyValue('--panel').trim() || '#1e1e1e', fg: cs.getPropertyValue('--mute').trim() || '#999', line: cs.getPropertyValue('--line').trim() || 'rgba(128,128,128,.4)' }
+    }
+    const st = this.rulerStyle
+    const { w, h } = this.size()
+    x.save()
+    x.setTransform(dpr, 0, 0, dpr, 0, 0)
+    x.fillStyle = st.bg
+    x.fillRect(0, 0, w, RULER); x.fillRect(0, 0, RULER, h)
+    // A step that leaves about 60 screen pixels between labelled ticks.
+    const steps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 20000, 50000]
+    const major = steps.find(s => s * this.zoom >= 60) || 50000
+    const minor = major / (String(major).startsWith('25') ? 5 : String(major).startsWith('2') ? 4 : 5)
+    x.strokeStyle = st.fg; x.fillStyle = st.fg; x.lineWidth = 1
+    x.font = '9px Inter, sans-serif'
+    x.textBaseline = 'top'
+    x.beginPath()
+    const v0x = (RULER - this.ox) / this.zoom, v1x = (w - this.ox) / this.zoom
+    for (let v = Math.floor(v0x / minor) * minor; v <= v1x; v += minor) {
+      const sx = Math.round(this.toScreen(v, 0).x) + 0.5
+      if (sx < RULER) continue
+      const isMajor = Math.abs(v / major - Math.round(v / major)) < 1e-6
+      x.moveTo(sx, RULER); x.lineTo(sx, isMajor ? 2 : RULER - 5)
+      if (isMajor) x.fillText(String(Math.round(v)), sx + 3, 2)
+    }
+    const v0y = (RULER - this.oy) / this.zoom, v1y = (h - this.oy) / this.zoom
+    for (let v = Math.floor(v0y / minor) * minor; v <= v1y; v += minor) {
+      const sy = Math.round(this.toScreen(0, v).y) + 0.5
+      if (sy < RULER) continue
+      const isMajor = Math.abs(v / major - Math.round(v / major)) < 1e-6
+      x.moveTo(RULER, sy); x.lineTo(isMajor ? 2 : RULER - 5, sy)
+      if (isMajor) { x.save(); x.translate(2, sy + 3); x.rotate(Math.PI / 2); x.textBaseline = 'bottom'; x.fillText(String(Math.round(v)), 0, 0); x.restore() }
+    }
+    x.stroke()
+    x.strokeStyle = st.line
+    x.beginPath(); x.moveTo(0, RULER - 0.5); x.lineTo(w, RULER - 0.5); x.moveTo(RULER - 0.5, 0); x.lineTo(RULER - 0.5, h); x.stroke()
+    x.fillStyle = st.bg; x.fillRect(0, 0, RULER - 1, RULER - 1)
+    if (this.hover) {
+      const p = this.toScreen(this.hover.x, this.hover.y)
+      x.strokeStyle = '#e5484d'
+      x.beginPath()
+      if (p.x > RULER) { x.moveTo(Math.round(p.x) + 0.5, 0); x.lineTo(Math.round(p.x) + 0.5, RULER) }
+      if (p.y > RULER) { x.moveTo(0, Math.round(p.y) + 0.5); x.lineTo(RULER, Math.round(p.y) + 0.5) }
+      x.stroke()
+    }
+    x.restore()
   }
 
   private gestureOverlay(x: CanvasRenderingContext2D) {

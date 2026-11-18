@@ -6,7 +6,9 @@ import { cropTools } from './tools/crop'
 import { bgTools } from './tools/background'
 import { highlightTools } from './tools/highlight'
 import { paintTools } from './tools/paint'
-import { adjustTool, alphaTool, levelsTool } from './tools/adjust'
+import { adjustTool, alphaTool, curvesTool, gradientMapTool, levelsTool } from './tools/adjust'
+import { redactTools } from './tools/redact'
+import { expandTools } from './tools/expand'
 import { aiTools } from './tools/ai'
 import { annotateTools } from './tools/annotate'
 import { viewTools } from './tools/view'
@@ -19,7 +21,7 @@ import { checkForUpdates } from './ui/update'
 import { firstLaunch } from './ui/onboard'
 
 const app = new App()
-for (const t of [...selectTools(app), ...cropTools(app), ...bgTools(app), ...highlightTools(app), ...paintTools(app), adjustTool(app), levelsTool(app), alphaTool(app), ...aiTools(app), ...annotateTools(app), ...viewTools(app), filterTool(app), effectsTool(app), transformTool(app), gradientTool(app)]) app.tools.set(t.id, t)
+for (const t of [...selectTools(app), ...cropTools(app), ...expandTools(app), ...bgTools(app), ...highlightTools(app), ...paintTools(app), adjustTool(app), levelsTool(app), curvesTool(app), gradientMapTool(app), alphaTool(app), ...redactTools(app), ...aiTools(app), ...annotateTools(app), ...viewTools(app), filterTool(app), effectsTool(app), transformTool(app), gradientTool(app)]) app.tools.set(t.id, t)
 buildShell(app, document.getElementById('app')!)
 app.setTool('move')
 firstLaunch(app)

@@ -39,33 +39,37 @@ async function refineFull(src: HTMLCanvasElement, mask: HTMLCanvasElement, r: nu
 }
 
 export async function removeBackground(app: App) {
-  const doc = app.doc!, hist = app.hist!
   const l = targetLayer(app)
   if (!l) { toast(tr('Select an image layer first')); return }
   const t0 = performance.now()
-  await app.run(tr('Removing the background'), async prog => {
-    const model = opts.subject === 'person' ? 'modnet' : app.settings.bgModel
-    const src = rgbaOf(l.canvas!, 1024)
-    const r = await ai(app, 'removeBg', { ...src, model }, prog)
-    prog(null, tr('Matching edges at full resolution'))
-    const small = canvasFromAlpha(r.mask, r.w, r.h)
-    let full = canvas(doc.w, doc.h)
-    const fx = ctx2d(full); fx.imageSmoothingQuality = 'high'; fx.drawImage(small, 0, 0, doc.w, doc.h)
-    if (opts.hair) {
-      const rad = Math.max(2, Math.round(Math.max(doc.w, doc.h) / 1024 * 3))
-      if (doc.w * doc.h <= 40e6) full = await refineFull(l.canvas!, full, rad, 0.0008)
-    }
-    const before = snapshot(doc)
-    l.mask = full
-    l.maskOff = false
-    l.maskAI = copyCanvas(full)
-    l.maskOpts = { feather: 0, smooth: 0, shift: 0 }
-    touchMask(l)
-    doc.activeId = l.id
-    hist.structural(tr('Remove background'), before)
-    doc.structure()
-    toast(tr('Background removed in {0} s. Use Refine to fix any edge.', num((performance.now() - t0) / 1000, 1)))
-  })
+  app.record({ kind: 'bgremove' })
+  const ok = await app.run(tr('Removing the background'), async prog => { await removeBgCore(app, l, prog); return true })
+  if (ok) toast(tr('Background removed in {0} s. Use Refine to fix any edge.', num((performance.now() - t0) / 1000, 1)))
+}
+
+/** Removes the background of layer l with a mask (the work inside Remove background, for actions too). */
+export async function removeBgCore(app: App, l: Layer, prog: (p: number | null, d?: string) => void) {
+  const doc = app.doc!, hist = app.hist!
+  const model = opts.subject === 'person' ? 'modnet' : app.settings.bgModel
+  const src = rgbaOf(l.canvas!, 1024)
+  const r = await ai(app, 'removeBg', { ...src, model }, prog)
+  prog(null, tr('Matching edges at full resolution'))
+  const small = canvasFromAlpha(r.mask, r.w, r.h)
+  let full = canvas(doc.w, doc.h)
+  const fx = ctx2d(full); fx.imageSmoothingQuality = 'high'; fx.drawImage(small, 0, 0, doc.w, doc.h)
+  if (opts.hair) {
+    const rad = Math.max(2, Math.round(Math.max(doc.w, doc.h) / 1024 * 3))
+    if (doc.w * doc.h <= 40e6) full = await refineFull(l.canvas!, full, rad, 0.0008)
+  }
+  const before = snapshot(doc)
+  l.mask = full
+  l.maskOff = false
+  l.maskAI = copyCanvas(full)
+  l.maskOpts = { feather: 0, smooth: 0, shift: 0 }
+  touchMask(l)
+  doc.activeId = l.id
+  hist.structural(tr('Remove background'), before)
+  doc.structure()
 }
 
 function previewSeg(app: App) {

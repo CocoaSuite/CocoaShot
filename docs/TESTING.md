@@ -7,7 +7,7 @@ npm run typecheck
 npm test
 ```
 
-The unit tests cover the image processing core, freeform warp and distort maths, in-tool undo steps, blurring, mask growth and feathering, edge tracing, flood fill, inpainting, Lanczos resampling, perspective maths, histogram analysis, levels and alpha editing, the distance transform behind strokes and glows, and how folders keep their order when layers move in and out of them.
+The unit tests cover curves and gradient maps, snapping, the seeded grain, the image processing core, freeform warp and distort maths, in-tool undo steps, blurring, mask growth and feathering, edge tracing, flood fill, inpainting, Lanczos resampling, perspective maths, histogram analysis, levels and alpha editing, the distance transform behind strokes and glows, and how folders keep their order when layers move in and out of them.
 
 ## Before a release
 
@@ -37,6 +37,12 @@ Run `npm run desktop` and work through this list with a photo of a person and a 
 13c. Run every filter with and without a selection, on a locked-transparency layer, then Cancel, Apply and Ctrl+F.
 13d. Free transform a layer and a selection: resize from corners and edges, with Shift and Alt, rotate, flip, type exact values, Apply, Cancel and undo.
 13f. Distort a layer, a selection and a masked cut-out: drag corners and edges, Ctrl-drag a corner from Scale, rotate outside, Shift-click two corners and nudge them. Warp the same with each grid size: drag points, pull the surface, change the grid mid-warp, Reset, Apply and Cancel. Check edges stay smooth after Apply.
+13h. Curves: add, drag and remove points on RGB and each channel, use presets, undo. Gradient map: presets, add and remove stops, Amount, Reverse. Save, reopen and check both.
+13i. Redact: Find faces on a group photo, Find people, Use selection and hand-drawn boxes; each style and shape; undo. Export and check the faces are gone.
+13j. Expand canvas with every fill and quick size, then undo. Crop with the frame outside the image, straightened, with each fill.
+13k. Rulers and guides: add guides from both rulers, move and remove them, snap a layer to a guide and to another layer, hold Alt, rotate and crop the image and check the guides follow. Save and reopen.
+13l. Actions: record an action with a resize, a filter, curves and an export; play it on another image and on all open images; remove a step; play each ready-made action.
+13m. Settings tab: change each setting there and check it sticks after a restart.
 13g. Ctrl+Z inside tools: place polygon corners and undo them one at a time (and Backspace), then undo past the last corner into the history. Do the same with crop box drags, Perspective corners, Object clicks, Find objects toggles and each Free transform mode, then redo.
 13e. Draw each gradient shape with each colour option, with a selection and with Shift.
 14. Close without saving and check the recovery offer on the next start.

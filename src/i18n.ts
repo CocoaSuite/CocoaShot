@@ -18,7 +18,8 @@ const TABLES: Record<Lang, Record<string, string> | null> = { en: null, ru: RU }
 
 /** The first of the computer's preferred languages that CocoaShot speaks, else English. */
 export function systemLang(): Lang {
-  const prefs = [...(navigator.languages || []), navigator.language].filter(Boolean)
+  const nav = typeof navigator === 'undefined' ? null : navigator
+  const prefs = [...(nav?.languages || []), nav?.language].filter(Boolean) as string[]
   for (const l of prefs) { const k = l.slice(0, 2).toLowerCase() as Lang; if (k in TABLES) return k }
   return 'en'
 }
@@ -31,7 +32,8 @@ function savedPref(): LangPref {
 
 export const lang: Lang = (() => { const p = savedPref(); return p === 'auto' ? systemLang() : p })()
 const table = TABLES[lang]
-document.documentElement.lang = lang
+// Tests load this module in Node, where there is no page.
+if (typeof document !== 'undefined' && document.documentElement) document.documentElement.lang = lang
 
 const fill = (s: string, a: (string | number)[]) => a.length ? s.replace(/\{(\d)\}/g, (m, i) => (a[+i] !== undefined ? String(a[+i]) : m)) : s
 

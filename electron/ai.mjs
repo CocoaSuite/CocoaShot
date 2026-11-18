@@ -28,6 +28,7 @@ export const MODELS = {
   modnet: { repo: 'Xenova/modnet', files: ['onnx/model.onnx'], size: 25888640, bytes: 25888640, name: 'MODNet', use: 'Fast background removal for portraits', license: 'Apache-2.0' },
   sam: { repo: 'Xenova/slimsam-77-uniform', files: ['onnx/vision_encoder.onnx', 'onnx/prompt_encoder_mask_decoder.onnx'], size: 39833906, bytes: 39833906, name: 'SlimSAM', use: 'Click to select objects', license: 'Apache-2.0' },
   detr: { repo: 'Xenova/detr-resnet-50', files: ['onnx/model.onnx'], size: 166789212, bytes: 166789212, name: 'DETR ResNet-50', use: 'Finds people, animals, vehicles and products', license: 'Apache-2.0' },
+  yunet: { repo: 'yunet', files: ['face_detection_yunet_2023mar.onnx'], url: 'https://huggingface.co/opencv/face_detection_yunet/resolve/main/face_detection_yunet_2023mar.onnx', size: 232589, bytes: 232589, name: 'YuNet', use: 'Finds faces to blur or hide', license: 'MIT', raw: true },
   lama: { repo: 'Carve/LaMa-ONNX', files: ['lama.onnx'], url: 'https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama.onnx', size: 207479252, bytes: 207479252, name: 'LaMa', use: 'Object removal and repair', license: 'Apache-2.0', raw: true },
   sr2: { repo: 'Xenova/swin2SR-classical-sr-x2-64', files: ['onnx/model.onnx'], size: 54428699, bytes: 54428699, name: 'Swin2SR 2x', use: 'Upscale to twice the size', license: 'Apache-2.0' },
   sr4: { repo: 'Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr', files: ['onnx/model.onnx'], size: 52772645, bytes: 52772645, name: 'Swin2SR 4x', use: 'Upscale to four times the size, for photos', license: 'Apache-2.0' }
@@ -195,6 +196,64 @@ export async function detect(a) {
   return r.map(x => ({ label: x.label, score: x.score, box: [x.box.xmin, x.box.ymin, x.box.xmax, x.box.ymax] }))
 }
 
+/**
+ * Finds faces with YuNet (a fixed 640 × 640 input). The whole image is searched, and for larger images
+ * overlapping tiles too, so small faces in a crowd are found; duplicates are merged.
+ */
+export async function faces(a) {
+  const s = await get('yunet')
+  a = { ...a, threshold: a.threshold ?? 0.5 }
+  const S = 640
+  const run = async (rx, ry, rw, rh) => {
+    // Letterbox the region into 640 x 640, keeping its proportions.
+    const k = Math.min(S / rw, S / rh)
+    const n = S * S, f = new Float32Array(3 * n)
+    const tw = Math.round(rw * k), th = Math.round(rh * k)
+    for (let y = 0; y < th; y++) {
+      const sy = Math.min(a.h - 1, Math.floor(ry + (y + 0.5) / k))
+      for (let x = 0; x < tw; x++) {
+        const sx = Math.min(a.w - 1, Math.floor(rx + (x + 0.5) / k))
+        const i = (sy * a.w + sx) * 4, o = y * S + x
+        f[o] = a.data[i + 2]; f[n + o] = a.data[i + 1]; f[2 * n + o] = a.data[i]
+      }
+    }
+    const r = await s.run({ [s.inputNames[0]]: new ort.Tensor('float32', f, [1, 3, S, S]) })
+    const out = []
+    for (const st of [8, 16, 32]) {
+      const cls = r['cls_' + st].data, obj = r['obj_' + st].data, bb = r['bbox_' + st].data, cols = S / st
+      for (let i = 0; i < cls.length; i++) {
+        const sc = Math.sqrt(Math.min(1, Math.max(0, cls[i])) * Math.min(1, Math.max(0, obj[i])))
+        if (sc < a.threshold) continue
+        const c = i % cols, rr = Math.floor(i / cols)
+        const cx = (c + bb[i * 4]) * st, cy = (rr + bb[i * 4 + 1]) * st, w = Math.exp(bb[i * 4 + 2]) * st, h = Math.exp(bb[i * 4 + 3]) * st
+        out.push({ score: sc, box: [rx + (cx - w / 2) / k, ry + (cy - h / 2) / k, rx + (cx + w / 2) / k, ry + (cy + h / 2) / k] })
+      }
+    }
+    return out
+  }
+  let all = await run(0, 0, a.w, a.h)
+  // Small faces in a large photo are found in overlapping tiles as well.
+  const big = Math.max(a.w, a.h)
+  if (big > 800) {
+    const n = Math.min(6, Math.ceil(big / 560)), tw = a.w / n, th = a.h / n, ov = 0.25
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const x0 = Math.max(0, (i - ov) * tw), y0 = Math.max(0, (j - ov) * th)
+      const x1 = Math.min(a.w, (i + 1 + ov) * tw), y1 = Math.min(a.h, (j + 1 + ov) * th)
+      all = all.concat(await run(x0, y0, x1 - x0, y1 - y0))
+    }
+  }
+  all.sort((p, q) => q.score - p.score)
+  const iou = (p, q) => {
+    const ix = Math.max(0, Math.min(p[2], q[2]) - Math.max(p[0], q[0])), iy = Math.max(0, Math.min(p[3], q[3]) - Math.max(p[1], q[1]))
+    const i = ix * iy, u = (p[2] - p[0]) * (p[3] - p[1]) + (q[2] - q[0]) * (q[3] - q[1]) - i
+    // Also drop a box mostly inside a stronger one (the same face seen whole and in a tile).
+    return Math.max(i / (u || 1), i / Math.max(1, Math.min((p[2] - p[0]) * (p[3] - p[1]), (q[2] - q[0]) * (q[3] - q[1]))) * 0.7)
+  }
+  const keep = []
+  for (const d of all) if (!keep.some(k => iou(k.box, d.box) > 0.3)) keep.push(d)
+  return keep.map(d => ({ label: 'face', score: d.score, box: d.box.map((v, i) => Math.max(0, Math.min(i % 2 ? a.h : a.w, v))) }))
+}
+
 export async function inpaint(a) {
   const s = await get('lama')
   const S = 512, n = S * S
@@ -247,7 +306,7 @@ export async function upscale(a, progress) {
   return { w: W, h: H, data: out }
 }
 
-export const OPS = { status, removeBg, samEmbed, samMask, detect, inpaint, upscale, download: (a, p) => download(a.key, p), remove: a => remove(a.key), setGpu: a => { gpu = !!a.on; loaded.clear(); return true } }
+export const OPS = { status, removeBg, samEmbed, samMask, detect, faces, inpaint, upscale, download: (a, p) => download(a.key, p), remove: a => remove(a.key), setGpu: a => { gpu = !!a.on; loaded.clear(); return true } }
 
 if (process.parentPort) {
   process.on('uncaughtException', e => console.error('Uncaught:', e?.stack || e))

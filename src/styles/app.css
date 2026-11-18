@@ -450,3 +450,30 @@ input.val{text-align:right}
 @keyframes oChip{0%,100%{transform:none}12%{transform:translateY(-4px)}24%{transform:none}}
 @keyframes oStyle{0%,100%{opacity:.55}20%,40%{opacity:1}}
 @media (prefers-reduced-motion:reduce){#onb *,#onb{animation:none!important;transition:none!important}}
+
+/* 1.9: curves, gradient map, actions, redaction, rulers and the Settings tab */
+.tabs .tset{margin-left:auto;display:flex;align-items:center;gap:5px}
+.tabs .tset svg{width:14px;height:14px}
+.cvbox{display:flex;flex-direction:column;gap:4px}
+.lvg.cvg{height:auto;aspect-ratio:1;cursor:crosshair;touch-action:none}
+.gbar{height:22px;border-radius:6px;border:1px solid var(--line)}
+.gstop{display:flex;align-items:center;gap:8px}
+.gstop input[type=color]{width:30px;height:26px;padding:1px;flex:none}
+.gstop .sl{flex:1;min-width:0;grid-template-columns:0 minmax(0,1fr) 50px;gap:0 8px}
+.gstop .sl label{visibility:hidden}
+.act{display:flex;flex-direction:column;gap:6px;padding:8px 0;border-bottom:1px solid var(--line)}
+.act:last-child{border-bottom:0}
+.act .fr{gap:6px}
+.act input[type=text]{min-width:0}
+.act input[readonly]{background:none;border-color:transparent;padding-left:0}
+.act .steps{margin:0 0 0 34px;padding:0 0 0 14px;display:flex;flex-direction:column;gap:2px;color:var(--mute);font-size:12.5px}
+.act .steps li{display:list-item}
+.act .steps li>span{display:inline-block;width:calc(100% - 30px)}
+.act .steps .ic{width:22px;height:22px;vertical-align:middle}
+.dot.rec{background:#e5484d;animation:recblink 1.2s ease-in-out infinite}
+@keyframes recblink{50%{opacity:.35}}
+.recpill{display:flex;align-items:center;gap:7px;padding:3px 4px 3px 10px;margin:0 6px;border:1px solid var(--line);border-radius:999px;font-size:12px;white-space:nowrap;min-width:0}
+.recpill .rn{overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.recpill button{padding:3px 10px;border-radius:999px;font-size:12px}
+.recpill[hidden]{display:none}
+.g3>button.on{background:var(--selbg);border-color:var(--selbd)}

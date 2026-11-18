@@ -10,6 +10,7 @@ import { native, downloadLocal, pickLocal, OpenedFile } from './native'
 import { confirmBox, toast } from './ui/dom'
 import type { Tool } from './tools/types'
 import { tr, trMessage, type LangPref } from './i18n'
+import type { Step } from './core/actions'
 
 export interface Settings {
   theme: 'dark' | 'light'
@@ -32,13 +33,22 @@ export interface Settings {
   newImage: NewImageOpts
   /** Interface language: 'auto' follows the computer. Read at start by i18n. */
   lang: LangPref
+  rulers: boolean
+  showGuides: boolean
+  snap: boolean
+  /** Saved actions: named lists of steps that can be played on any image. */
+  actions: ActionDef[]
 }
+
+export interface ActionDef { id: string; name: string; steps: Step[] }
 
 const DEFAULTS: Settings = {
   theme: 'dark', exportFormat: 'png', exportQuality: 92, openLimit: 0, bgModel: 'isnet', gpu: true, autosave: 3,
   shortcuts: {}, exportFolder: '', leftW: 220, rightW: 288, leftOpen: true, rightOpen: true, checkUpdates: true, uiStyle: 'classic', toolCols: 1, stabilizer: 0,
   newImage: { w: 1920, h: 1080, bg: 'white', color: '#f4e9d8' },
-  lang: 'auto'
+  lang: 'auto',
+  rulers: false, showGuides: true, snap: true,
+  actions: []
 }
 
 export interface Job { label: string; progress: number | null; detail: string; cancel?: () => void; lock?: boolean }
@@ -63,13 +73,27 @@ export class App extends Emitter {
     super()
     let s: Partial<Settings> = {}
     try { s = JSON.parse(localStorage.getItem('cocoashot.settings') || '{}') } catch {}
-    this.settings = { ...DEFAULTS, ...s, shortcuts: { ...(s.shortcuts || {}) }, newImage: { ...DEFAULTS.newImage, ...(s.newImage || {}) } }
+    this.settings = { ...DEFAULTS, ...s, shortcuts: { ...(s.shortcuts || {}) }, newImage: { ...DEFAULTS.newImage, ...(s.newImage || {}) }, actions: Array.isArray(s.actions) ? s.actions : [] }
     try { const c = JSON.parse(localStorage.getItem('cocoashot.fgbg') || 'null'); if (c) { this.fg = c[0]; this.bgc = c[1] } } catch {}
     this.applyTheme()
     setInterval(() => this.autosave(), 30000)
   }
 
   get tool() { return this.tools.get(this.toolId) }
+
+  /** The action being recorded, if any: steps are added as the matching commands are used. */
+  recording: { name: string; steps: Step[] } | null = null
+  /** While an action plays, its own steps are not recorded again. */
+  playing = false
+  record(step: Step) {
+    const r = this.recording
+    if (!r || this.playing) return
+    // Adjustment changes come one slider at a time; only where they ended up counts.
+    const last = r.steps[r.steps.length - 1]
+    if (last && last.kind === 'adjust' && step.kind === 'adjust') r.steps[r.steps.length - 1] = step
+    else r.steps.push(step)
+    this.emit('recording')
+  }
 
   /** Undo the last action: a step inside the current tool first (a polygon corner, a handle drag), then the document history. */
   /** A long task is changing an image: undo, tab switches and closing wait for it. */

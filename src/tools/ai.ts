@@ -93,6 +93,59 @@ export async function inpaintLayer(app: App, l: Layer, mask: HTMLCanvasElement, 
   doc.changed(R)
 }
 
+/** Reduces noise on layer l, as one undo step. Strength from 0 to 1. */
+export async function denoiseLayer(app: App, l: Layer, strength: number) {
+  const doc = app.doc!, hist = app.hist!
+  const d = getData(l.canvas!)
+  const before = getData(l.canvas!)
+  const out: Uint8ClampedArray = await job('denoise', { data: d.data, w: d.width, h: d.height, strength }, [d.data.buffer])
+  putData(l.canvas!, mkID(out, d.width, d.height))
+  touch(l)
+  hist.raster(tr('Reduce noise'), l, 'canvas', { x: 0, y: 0, w: d.width, h: d.height }, before)
+  doc.changed()
+}
+
+/** Enlarges the image 2x or 4x and rebuilds detail on layer l with the AI model. */
+export async function upscaleCore(app: App, l: Layer, scale: 2 | 4, p: (p: number | null, d?: string) => void) {
+  const d = app.doc!, hist = app.hist!
+  if (d.w * d.h * scale * scale > 120e6) throw new Error(tr('The result would be too large. Crop or resize first.'))
+  const src = rgbaOf(l.canvas!)
+  const r = await ai(app, 'upscale', { ...src, scale }, p)
+  p(null, tr('Finishing'))
+  const W = d.w * scale, H = d.h * scale
+  await resizeDoc(d, hist, W, H, 'lanczos')
+  const up = canvas(W, H)
+  putData(up, mkID(r.data, W, H))
+  const ux = ctx2d(up)
+  ux.globalCompositeOperation = 'destination-in'
+  ux.drawImage(l.canvas!, 0, 0)
+  const before = getData(l.canvas!)
+  putData(l.canvas!, getData(up))
+  touch(l)
+  hist.raster(tr('Upscale detail'), l, 'canvas', { x: 0, y: 0, w: W, h: H }, before)
+  d.structure()
+  app.view.fit()
+}
+
+/** One-step enhance: exposure and colour (an adjustment layer), sharpening and, if asked, noise reduction. */
+export async function enhanceCore(app: App, en: { color: boolean; noise: boolean; sharpen: boolean }) {
+  const doc = app.doc!, hist = app.hist!
+  if (en.noise) {
+    const l = targetLayer(app)
+    if (l?.canvas && !l.locked) await denoiseLayer(app, l, 0.3)
+  }
+  if (en.color || en.sharpen) {
+    const before = snapshot(doc)
+    const l = adjLayer(app, true)!
+    const auto = autoAdjust(doc, l, 'enhance')
+    if (!en.color) { auto.levels = [0, 255, 0, 255, 0, 255]; auto.exposure = 0; auto.vibrance = 0; auto.shadows = 0; auto.highlights = 0 }
+    if (!en.sharpen) { auto.sharpness = 0; auto.clarity = 0 }
+    Object.assign(l.adjust!, auto)
+    hist.structural(tr('Enhance'), before)
+  }
+  doc.structure()
+}
+
 const CATS: Record<string, string[]> = {
   People: ['person'],
   Animals: ['bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe'],
@@ -145,16 +198,8 @@ export function aiTools(app: App): Tool[] {
         class: 'wide', onclick: () => {
           const l = target()
           if (!l) return
-          const doc = app.doc!, hist = app.hist!
-          app.run(tr('Reducing noise'), async () => {
-            const d = getData(l.canvas!)
-            const before = getData(l.canvas!)
-            const out: Uint8ClampedArray = await job('denoise', { data: d.data, w: d.width, h: d.height, strength: cl.noise / 100 }, [d.data.buffer])
-            putData(l.canvas!, mkID(out, d.width, d.height))
-            touch(l)
-            hist.raster(tr('Reduce noise'), l, 'canvas', { x: 0, y: 0, w: d.width, h: d.height }, before)
-            doc.changed()
-          })
+          app.record({ kind: 'denoise', strength: cl.noise })
+          app.run(tr('Reducing noise'), () => denoiseLayer(app, l, cl.noise / 100))
         }
       }, tr('Reduce noise')),
       jobBox(app))
@@ -174,25 +219,8 @@ export function aiTools(app: App): Tool[] {
             const l = targetLayer(app)
             if (!l) return
             if (d.w * d.h * scale * scale > 120e6) { toast(tr('The result would be too large. Crop or resize first.')); return }
-            const hist = app.hist!
-            app.run(tr('Upscaling'), async p => {
-              const src = rgbaOf(l.canvas!)
-              const r = await ai(app, 'upscale', { ...src, scale }, p)
-              p(null, tr('Finishing'))
-              const W = d.w * scale, H = d.h * scale
-              await resizeDoc(d, hist, W, H, 'lanczos')
-              const up = canvas(W, H)
-              putData(up, mkID(r.data, W, H))
-              const ux = ctx2d(up)
-              ux.globalCompositeOperation = 'destination-in'
-              ux.drawImage(l.canvas!, 0, 0)
-              const before = getData(l.canvas!)
-              putData(l.canvas!, getData(up))
-              touch(l)
-              hist.raster(tr('Upscale detail'), l, 'canvas', { x: 0, y: 0, w: W, h: H }, before)
-              d.structure()
-              app.view.fit()
-            })
+            app.record({ kind: 'upscale', scale })
+            app.run(tr('Upscaling'), p => upscaleCore(app, l, scale, p))
           }
         }, icon('sparkle'), tr('Upscale')),
         jobBox(app))
@@ -208,29 +236,7 @@ export function aiTools(app: App): Tool[] {
       toggle(tr('Sharpen details'), () => en.sharpen, v => (en.sharpen = v)),
       toggle(tr('Reduce noise'), () => en.noise, v => (en.noise = v)),
       h('button', {
-        class: 'pri big wide', onclick: () => app.run(tr('Enhancing'), async () => {
-          const doc = app.doc!, hist = app.hist!
-          if (en.noise) {
-            const l = targetLayer(app)
-            if (l?.canvas && !l.locked) {
-              const d = getData(l.canvas), before = getData(l.canvas)
-              const out: Uint8ClampedArray = await job('denoise', { data: d.data, w: d.width, h: d.height, strength: 0.3 }, [d.data.buffer])
-              putData(l.canvas, mkID(out, d.width, d.height))
-              touch(l)
-              hist.raster(tr('Reduce noise'), l, 'canvas', { x: 0, y: 0, w: d.width, h: d.height }, before)
-            }
-          }
-          if (en.color || en.sharpen) {
-            const before = snapshot(doc)
-            const l = adjLayer(app, true)!
-            const auto = autoAdjust(doc, l, 'enhance')
-            if (!en.color) { auto.levels = [0, 255, 0, 255, 0, 255]; auto.exposure = 0; auto.vibrance = 0; auto.shadows = 0; auto.highlights = 0 }
-            if (!en.sharpen) { auto.sharpness = 0; auto.clarity = 0 }
-            Object.assign(l.adjust!, auto)
-            hist.structural(tr('Enhance'), before)
-          }
-          doc.structure()
-        })
+        class: 'pri big wide', onclick: () => { app.record({ kind: 'enhance', ...en }); app.run(tr('Enhancing'), () => enhanceCore(app, en)) }
       }, icon('sparkle'), tr('Enhance')),
       jobBox(app))
   }
