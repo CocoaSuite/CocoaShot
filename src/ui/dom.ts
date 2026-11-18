@@ -132,7 +132,7 @@ export function icon(name: string, cls = 'i') {
 
 export function logo(): SVGElement {
   const t = document.createElement('template')
-  t.innerHTML = `<svg viewBox="-2 -2 56 60" aria-hidden="true"><path d="M44 6C39.5 1.9 34.5 0 28 0C12.5 0 0 12.5 0 28C0 43.5 12.5 56 28 56C34.5 56 39.5 54.1 44 50L36 40C33.8 42 31.3 43 28 43C19.7 43 13 36.3 13 28C13 19.7 19.7 13 28 13C31.3 13 33.8 14 36 16L44 6Z" fill="#8AA7D9"/><circle cx="28" cy="28" r="7.5" fill="none" stroke="#8AA7D9" stroke-width="5"/><circle cx="46" cy="28" r="4" fill="#8AA7D9"/></svg>`
+  t.innerHTML = `<svg viewBox="-2 -2 48 60" aria-hidden="true"><path d="M28.245 16.476L37.190 21.641L30.397 23.118L26.361 23.118Z" fill="#8AA7D9"/><path d="M38.104 22.451L38.104 32.780L33.428 27.636L31.410 24.140Z" fill="#8AA7D9"/><path d="M37.858 33.974L28.912 39.139L31.029 32.517L33.048 29.021Z" fill="#8AA7D9"/><path d="M27.756 39.524L18.810 34.359L25.604 32.882L29.640 32.882Z" fill="#8AA7D9"/><path d="M17.896 33.549L17.896 23.220L22.572 28.364L24.590 31.860Z" fill="#8AA7D9"/><path d="M18.143 22.024L27.089 16.860L24.971 23.482L22.953 26.977Z" fill="#8AA7D9"/><path d="M44 6C39.5 1.9 34.5 0 28 0C12.5 0 0 12.5 0 28C0 43.5 12.5 56 28 56C34.5 56 39.5 54.1 44 50L36 40C33.8 42 31.3 43 28 43C19.7 43 13 36.3 13 28C13 19.7 19.7 13 28 13C31.3 13 33.8 14 36 16L44 6Z" fill="#8AA7D9"/></svg>`
   return t.content.firstChild as SVGElement
 }
 
