@@ -1,6 +1,6 @@
 {
   "name": "cocoashot",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "Image editing without the complexity.",
   "main": "electron/main.cjs",
   "author": "CocoaSuite",

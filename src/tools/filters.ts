@@ -5,6 +5,7 @@ import { touch } from '../core/compose'
 import { canvas, copyCanvas, ctx2d, getData, putData } from '../core/util'
 import { h, toast } from '../ui/dom'
 import { btn, hint, sec, slider, toggle } from '../ui/controls'
+import { tr } from '../i18n'
 
 interface Param { key: string; label: string; min: number; max: number; def: number; step?: number; unit?: string; bool?: boolean }
 export interface FilterDef { id: string; label: string; cat: string; hint: string; params: Param[]; run: (src: HTMLCanvasElement, p: Record<string, number>) => HTMLCanvasElement }
@@ -229,16 +230,16 @@ function vignette(src: HTMLCanvasElement, amount: number, size: number, soft: nu
 }
 
 export const FILTERS: FilterDef[] = [
-  { id: 'gaussian', label: 'Gaussian blur', cat: 'blur', hint: 'Softens the whole layer evenly.', params: [{ key: 'r', label: 'Radius', min: 0.5, max: 250, def: 4, step: 0.5, unit: 'px' }], run: (s, p) => gaussianBlur(s, p.r) },
-  { id: 'motion', label: 'Motion blur', cat: 'blur', hint: 'Blurs in one direction, like a moving camera.', params: [{ key: 'a', label: 'Angle', min: -180, max: 180, def: 0, unit: '°' }, { key: 'd', label: 'Distance', min: 1, max: 500, def: 20, unit: 'px' }], run: (s, p) => motionBlur(s, p.a, p.d) },
-  { id: 'zoom', label: 'Zoom blur', cat: 'blur', hint: 'Streaks outward from a centre point, like zooming during the exposure.', params: [{ key: 'a', label: 'Amount', min: 1, max: 100, def: 15, unit: '%' }, { key: 'x', label: 'Centre across', min: 0, max: 100, def: 50, unit: '%' }, { key: 'y', label: 'Centre down', min: 0, max: 100, def: 50, unit: '%' }], run: (s, p) => zoomBlur(s, p.a, p.x, p.y) },
-  { id: 'unsharp', label: 'Unsharp mask', cat: 'sharpen', hint: 'Sharpens by boosting contrast along edges. Threshold leaves smooth areas alone.', params: [{ key: 'a', label: 'Amount', min: 1, max: 500, def: 80, unit: '%' }, { key: 'r', label: 'Radius', min: 0.5, max: 50, def: 2, step: 0.5, unit: 'px' }, { key: 't', label: 'Threshold', min: 0, max: 255, def: 0 }], run: (s, p) => unsharp(s, p.a, p.r, p.t) },
-  { id: 'noise', label: 'Add noise', cat: 'noise', hint: 'Adds film-like grain.', params: [{ key: 'a', label: 'Amount', min: 1, max: 100, def: 10, unit: '%' }, { key: 'm', label: 'Monochrome', min: 0, max: 1, def: 1, bool: true }], run: (s, p) => addNoise(s, p.a, !!p.m) },
-  { id: 'pixelate', label: 'Pixelate', cat: 'stylize', hint: 'Turns the layer into large square blocks. Good for hiding faces or details.', params: [{ key: 'c', label: 'Block size', min: 2, max: 200, def: 16, unit: 'px' }], run: (s, p) => pixelate(s, p.c) },
-  { id: 'posterize', label: 'Posterize', cat: 'stylize', hint: 'Reduces each colour channel to a few levels, for a flat poster look.', params: [{ key: 'l', label: 'Levels', min: 2, max: 32, def: 5 }], run: (s, p) => posterize(s, p.l) },
-  { id: 'emboss', label: 'Emboss', cat: 'stylize', hint: 'Makes the layer look raised or stamped into grey metal.', params: [{ key: 'a', label: 'Angle', min: -180, max: 180, def: 135, unit: '°' }, { key: 'h', label: 'Height', min: 1, max: 10, def: 2, unit: 'px' }, { key: 'k', label: 'Amount', min: 10, max: 500, def: 100, unit: '%' }], run: (s, p) => emboss(s, p.a, p.h, p.k) },
-  { id: 'edges', label: 'Find edges', cat: 'stylize', hint: 'Draws the outlines of shapes as dark lines on white.', params: [{ key: 's', label: 'Strength', min: 10, max: 300, def: 100, unit: '%' }], run: (s, p) => findEdges(s, p.s) },
-  { id: 'vignette', label: 'Vignette', cat: 'stylize', hint: 'Darkens the corners to draw the eye to the centre. Negative amounts lighten them.', params: [{ key: 'a', label: 'Amount', min: -100, max: 100, def: 50 }, { key: 's', label: 'Size', min: 0, max: 100, def: 50 }, { key: 'f', label: 'Softness', min: 0, max: 100, def: 60 }], run: (s, p) => vignette(s, p.a, p.s, p.f) }
+  { id: 'gaussian', label: tr('Gaussian blur'), cat: 'blur', hint: tr('Softens the whole layer evenly.'), params: [{ key: 'r', label: tr('Radius'), min: 0.5, max: 250, def: 4, step: 0.5, unit: 'px' }], run: (s, p) => gaussianBlur(s, p.r) },
+  { id: 'motion', label: tr('Motion blur'), cat: 'blur', hint: tr('Blurs in one direction, like a moving camera.'), params: [{ key: 'a', label: tr('Angle'), min: -180, max: 180, def: 0, unit: '°' }, { key: 'd', label: tr('Distance'), min: 1, max: 500, def: 20, unit: 'px' }], run: (s, p) => motionBlur(s, p.a, p.d) },
+  { id: 'zoom', label: tr('Zoom blur'), cat: 'blur', hint: tr('Streaks outward from a centre point, like zooming during the exposure.'), params: [{ key: 'a', label: tr('Amount'), min: 1, max: 100, def: 15, unit: '%' }, { key: 'x', label: tr('Centre across'), min: 0, max: 100, def: 50, unit: '%' }, { key: 'y', label: tr('Centre down'), min: 0, max: 100, def: 50, unit: '%' }], run: (s, p) => zoomBlur(s, p.a, p.x, p.y) },
+  { id: 'unsharp', label: tr('Unsharp mask'), cat: 'sharpen', hint: tr('Sharpens by boosting contrast along edges. Threshold leaves smooth areas alone.'), params: [{ key: 'a', label: tr('Amount'), min: 1, max: 500, def: 80, unit: '%' }, { key: 'r', label: tr('Radius'), min: 0.5, max: 50, def: 2, step: 0.5, unit: 'px' }, { key: 't', label: tr('Threshold'), min: 0, max: 255, def: 0 }], run: (s, p) => unsharp(s, p.a, p.r, p.t) },
+  { id: 'noise', label: tr('Add noise'), cat: 'noise', hint: tr('Adds film-like grain.'), params: [{ key: 'a', label: tr('Amount'), min: 1, max: 100, def: 10, unit: '%' }, { key: 'm', label: tr('Monochrome'), min: 0, max: 1, def: 1, bool: true }], run: (s, p) => addNoise(s, p.a, !!p.m) },
+  { id: 'pixelate', label: tr('Pixelate'), cat: 'stylize', hint: tr('Turns the layer into large square blocks. Good for hiding faces or details.'), params: [{ key: 'c', label: tr('Block size'), min: 2, max: 200, def: 16, unit: 'px' }], run: (s, p) => pixelate(s, p.c) },
+  { id: 'posterize', label: tr('Posterize'), cat: 'stylize', hint: tr('Reduces each colour channel to a few levels, for a flat poster look.'), params: [{ key: 'l', label: tr('Levels'), min: 2, max: 32, def: 5 }], run: (s, p) => posterize(s, p.l) },
+  { id: 'emboss', label: tr('Emboss'), cat: 'stylize', hint: tr('Makes the layer look raised or stamped into grey metal.'), params: [{ key: 'a', label: tr('Angle'), min: -180, max: 180, def: 135, unit: '°' }, { key: 'h', label: tr('Height'), min: 1, max: 10, def: 2, unit: 'px' }, { key: 'k', label: tr('Amount'), min: 10, max: 500, def: 100, unit: '%' }], run: (s, p) => emboss(s, p.a, p.h, p.k) },
+  { id: 'edges', label: tr('Find edges'), cat: 'stylize', hint: tr('Draws the outlines of shapes as dark lines on white.'), params: [{ key: 's', label: tr('Strength'), min: 10, max: 300, def: 100, unit: '%' }], run: (s, p) => findEdges(s, p.s) },
+  { id: 'vignette', label: tr('Vignette'), cat: 'stylize', hint: tr('Darkens the corners to draw the eye to the centre. Negative amounts lighten them.'), params: [{ key: 'a', label: tr('Amount'), min: -100, max: 100, def: 50 }, { key: 's', label: tr('Size'), min: 0, max: 100, def: 50 }, { key: 'f', label: tr('Softness'), min: 0, max: 100, def: 60 }], run: (s, p) => vignette(s, p.a, p.s, p.f) }
 ]
 
 const defaults = (f: FilterDef) => Object.fromEntries(f.params.map(p => [p.key, p.def]))
@@ -252,7 +253,7 @@ let last: string | null = null
  */
 export function openFilter(app: App, id?: string) {
   if (!id) {
-    if (!last) { toast('No filter used yet. Pick one from the Filter menu.'); return }
+    if (!last) { toast(tr('No filter used yet. Pick one from the Filter menu.')); return }
     applyNow(app, last)
     return
   }
@@ -360,31 +361,31 @@ export function filterTool(app: App): Tool {
   }
   app.on('filter-change', () => { if (target && base) { put(base) } changed(); app.emit('panel') })
   return {
-    id: 'filter', label: 'Filter', icon: 'filter',
+    id: 'filter', label: tr('Filter'), icon: 'filter',
     activate() { preview = true; changed() },
     deactivate() { commit() },
     panel() {
       const f = FILTERS.find(x => x.id === current)!
       const l = app.doc?.active
       const ok = !!l && !!l.canvas && ['image', 'paint', 'highlight'].includes(l.kind)
-      if (!ok) return h('div', { class: 'ib' }, sec(f.label), hint('Select an image or paint layer to use a filter on it.'))
+      if (!ok) return h('div', { class: 'ib' }, sec(f.label), hint(tr('Select an image or paint layer to use a filter on it.')))
       if (target && l !== target) { commit(); changed() }
       const p = params()
       return h('div', { class: 'ib' },
         sec(f.label + ': ' + l!.name),
-        hint(f.hint + (app.doc!.selection ? ' Only the selected area changes.' : '')),
-        h('div', { class: 'fr' }, h('label', 'Filter'), h('div', { class: 'grow' }, h('select', { onchange: (e: Event) => openFilter(app, (e.target as HTMLSelectElement).value) },
+        hint(f.hint + (app.doc!.selection ? tr(' Only the selected area changes.') : '')),
+        h('div', { class: 'fr' }, h('label', tr('Filter')), h('div', { class: 'grow' }, h('select', { onchange: (e: Event) => openFilter(app, (e.target as HTMLSelectElement).value) },
           FILTERS.map(x => h('option', { value: x.id, selected: x.id === f.id }, x.label))))),
         ...f.params.map(q => q.bool
           ? toggle(q.label, () => !!p[q.key], v => { p[q.key] = v ? 1 : 0; changed() })
           : slider(q.label, () => p[q.key], v => { p[q.key] = v; changed() }, { min: q.min, max: q.max, step: q.step, unit: q.unit, def: q.def })),
-        toggle('Preview', () => preview, v => { preview = v; changed() }),
+        toggle(tr('Preview'), () => preview, v => { preview = v; changed() }),
         h('div', { class: 'g2' },
-          btn('Reset', () => { remembered.set(f.id, defaults(f)); changed(); app.emit('panel') }),
+          btn(tr('Reset'), () => { remembered.set(f.id, defaults(f)); changed(); app.emit('panel') }),
           h('span')),
         h('div', { class: 'g2' },
-          h('button', { onclick: () => { cancel(); app.setTool('move') } }, 'Cancel'),
-          h('button', { class: 'pri', onclick: () => { commit(); app.setTool('move'); toast(f.label + ' applied') } }, 'Apply')))
+          h('button', { onclick: () => { cancel(); app.setTool('move') } }, tr('Cancel')),
+          h('button', { class: 'pri', onclick: () => { commit(); app.setTool('move'); toast(tr('{0} applied', f.label)) } }, tr('Apply'))))
     }
   }
 }

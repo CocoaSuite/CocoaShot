@@ -24,6 +24,7 @@ It shares its look and feel with CocoaAuthor.
 - **History**: undo, redo and a history list for the whole session.
 - **New image**: start from a blank canvas at any size up to 16384 px, with presets for screens, social media, print at 300 dpi and icons, and a white, black, transparent or any-colour background.
 - **Files**: opens PNG, JPG, WEBP, AVIF, HEIC and HEIF (iPhone photos), BMP, TIFF, GIF (first frame), SVG, ICO, TGA and PSD (with layers and folders). Exports PNG, JPG, WEBP, AVIF, TIFF, BMP, PDF, ICO (every icon size) and PSD (with layers and folders), with quality, size, transparency, compression and colour tagging. Projects save as `.cocoashot` with layers, masks, text and settings intact.
+- **Languages**: English and Russian. CocoaShot follows the computer's language, or the one picked under Settings, General.
 - **Reliability**: autosave with crash recovery for every open image, non-destructive editing wherever possible, heavy work in background threads, cancellable AI tasks.
 
 ## Privacy

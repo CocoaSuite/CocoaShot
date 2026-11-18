@@ -8,6 +8,7 @@ import { hint, sec, select, slider, toggle } from '../ui/controls'
 import { colorPanel } from './common'
 import { BLENDS, layerOptions } from './paint'
 import type { Blend } from '../core/doc'
+import { tr } from '../i18n'
 
 type Kind = 'linear' | 'radial' | 'reflected' | 'angle' | 'diamond'
 type Colours = 'fgbg' | 'fgclear' | 'rainbow'
@@ -82,7 +83,7 @@ export function gradientTool(app: App): Tool {
     return { x: a.x + Math.cos(ang) * d, y: a.y + Math.sin(ang) * d }
   }
   return {
-    id: 'gradient', label: 'Gradient', icon: 'gradient', altPick: true,
+    id: 'gradient', label: tr('Gradient'), icon: 'gradient', altPick: true,
     cursor: () => 'crosshair',
     down(p) {
       const doc = app.doc!
@@ -90,7 +91,7 @@ export function gradientTool(app: App): Tool {
       const paintable = act && act.canvas && !act.locked && (act.kind === 'paint' || act.kind === 'image' || act.kind === 'highlight')
       const l = paintable ? app.activeRaster() : app.newPaintLayer()
       if (!l) return
-      if (!shownVisible(doc, l)) toast(`${l.name} is hidden, so the gradient won't show`)
+      if (!shownVisible(doc, l)) toast(tr('{0} is hidden, so the gradient won\'t show', l.name))
       drag = { l, a: { x: p.x, y: p.y }, b: { x: p.x, y: p.y }, orig: copyCanvas(l.canvas!), made: !paintable }
     },
     move(p, pressed) {
@@ -110,7 +111,7 @@ export function gradientTool(app: App): Tool {
         if (d.made) { app.hist!.undo(); app.hist!.future.pop(); app.emit('history') }
         return
       }
-      app.hist!.raster('Gradient', d.l, 'canvas', { x: 0, y: 0, w: doc.w, h: doc.h }, getData(d.orig))
+      app.hist!.raster(tr('Gradient'), d.l, 'canvas', { x: 0, y: 0, w: doc.w, h: doc.h }, getData(d.orig))
       app.view.draw()
     },
     overlay(x, v) {
@@ -124,14 +125,14 @@ export function gradientTool(app: App): Tool {
       x.restore()
     },
     panel: () => h('div', { class: 'ib' },
-      sec('Gradient'),
-      hint('Drag across the image to draw a gradient. Hold Shift to keep the line straight. With a selection, only the selected area is filled.'),
-      select('Shape', [['linear', 'Linear'], ['radial', 'Radial'], ['reflected', 'Reflected'], ['angle', 'Angle'], ['diamond', 'Diamond']], () => o.kind, v => (o.kind = v)),
-      select<Colours>('Colours', [['fgbg', 'Front to back colour'], ['fgclear', 'Front colour to clear'], ['rainbow', 'Rainbow']], () => o.colours, v => { o.colours = v; app.emit('panel') }),
-      toggle('Reverse', () => o.reverse, v => (o.reverse = v)),
-      slider('Opacity', () => Math.round(o.opacity * 100), v => (o.opacity = v / 100), { min: 1, max: 100, unit: '%' }),
-      select('Blend', BLENDS, () => o.blend, v => (o.blend = v)),
-      o.colours !== 'rainbow' && sec('Colour'), o.colours !== 'rainbow' && colorPanel(app),
+      sec(tr('Gradient')),
+      hint(tr('Drag across the image to draw a gradient. Hold Shift to keep the line straight. With a selection, only the selected area is filled.')),
+      select(tr('Shape'), [['linear', tr('Linear')], ['radial', tr('Radial')], ['reflected', tr('Reflected')], ['angle', tr('Angle')], ['diamond', tr('Diamond')]], () => o.kind, v => (o.kind = v)),
+      select<Colours>(tr('Colours'), [['fgbg', tr('Front to back colour')], ['fgclear', tr('Front colour to clear')], ['rainbow', tr('Rainbow')]], () => o.colours, v => { o.colours = v; app.emit('panel') }),
+      toggle(tr('Reverse'), () => o.reverse, v => (o.reverse = v)),
+      slider(tr('Opacity'), () => Math.round(o.opacity * 100), v => (o.opacity = v / 100), { min: 1, max: 100, unit: '%' }),
+      select(tr('Blend'), BLENDS, () => o.blend, v => (o.blend = v)),
+      o.colours !== 'rainbow' && sec(tr('Colour')), o.colours !== 'rainbow' && colorPanel(app),
       ...layerOptions(app))
   }
 }

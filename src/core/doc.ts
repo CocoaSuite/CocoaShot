@@ -1,4 +1,5 @@
 import { canvas, copyCanvas, ctx2d, Emitter, type Rect, uid } from './util'
+import { tr } from '../i18n'
 
 export type LayerKind = 'image' | 'paint' | 'text' | 'shape' | 'highlight' | 'outline' | 'adjust' | 'background' | 'group'
 export type Blend = 'source-over' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'color-burn' | 'soft-light' | 'hard-light' | 'difference' | 'color' | 'luminosity'
@@ -143,7 +144,7 @@ export class Doc extends Emitter {
     this.w = img.width
     this.h = img.height
     this.name = name
-    const base = makeLayer('image', 'Image', this.w, this.h)
+    const base = makeLayer('image', tr('Image'), this.w, this.h)
     ctx2d(base.canvas!).drawImage(img, 0, 0)
     this.layers.push(base)
     this.activeId = base.id

@@ -6,15 +6,16 @@ import { slider, toggle } from '../ui/controls'
 import { canvas, ctx2d, fitSize, getData } from '../core/util'
 import type { BrushOpts } from '../core/brush'
 import type { Viewport } from '../view/viewport'
+import { tr, trMessage, num } from '../i18n'
 
 /** Which image the AI engine's object-selection cache was built from (one cache for the whole app). */
 export const samCache = { key: '' }
 
-export const mb = (n: number) => (n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : Math.max(1, Math.round(n / 1e6)) + ' MB')
+export const mb = (n: number) => (n >= 1e9 ? tr('{0} GB', num(n / 1e9, 1)) : tr('{0} MB', Math.max(1, Math.round(n / 1e6))))
 
 export async function ai(app: App, op: string, args: any, progress: (p: number | null, d?: string) => void): Promise<any> {
-  if (!native) throw new Error('AI tools run in the CocoaShot desktop app')
-  const prog = (p: any) => { if (p.total) progress(p.loaded / p.total, p.file ? 'Downloading ' + mb(p.total) : '') }
+  if (!native) throw new Error(tr('AI tools run in the CocoaShot desktop app'))
+  const prog = (p: any) => { if (p.total) progress(p.loaded / p.total, p.file ? tr('Downloading {0}', mb(p.total)) : '') }
   try {
     return await native.ai(op, args, prog)
   } catch (e: any) {
@@ -22,11 +23,11 @@ export async function ai(app: App, op: string, args: any, progress: (p: number |
     if (!m) throw e
     const st = await native.ai('status')
     const info = st[m[1]]
-    const ok = await confirmBox(`Download ${info.name}?`,
-      `${info.use}. This is a one-time ${mb(info.size)} download (${info.license} licence). After that it runs entirely on this computer and your images are never uploaded.`, 'Download')
+    const ok = await confirmBox(tr('Download {0}?', info.name),
+      tr('{0}. This is a one-time {1} download ({2} licence). After that it runs entirely on this computer and your images are never uploaded.', trMessage(info.use), mb(info.size), info.license), tr('Download'))
     if (ok !== 'yes') throw new Error('Cancelled')
-    progress(0, 'Downloading ' + info.name)
-    await native.ai('download', { key: m[1] }, p => p.total && progress(p.loaded / p.total, 'Downloading ' + info.name))
+    progress(0, tr('Downloading {0}', info.name))
+    await native.ai('download', { key: m[1] }, p => p.total && progress(p.loaded / p.total, tr('Downloading {0}', info.name)))
     progress(null, '')
     return await native.ai(op, args, prog)
   }
@@ -45,14 +46,14 @@ export function rgbaOf(src: HTMLCanvasElement, max = 0, region?: { x: number; y:
 
 export function brushControls(app: App, o: BrushOpts, which: { hardness?: boolean; flow?: boolean; strength?: boolean; color?: boolean; opacity?: boolean } = {}) {
   const out: HTMLElement[] = []
-  out.push(slider('Size', () => o.size, v => { o.size = v; app.view.draw() }, { min: 1, max: 1000, unit: 'px' }))
-  if (which.opacity !== false) out.push(slider('Opacity', () => Math.round(o.opacity * 100), v => (o.opacity = v / 100), { min: 1, max: 100 }))
-  if (which.hardness !== false) out.push(slider('Hardness', () => Math.round(o.hardness * 100), v => (o.hardness = v / 100), { min: 0, max: 100 }))
-  if (which.flow) out.push(slider('Flow', () => Math.round(o.flow * 100), v => (o.flow = v / 100), { min: 1, max: 100 }))
-  if (which.strength) out.push(slider('Strength', () => Math.round(o.strength * 100), v => (o.strength = v / 100), { min: 1, max: 100 }))
-  out.push(toggle('Pen pressure changes size', () => o.pressure, v => (o.pressure = v)))
-  out.push(slider('Minimum size', () => Math.round((o.minSize ?? 0) * 100), v => (o.minSize = v / 100), { min: 0, max: 100, def: 0, unit: '%' }))
-  out.push(toggle('Pen pressure changes opacity', () => o.pressureOpacity ?? o.pressure, v => (o.pressureOpacity = v)))
+  out.push(slider(tr('Size'), () => o.size, v => { o.size = v; app.view.draw() }, { min: 1, max: 1000, unit: 'px' }))
+  if (which.opacity !== false) out.push(slider(tr('Opacity'), () => Math.round(o.opacity * 100), v => (o.opacity = v / 100), { min: 1, max: 100 }))
+  if (which.hardness !== false) out.push(slider(tr('Hardness'), () => Math.round(o.hardness * 100), v => (o.hardness = v / 100), { min: 0, max: 100 }))
+  if (which.flow) out.push(slider(tr('Flow'), () => Math.round(o.flow * 100), v => (o.flow = v / 100), { min: 1, max: 100 }))
+  if (which.strength) out.push(slider(tr('Strength'), () => Math.round(o.strength * 100), v => (o.strength = v / 100), { min: 1, max: 100 }))
+  out.push(toggle(tr('Pen pressure changes size'), () => o.pressure, v => (o.pressure = v)))
+  out.push(slider(tr('Minimum size'), () => Math.round((o.minSize ?? 0) * 100), v => (o.minSize = v / 100), { min: 0, max: 100, def: 0, unit: '%' }))
+  out.push(toggle(tr('Pen pressure changes opacity'), () => o.pressureOpacity ?? o.pressure, v => (o.pressureOpacity = v)))
   return out
 }
 
@@ -75,8 +76,8 @@ export function stabilizer(level: () => number) {
 
 export function colorPanel(app: App, alpha = false, onAlpha?: (a: number) => void, getAlpha?: () => number, size?: number) {
   const st = { hex: app.fg, alpha: getAlpha ? getAlpha() : 1 }
-  const fgB = h('button', { class: 'fg', style: { background: app.fg }, 'aria-label': 'Foreground colour' })
-  const bgB = h('button', { class: 'bgc', style: { background: app.bgc }, 'aria-label': 'Background colour' })
+  const fgB = h('button', { class: 'fg', style: { background: app.fg }, 'aria-label': tr('Foreground colour') })
+  const bgB = h('button', { class: 'bgc', style: { background: app.bgc }, 'aria-label': tr('Background colour') })
   let editing: 'fg' | 'bg' = 'fg'
   const wheel = colorWheel(st, (s, fin) => {
     if (editing === 'fg') app.setColors(s.hex)
@@ -87,7 +88,7 @@ export function colorPanel(app: App, alpha = false, onAlpha?: (a: number) => voi
   }, { alpha, size, pick: () => { app.emit('pick-once') } })
   fgB.addEventListener('click', () => { editing = 'fg'; (wheel as any).set(app.fg); fgB.style.outlineColor = 'var(--sel)'; bgB.style.outlineColor = '' })
   bgB.addEventListener('click', () => { editing = 'bg'; (wheel as any).set(app.bgc); bgB.style.outlineColor = 'var(--sel)'; fgB.style.outlineColor = '' })
-  const swap = tip(h('button', { class: 'ic', onclick: () => { app.setColors(app.bgc, app.fg); fgB.style.background = app.fg; bgB.style.background = app.bgc; (wheel as any).set(editing === 'fg' ? app.fg : app.bgc) } }, icon('swap')), 'Swap colours')
+  const swap = tip(h('button', { class: 'ic', onclick: () => { app.setColors(app.bgc, app.fg); fgB.style.background = app.fg; bgB.style.background = app.bgc; (wheel as any).set(editing === 'fg' ? app.fg : app.bgc) } }, icon('swap')), tr('Swap colours'))
   // Panels are rebuilt often; a panel that has left the page stops listening the next time colours change.
   let shown = false
   const off = app.on('colors', () => {
@@ -117,7 +118,7 @@ export function jobBox(app: App) {
   const j = app.job
   if (!j) return null
   return h('div', { class: 'job' },
-    h('div', { class: 'fr' }, h('span', j.label), j.cancel && h('button', { onclick: () => j.cancel!() }, 'Cancel')),
+    h('div', { class: 'fr' }, h('span', j.label), j.cancel && h('button', { onclick: () => j.cancel!() }, tr('Cancel'))),
     h('div', { class: 'prog' + (j.progress == null ? ' ind' : '') }, h('i', { style: { width: (j.progress ?? 0) * 100 + '%' } })),
     j.detail && h('span', { class: 'hint' }, j.detail))
 }

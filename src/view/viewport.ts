@@ -2,6 +2,7 @@ import { compose, effectiveMask, layerFull } from '../core/compose'
 import { contours } from '../core/px'
 import { alphaOf, bboxOfAlpha, canvas, ctx2d, Rect, rectUnion } from '../core/util'
 import type { App } from '../app'
+import { tr } from '../i18n'
 
 export interface Pt { x: number; y: number; p: number; sx: number; sy: number; rx: number; ry: number; e: PointerEvent }
 
@@ -350,8 +351,8 @@ export class Viewport {
         x.beginPath(); x.moveTo(sx - 4, H / 2 - 5); x.lineTo(sx - 8, H / 2); x.lineTo(sx - 4, H / 2 + 5); x.moveTo(sx + 4, H / 2 - 5); x.lineTo(sx + 8, H / 2); x.lineTo(sx + 4, H / 2 + 5); x.stroke()
         x.font = '500 11px Inter, sans-serif'
         const tag = (t: string, tx: number) => { const w = x.measureText(t).width + 14; x.fillStyle = 'rgba(18,18,18,.75)'; x.beginPath(); x.roundRect(tx, 10, w, 20, 4); x.fill(); x.fillStyle = '#fff'; x.fillText(t, tx + 7, 24) }
-        if (sx > 80) tag('Before', 10)
-        if (W - sx > 70) tag('After', W - x.measureText('After').width - 24)
+        if (sx > 80) tag(tr('Before'), 10)
+        if (W - sx > 70) tag(tr('After'), W - x.measureText(tr('After')).width - 24)
       }
     }
     x.restore()
@@ -381,7 +382,7 @@ export class Viewport {
       x.beginPath(); x.arc(p.x, p.y, r, 0, Math.PI * 2); x.fill()
       x.globalAlpha = 1
     }
-    const t = g.kind === 'size' ? `Size ${b.getSize()} px` : `Opacity ${Math.round(b.getOpacity!() * 100)}%`
+    const t = g.kind === 'size' ? tr('Size {0} px', b.getSize()) : tr('Opacity {0}%', Math.round(b.getOpacity!() * 100))
     x.font = '500 11px Inter, sans-serif'
     const w = x.measureText(t).width + 14, ty = Math.max(4, p.y - r - 30)
     x.fillStyle = 'rgba(18,18,18,.8)'; x.beginPath(); x.roundRect(p.x - w / 2, ty, w, 20, 4); x.fill()

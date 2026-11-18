@@ -9,6 +9,7 @@ import { Viewport } from './view/viewport'
 import { native, downloadLocal, pickLocal, OpenedFile } from './native'
 import { confirmBox, toast } from './ui/dom'
 import type { Tool } from './tools/types'
+import { tr, trMessage, type LangPref } from './i18n'
 
 export interface Settings {
   theme: 'dark' | 'light'
@@ -29,12 +30,15 @@ export interface Settings {
   toolCols: 1 | 2
   stabilizer: number
   newImage: NewImageOpts
+  /** Interface language: 'auto' follows the computer. Read at start by i18n. */
+  lang: LangPref
 }
 
 const DEFAULTS: Settings = {
   theme: 'dark', exportFormat: 'png', exportQuality: 92, openLimit: 0, bgModel: 'isnet', gpu: true, autosave: 3,
   shortcuts: {}, exportFolder: '', leftW: 220, rightW: 288, leftOpen: true, rightOpen: true, checkUpdates: true, uiStyle: 'classic', toolCols: 1, stabilizer: 0,
-  newImage: { w: 1920, h: 1080, bg: 'white', color: '#f4e9d8' }
+  newImage: { w: 1920, h: 1080, bg: 'white', color: '#f4e9d8' },
+  lang: 'auto'
 }
 
 export interface Job { label: string; progress: number | null; detail: string; cancel?: () => void; lock?: boolean }
@@ -70,7 +74,7 @@ export class App extends Emitter {
   /** Undo the last action: a step inside the current tool first (a polygon corner, a handle drag), then the document history. */
   /** A long task is changing an image: undo, tab switches and closing wait for it. */
   get locked() { return !!this.job?.lock }
-  private waitToast() { toast('Please wait for the current task to finish, or cancel it') }
+  private waitToast() { toast(tr('Please wait for the current task to finish, or cancel it')) }
 
   undo() {
     if (this.stroke) return
@@ -197,7 +201,7 @@ export class App extends Emitter {
 
   async confirmDiscard(): Promise<boolean> {
     if (!this.doc || !this.doc.modified) return true
-    const r = await confirmBox('Unsaved changes', `Save changes to ${this.doc.name} as a project before closing it?`, 'Save project', 'Cancel', "Don't save")
+    const r = await confirmBox(tr('Unsaved changes'), tr('Save changes to {0} as a project before closing it?', this.doc.name), tr('Save project'), tr('Cancel'), tr("Don't save"))
     if (r === 'no') return false
     if (r === 'yes') return await this.saveProject()
     return true
@@ -213,7 +217,7 @@ export class App extends Emitter {
     if (open) { this.activate(open); return }
     if (this.job) { this.waitToast(); return }
     try {
-      this.busy('Opening ' + f.name)
+      this.busy(tr('Opening {0}', f.name))
       if (/\.cocoashot$/i.test(f.name)) {
         const d = await loadProject(f.data, f.name)
         d.projectPath = f.path || null
@@ -230,7 +234,7 @@ export class App extends Emitter {
         }
         const d = new Doc(c, f.name.replace(/\.[^.]+$/, ''))
         d.path = f.path || null
-        if (r.layers && lim && c !== r.canvas) toast('The image was reduced in size, so its layers were merged into one. Change this under Settings, Large images.')
+        if (r.layers && lim && c !== r.canvas) toast(tr('The image was reduced in size, so its layers were merged into one. Change this under Settings, Large images.'))
         if (r.layers && c === r.canvas) {
           const made = r.layers.map(pl => {
             const l = makeLayer(pl.folder ? 'group' : 'image', pl.name, d.w, d.h, !pl.folder)
@@ -245,10 +249,10 @@ export class App extends Emitter {
         }
         d.modified = false
         this.setDoc(d)
-      } else throw new Error('CocoaShot cannot open this file type')
+      } else throw new Error(tr('CocoaShot cannot open this file type'))
       if (f.path && native) native.addRecent({ name: f.name, path: f.path, at: Date.now(), thumb: this.thumb() })
     } catch (e: any) {
-      toast(e.message || 'Could not open the file', { err: true })
+      toast(e.message || tr('Could not open the file'), { err: true })
     } finally { this.idle() }
   }
 
@@ -271,14 +275,14 @@ export class App extends Emitter {
         }
       } catch {}
     }
-    if (!data) { toast('There is no image on the clipboard'); return null }
-    try { return (await decodeImage('clipboard.png', data)).canvas } catch { toast('The clipboard image could not be read', { err: true }); return null }
+    if (!data) { toast(tr('There is no image on the clipboard')); return null }
+    try { return (await decodeImage('clipboard.png', data)).canvas } catch { toast(tr('The clipboard image could not be read'), { err: true }); return null }
   }
 
   async newFromClipboard() {
     const c = await this.fromClipboard()
     if (!c) return
-    const d = new Doc(c, 'Pasted image')
+    const d = new Doc(c, tr('Pasted image'))
     d.modified = true
     this.setDoc(d)
   }
@@ -292,8 +296,8 @@ export class App extends Emitter {
     // Only images larger than this one are scaled down to fit.
     const cp = this.copied
     const inPlace = cp && cp.w === c.width && cp.h === c.height && cp.x + cp.w <= doc.w && cp.y + cp.h <= doc.h
-    await this.hist.op('Paste', () => {
-      const l = makeLayer('paint', 'Pasted', doc.w, doc.h)
+    await this.hist.op(tr('Paste'), () => {
+      const l = makeLayer('paint', tr('Pasted'), doc.w, doc.h)
       const s = Math.min(1, doc.w / c.width, doc.h / c.height)
       const x = inPlace ? cp!.x : Math.round((doc.w - c.width * s) / 2), y = inPlace ? cp!.y : Math.round((doc.h - c.height * s) / 2)
       ctx2d(l.canvas!).drawImage(c, x, y, c.width * s, c.height * s)
@@ -312,7 +316,7 @@ export class App extends Emitter {
     let at = { x: 0, y: 0 }
     if (doc.selection) {
       const bb = bboxOfAlpha(alphaOf(doc.selection), doc.w, doc.h)
-      if (!bb) { toast('The selection is empty'); return }
+      if (!bb) { toast(tr('The selection is empty')); return }
       c = canvas(bb.w, bb.h)
       const x = ctx2d(c)
       x.drawImage(src, -bb.x, -bb.y)
@@ -321,13 +325,13 @@ export class App extends Emitter {
       at = { x: bb.x, y: bb.y }
     }
     try {
-      const b: Blob = await new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('Could not copy the image'))), 'image/png'))
+      const b: Blob = await new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error(tr('Could not copy the image')))), 'image/png'))
       const u8 = new Uint8Array(await b.arrayBuffer())
       if (native) await native.copyImage(u8)
       else await navigator.clipboard.write([new ClipboardItem({ 'image/png': b })])
       this.copied = { w: c.width, h: c.height, ...at }
-      toast('Copied to the clipboard')
-    } catch (e: any) { toast(e.message || 'Could not copy to the clipboard', { err: true }) }
+      toast(tr('Copied to the clipboard'))
+    } catch (e: any) { toast(e.message || tr('Could not copy to the clipboard'), { err: true }) }
   }
 
   async saveProject(as = false): Promise<boolean> {
@@ -335,12 +339,12 @@ export class App extends Emitter {
     if (this.job) { this.waitToast(); return false }
     const doc = this.doc
     try {
-      this.busy('Saving project')
+      this.busy(tr('Saving project'))
       const data = await saveProject(doc)
       const name = doc.name + '.cocoashot'
       if (native) {
         let p = !as && doc.projectPath
-        if (!p) p = await native.saveDialog(name, [{ name: 'CocoaShot project', extensions: ['cocoashot'] }])
+        if (!p) p = await native.saveDialog(name, [{ name: tr('CocoaShot project'), extensions: ['cocoashot'] }])
         if (!p) return false
         await native.writePath(p, data)
         doc.projectPath = p
@@ -354,10 +358,10 @@ export class App extends Emitter {
       this.emit('doc')
       this.emit('tabs')
       this.title()
-      toast('Project saved')
+      toast(tr('Project saved'))
       return true
     } catch (e: any) {
-      toast('Could not save: ' + e.message, { err: true })
+      toast(tr('Could not save: {0}', trMessage(e.message)), { err: true })
       return false
     } finally { this.idle() }
   }
@@ -381,13 +385,13 @@ export class App extends Emitter {
   idle() { this.job = null; this.emit('job') }
 
   async run<T>(label: string, fn: (progress: (p: number | null, detail?: string) => void) => Promise<T>, cancel?: () => void): Promise<T | null> {
-    if (this.job) { toast('Please wait for the current task to finish'); return null }
+    if (this.job) { toast(tr('Please wait for the current task to finish')); return null }
     this.job = { label, progress: null, detail: '', lock: true, cancel: cancel || (() => { cancelJobs(); native?.aiCancel() }) }
     this.emit('job')
     try {
       return await fn((p, d) => { if (!this.job) return; this.job.progress = p; if (d !== undefined) this.job.detail = d; this.emit('job') })
     } catch (e: any) {
-      if (e.message !== 'Cancelled') toast(e.message || 'Something went wrong', { err: true, ...(/AI engine|AI libraries/.test(e.message) && native ? { action: 'Open log folder', onAction: () => native!.dataFolder() } : {}) })
+      if (e.message !== 'Cancelled') toast(e.message || tr('Something went wrong'), { err: true, ...(/AI engine|AI libraries/.test(e.message) && native ? { action: tr('Open log folder'), onAction: () => native!.dataFolder() } : {}) })
       return null
     } finally { this.job = null; this.emit('job') }
   }
@@ -395,16 +399,16 @@ export class App extends Emitter {
   activeRaster(): Layer | null {
     const l = this.doc?.active
     if (!l) return null
-    if (shownLocked(this.doc!, l)) { toast(`${l.name} is locked`); return null }
-    if (l.kind === 'group') { toast('Select a layer inside the folder first'); return null }
+    if (shownLocked(this.doc!, l)) { toast(tr('{0} is locked', l.name)); return null }
+    if (l.kind === 'group') { toast(tr('Select a layer inside the folder first')); return null }
     if (l.kind === 'text' || l.kind === 'shape' || l.kind === 'outline' || l.kind === 'adjust' || l.kind === 'background') {
-      toast('Select an image or paint layer first')
+      toast(tr('Select an image or paint layer first'))
       return null
     }
     return l
   }
 
-  ensurePaintLayer(kind: 'paint' | 'highlight' = 'paint', name = 'Paint'): Layer | null {
+  ensurePaintLayer(kind: 'paint' | 'highlight' = 'paint', name = tr('Paint')): Layer | null {
     const doc = this.doc
     if (!doc) return null
     const a = doc.active
@@ -412,7 +416,7 @@ export class App extends Emitter {
     const before = snapshot(doc)
     const l = makeLayer(kind, name, doc.w, doc.h)
     doc.add(l, doc.activeId)
-    this.hist!.structural('New ' + name.toLowerCase() + ' layer', before)
+    this.hist!.structural(kind === 'highlight' ? tr('New highlight layer') : tr('New paint layer'), before)
     doc.structure()
     return l
   }
@@ -420,9 +424,9 @@ export class App extends Emitter {
   newPaintLayer(): Layer {
     const doc = this.doc!
     const before = snapshot(doc)
-    const l = makeLayer('paint', 'Paint', doc.w, doc.h)
+    const l = makeLayer('paint', tr('Paint'), doc.w, doc.h)
     doc.add(l, doc.activeId)
-    this.hist!.structural('New paint layer', before)
+    this.hist!.structural(tr('New paint layer'), before)
     doc.structure()
     return l
   }

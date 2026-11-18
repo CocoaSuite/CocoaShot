@@ -7,12 +7,13 @@ import { selectionBBox } from './select'
 import { jobBox } from './common'
 import type { Viewport } from '../view/viewport'
 import { toolSteps } from '../core/steps'
+import { tr, tx } from '../i18n'
 
 const RATIOS: [string, string, number | null, number?, number?][] = [
-  ['free', 'Free', null], ['orig', 'Original', -1], ['1:1', 'Square', 1], ['16:9', '16:9', 16 / 9], ['4:3', '4:3', 4 / 3], ['3:2', '3:2', 3 / 2], ['9:16', '9:16', 9 / 16],
-  ['ig', 'Instagram post 1080 × 1350', 4 / 5, 1080, 1350], ['igs', 'Instagram story 1080 × 1920', 9 / 16, 1080, 1920],
-  ['yt', 'YouTube thumbnail 1280 × 720', 16 / 9, 1280, 720], ['x', 'X post 1600 × 900', 16 / 9, 1600, 900],
-  ['fb', 'Facebook cover 1640 × 624', 1640 / 624, 1640, 624], ['li', 'LinkedIn banner 1584 × 396', 4, 1584, 396], ['custom', 'Custom size', 0]
+  ['free', tr('Free'), null], ['orig', tr('Original'), -1], ['1:1', tr('Square'), 1], ['16:9', '16:9', 16 / 9], ['4:3', '4:3', 4 / 3], ['3:2', '3:2', 3 / 2], ['9:16', '9:16', 9 / 16],
+  ['ig', tr('Instagram post 1080 × 1350'), 4 / 5, 1080, 1350], ['igs', tr('Instagram story 1080 × 1920'), 9 / 16, 1080, 1920],
+  ['yt', tr('YouTube thumbnail 1280 × 720'), 16 / 9, 1280, 720], ['x', tr('X post 1600 × 900'), 16 / 9, 1600, 900],
+  ['fb', tr('Facebook cover 1640 × 624'), 1640 / 624, 1640, 624], ['li', tr('LinkedIn banner 1584 × 396'), 4, 1584, 396], ['custom', tr('Custom size'), 0]
 ]
 
 export function cropTools(app: App): Tool[] {
@@ -81,7 +82,7 @@ export function cropTools(app: App): Tool[] {
   app.on('crop-to-selection', () => {
     const d = app.doc
     const b = d && selectionBBox(d)
-    if (!b) { toast('Make a selection first'); return }
+    if (!b) { toast(tr('Make a selection first')); return }
     cropDoc(d!, app.hist!, b)
     reset(); app.view.fit()
   })
@@ -90,9 +91,9 @@ export function cropTools(app: App): Tool[] {
   let straightening = false
   // One listener for the size label of whichever crop panel is showing.
   let sizeLabel: HTMLElement | null = null
-  app.on('crop-rect', () => { if (sizeLabel) sizeLabel.textContent = `${Math.round(st.r.w)} × ${Math.round(st.r.h)} px` + (out()[0] ? `, saved as ${out()[0]} × ${out()[1]}` : '') })
+  app.on('crop-rect', () => { if (sizeLabel) sizeLabel.textContent = `${Math.round(st.r.w)} × ${Math.round(st.r.h)} px` + (out()[0] ? tr(', saved as {0} × {1}', out()[0]!, out()[1]!) : '') })
   const crop: Tool = {
-    id: 'crop', label: 'Crop', icon: 'crop', steps: cropSteps,
+    id: 'crop', label: tr('Crop'), icon: 'crop', steps: cropSteps,
     activate: reset,
     cursor(p) {
       if (!p) return 'crosshair'
@@ -187,56 +188,56 @@ export function cropTools(app: App): Tool[] {
     panel() {
       const d = app.doc!
       const [ow, oh] = out()
-      const size = h('span', { class: 'hint' }, `${Math.round(st.r.w)} × ${Math.round(st.r.h)} px` + (ow ? `, saved as ${ow} × ${oh}` : ''))
+      const size = h('span', { class: 'hint' }, `${Math.round(st.r.w)} × ${Math.round(st.r.h)} px` + (ow ? tr(', saved as {0} × {1}', ow, oh!) : ''))
       sizeLabel = size
-      const cw = numField('Width', () => st.cw, v => { st.cw = v; fitRatio(); app.view.draw() })
-      const ch = numField('Height', () => st.ch, v => { st.ch = v; fitRatio(); app.view.draw() })
+      const cw = numField(tr('Width'), () => st.cw, v => { st.cw = v; fitRatio(); app.view.draw() })
+      const ch = numField(tr('Height'), () => st.ch, v => { st.ch = v; fitRatio(); app.view.draw() })
       const custom = h('div', { class: 'g2', hidden: st.ratio !== 'custom' }, cw.el, ch.el)
       return h('div', { class: 'ib' },
-        sec('Crop'),
-        select('Ratio', RATIOS.map(r => [r[0], r[1]] as [string, string]), () => st.ratio, v => { cropSteps.mark(); st.ratio = v; custom.hidden = v !== 'custom'; fitRatio(); app.view.draw(); app.emit('crop-rect') }),
+        sec(tr('Crop')),
+        select(tr('Ratio'), RATIOS.map(r => [r[0], r[1]] as [string, string]), () => st.ratio, v => { cropSteps.mark(); st.ratio = v; custom.hidden = v !== 'custom'; fitRatio(); app.view.draw(); app.emit('crop-rect') }),
         custom, size,
-        slider('Straighten', () => st.angle, v => { if (!straightening) { straightening = true; cropSteps.mark() } st.angle = v; fitStraight(); app.view.draw() }, { min: -45, max: 45, step: 0.1, def: 0, onEnd: () => { straightening = false } }),
-        toggle('Allow the frame outside the image', () => st.extend, v => {
+        slider(tr('Straighten'), () => st.angle, v => { if (!straightening) { straightening = true; cropSteps.mark() } st.angle = v; fitStraight(); app.view.draw() }, { min: -45, max: 45, step: 0.1, def: 0, onEnd: () => { straightening = false } }),
+        toggle(tr('Allow the frame outside the image'), () => st.extend, v => {
           cropSteps.mark(); st.extend = v
           if (!v) { const d = app.doc!; const x = Math.max(0, st.r.x), y = Math.max(0, st.r.y); st.r = { x, y, w: Math.min(st.r.x + st.r.w, d.w) - x, h: Math.min(st.r.y + st.r.h, d.h) - y }; fitRatio(); fitStraight() }
           app.view.draw(); app.emit('crop-rect')
         }),
-        st.extend ? hint('Areas outside the image become transparent.') : null,
-        h('div', { class: 'g2' }, btn('Reset', reset), h('button', { class: 'pri', onclick: apply }, 'Apply crop')),
-        sec('Rotate and flip'),
+        st.extend ? hint(tr('Areas outside the image become transparent.')) : null,
+        h('div', { class: 'g2' }, btn(tr('Reset'), reset), h('button', { class: 'pri', onclick: apply }, tr('Apply crop'))),
+        sec(tr('Rotate and flip')),
         h('div', { class: 'g2' },
-          h('button', { onclick: () => { rotate90(d, app.hist!, -1); reset(); app.view.fit() } }, icon('rotl'), 'Rotate left'),
-          h('button', { onclick: () => { rotate90(d, app.hist!, 1); reset(); app.view.fit() } }, icon('rotr'), 'Rotate right'),
-          h('button', { onclick: () => { flip(d, app.hist!, true); reset() } }, icon('fliph'), 'Flip horizontal'),
-          h('button', { onclick: () => { flip(d, app.hist!, false); reset() } }, icon('flipv'), 'Flip vertical')))
+          h('button', { onclick: () => { rotate90(d, app.hist!, -1); reset(); app.view.fit() } }, icon('rotl'), tx('short', 'Rotate left')),
+          h('button', { onclick: () => { rotate90(d, app.hist!, 1); reset(); app.view.fit() } }, icon('rotr'), tx('short', 'Rotate right')),
+          h('button', { onclick: () => { flip(d, app.hist!, true); reset() } }, icon('fliph'), tx('short', 'Flip horizontal')),
+          h('button', { onclick: () => { flip(d, app.hist!, false); reset() } }, icon('flipv'), tx('short', 'Flip vertical'))))
     }
   }
 
   const rs = { w: 0, h: 0, pct: 100, keep: true, unit: 'px' as 'px' | '%', method: 'lanczos' }
   const resize: Tool = {
-    id: 'resize', label: 'Resize', icon: 'resize',
+    id: 'resize', label: tr('Resize'), icon: 'resize',
     activate() { const d = app.doc; if (d) { rs.w = d.w; rs.h = d.h; rs.pct = 100 } },
     panel() {
       const d = app.doc!
       if (!rs.w) { rs.w = d.w; rs.h = d.h }
-      const W = numField('Width', () => rs.w, v => { rs.w = v; if (rs.keep) rs.h = Math.max(1, Math.round(v * d.h / d.w)); H.input.value = String(rs.h); rs.pct = Math.round(rs.w / d.w * 100); P.input.value = String(rs.pct) })
-      const H = numField('Height', () => rs.h, v => { rs.h = v; if (rs.keep) rs.w = Math.max(1, Math.round(v * d.w / d.h)); W.input.value = String(rs.w); rs.pct = Math.round(rs.h / d.h * 100); P.input.value = String(rs.pct) })
-      const P = numField('Percent', () => rs.pct, v => { rs.pct = v; rs.w = Math.max(1, Math.round(d.w * v / 100)); rs.h = Math.max(1, Math.round(d.h * v / 100)); W.input.value = String(rs.w); H.input.value = String(rs.h) }, 1, 1000)
-      const go = () => app.run('Resizing', async p => {
-        if (rs.w * rs.h > 400e6) throw new Error('That size is too large')
+      const W = numField(tr('Width'), () => rs.w, v => { rs.w = v; if (rs.keep) rs.h = Math.max(1, Math.round(v * d.h / d.w)); H.input.value = String(rs.h); rs.pct = Math.round(rs.w / d.w * 100); P.input.value = String(rs.pct) })
+      const H = numField(tr('Height'), () => rs.h, v => { rs.h = v; if (rs.keep) rs.w = Math.max(1, Math.round(v * d.w / d.h)); W.input.value = String(rs.w); rs.pct = Math.round(rs.h / d.h * 100); P.input.value = String(rs.pct) })
+      const P = numField(tr('Percent'), () => rs.pct, v => { rs.pct = v; rs.w = Math.max(1, Math.round(d.w * v / 100)); rs.h = Math.max(1, Math.round(d.h * v / 100)); W.input.value = String(rs.w); H.input.value = String(rs.h) }, 1, 1000)
+      const go = () => app.run(tr('Resizing'), async p => {
+        if (rs.w * rs.h > 400e6) throw new Error(tr('That size is too large'))
         await resizeDoc(d, app.hist!, rs.w, rs.h, rs.method, p)
         app.view.fit()
       })
       return h('div', { class: 'ib' },
-        sec('Resize image'), hint(`Currently ${d.w} × ${d.h} px.`),
+        sec(tr('Resize image')), hint(tr('Currently {0} × {1} px.', d.w, d.h)),
         h('div', { class: 'g3' }, W.el, H.el, P.el),
-        toggle('Keep aspect ratio', () => rs.keep, v => (rs.keep = v)),
-        select('Quality', [['lanczos', 'Best (Lanczos)'], ['bilinear', 'Smooth'], ['nearest', 'Pixel art']], () => rs.method as any, v => (rs.method = v)),
+        toggle(tr('Keep aspect ratio'), () => rs.keep, v => (rs.keep = v)),
+        select(tr('Quality'), [['lanczos', tr('Best (Lanczos)')], ['bilinear', tr('Smooth')], ['nearest', tr('Pixel art')]], () => rs.method as any, v => (rs.method = v)),
         h('div', { class: 'g3' }, ...[50, 200, 300].map(p => btn(p + '%', () => { P.input.value = String(p); P.input.dispatchEvent(new Event('change')) }))),
         jobBox(app),
-        h('button', { class: 'pri big wide', onclick: go }, 'Apply resize'),
-        hint('To add detail when enlarging photos, use Upscale in AI Tools.'))
+        h('button', { class: 'pri big wide', onclick: go }, tr('Apply resize')),
+        hint(tr('To add detail when enlarging photos, use Upscale in AI Tools.')))
     }
   }
 
@@ -244,7 +245,7 @@ export function cropTools(app: App): Tool[] {
   let dragI = -1, moved = false
   const perspSteps = toolSteps(app, () => quad.slice(), v => { quad = v })
   const persp: Tool = {
-    id: 'persp', label: 'Perspective', icon: 'persp', steps: perspSteps,
+    id: 'persp', label: tr('Perspective'), icon: 'persp', steps: perspSteps,
     activate() { const d = app.doc; if (d) quad = [0, 0, d.w, 0, d.w, d.h, 0, d.h]; perspSteps.reset() },
     cursor: () => 'crosshair',
     down(p) {
@@ -269,11 +270,11 @@ export function cropTools(app: App): Tool[] {
       for (let i = 0; i < 4; i++) { const s = v.toScreen(quad[i * 2], quad[i * 2 + 1]); x.fillStyle = '#fff'; x.beginPath(); x.arc(s.x, s.y, 6, 0, Math.PI * 2); x.fill(); x.stroke() }
       x.restore()
     },
-    panel: () => h('div', { class: 'ib' }, sec('Perspective correction'),
-      hint('Drag the four corners onto the edges of something that should be rectangular, like a document, sign or screen. Apply straightens it.'),
+    panel: () => h('div', { class: 'ib' }, sec(tr('Perspective correction')),
+      hint(tr('Drag the four corners onto the edges of something that should be rectangular, like a document, sign or screen. Apply straightens it.')),
       jobBox(app),
-      h('div', { class: 'g2' }, btn('Reset', () => { persp.activate!(); app.view.draw() }),
-        h('button', { class: 'pri', onclick: () => app.run('Correcting perspective', async () => { await perspectiveDoc(app.doc!, app.hist!, quad); persp.activate!(); app.view.fit() }) }, 'Apply')))
+      h('div', { class: 'g2' }, btn(tr('Reset'), () => { persp.activate!(); app.view.draw() }),
+        h('button', { class: 'pri', onclick: () => app.run(tr('Correcting perspective'), async () => { await perspectiveDoc(app.doc!, app.hist!, quad); persp.activate!(); app.view.fit() }) }, tr('Apply'))))
   }
   return [crop, resize, persp]
 }

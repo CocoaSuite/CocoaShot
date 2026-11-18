@@ -10,6 +10,10 @@ Tools are on the left, grouped by task. The selected tool's settings are on the 
 
 Hold Space and drag, or use the scroll wheel, to move around. Hold Ctrl (Cmd on a Mac) and scroll to zoom. **F11** switches to full screen (Esc leaves it) and **Tab** hides or shows the side panels, so the two together give the image the whole screen.
 
+## Language
+
+CocoaShot speaks English and Russian. It starts in your computer's language (Russian on a Russian system, English otherwise), and the first-launch greeting follows it: «Привет» instead of hello. **Settings, General, Language** picks one for good; with no images open the window switches straight away, otherwise when CocoaShot next starts or after **Restart now**.
+
 ## Interface styles
 
 **Settings, General, Interface** switches between three layouts. Each works with the dark and light theme.

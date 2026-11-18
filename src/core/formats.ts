@@ -4,6 +4,7 @@ import type { Blend, Doc, Layer } from './doc'
 import { childrenOf } from './doc'
 import { flatten, layerWithFx } from './compose'
 import { alphaOf, bboxOfAlpha, canvas, ctx2d, getData, mkID, putData } from './util'
+import { tr } from '../i18n'
 
 // ---------- Opening ----------
 
@@ -11,14 +12,14 @@ import { alphaOf, bboxOfAlpha, canvas, ctx2d, getData, mkID, putData } from './u
 export function decodeTga(buf: ArrayBuffer): HTMLCanvasElement {
   const b = new Uint8Array(buf)
   const v = new DataView(buf)
-  if (b.length < 18) throw new Error('This TGA file is damaged')
+  if (b.length < 18) throw new Error(tr('This TGA file is damaged'))
   const idLen = b[0], cmType = b[1], type = b[2]
   const cmFirst = v.getUint16(3, true), cmLen = v.getUint16(5, true), cmBits = b[7]
   const w = v.getUint16(12, true), h = v.getUint16(14, true), bpp = b[16], desc = b[17]
-  if (!w || !h) throw new Error('This TGA file has no image')
+  if (!w || !h) throw new Error(tr('This TGA file has no image'))
   const rle = type >= 9
   const base = type & 7
-  if (![1, 2, 3].includes(base)) throw new Error('This kind of TGA file is not supported')
+  if (![1, 2, 3].includes(base)) throw new Error(tr('This kind of TGA file is not supported'))
   let o = 18 + idLen
   const cmBytes = Math.ceil(cmBits / 8)
   const palette: number[][] = []
@@ -30,7 +31,7 @@ export function decodeTga(buf: ArrayBuffer): HTMLCanvasElement {
   const out = new Uint8ClampedArray(n * 4)
   const put = (i: number, p: number[]) => { out[i * 4] = p[0]; out[i * 4 + 1] = p[1]; out[i * 4 + 2] = p[2]; out[i * 4 + 3] = p[3] }
   const read = () => {
-    if (o + px > b.length) throw new Error('This TGA file is damaged')
+    if (o + px > b.length) throw new Error(tr('This TGA file is damaged'))
     const p = base === 1 ? palette[(px === 2 ? v.getUint16(o, true) : b[o]) - cmFirst] || [0, 0, 0, 255] : readPx(b, o, bpp, base)
     o += px
     return p
@@ -75,11 +76,11 @@ export async function decodeHeic(buf: ArrayBuffer): Promise<HTMLCanvasElement> {
   if (typeof lib === 'function') lib = await lib()
   const decoder = new lib.HeifDecoder()
   const images = decoder.decode(new Uint8Array(buf))
-  if (!images?.length) throw new Error('This HEIC file has no images')
+  if (!images?.length) throw new Error(tr('This HEIC file has no images'))
   const img = images[0]
   const w = img.get_width(), h = img.get_height()
   const data = new ImageData(w, h)
-  await new Promise<void>((res, rej) => img.display(data, (d: any) => (d ? res() : rej(new Error('Could not decode this HEIC image')))))
+  await new Promise<void>((res, rej) => img.display(data, (d: any) => (d ? res() : rej(new Error(tr('Could not decode this HEIC image'))))))
   for (const i of images) i.free?.()
   const c = canvas(w, h)
   putData(c, data)
@@ -92,7 +93,7 @@ export async function decodeSvg(buf: ArrayBuffer): Promise<HTMLCanvasElement> {
   try {
     const im = new Image()
     im.decoding = 'sync'
-    await new Promise<void>((res, rej) => { im.onload = () => res(); im.onerror = () => rej(new Error('This SVG file could not be drawn')); im.src = url })
+    await new Promise<void>((res, rej) => { im.onload = () => res(); im.onerror = () => rej(new Error(tr('This SVG file could not be drawn'))); im.src = url })
     let w = im.naturalWidth, h = im.naturalHeight
     if (!w || !h) {
       const vb = /viewBox\s*=\s*["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(new TextDecoder().decode(buf))
@@ -180,7 +181,7 @@ export async function encodePdf(c: HTMLCanvasElement, quality: number, transpare
   } else {
     let src = c
     if (transparent) { src = canvas(w, h); const x = ctx2d(src); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(c, 0, 0) }
-    const jpg = new Uint8Array(await (await new Promise<Blob>((res, rej) => src.toBlob(b => (b ? res(b) : rej(new Error('Encoding failed'))), 'image/jpeg', quality / 100))).arrayBuffer())
+    const jpg = new Uint8Array(await (await new Promise<Blob>((res, rej) => src.toBlob(b => (b ? res(b) : rej(new Error(tr('Encoding failed')))), 'image/jpeg', quality / 100))).arrayBuffer())
     obj(5, `<</Type/XObject/Subtype/Image/Width ${w}/Height ${h}/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode>>`, jpg)
   }
   const count = offsets.length
@@ -241,6 +242,6 @@ export async function encodeAvif(c: HTMLCanvasElement, quality: number): Promise
   const [mod, { defaultOptions }] = await Promise.all([avifModule, import('@jsquash/avif/meta.js')])
   const d = getData(c)
   const out = mod.encode(new Uint8Array(d.data.buffer), d.width, d.height, { ...defaultOptions, quality: Math.round(quality * 0.9), speed: 6 })
-  if (!out) { avifModule = null; throw new Error('Could not encode AVIF') }
+  if (!out) { avifModule = null; throw new Error(tr('Could not encode AVIF')) }
   return new Uint8Array(out.buffer)
 }

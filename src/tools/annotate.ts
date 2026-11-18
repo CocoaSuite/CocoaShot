@@ -2,10 +2,11 @@ import type { App } from '../app'
 import type { Tool } from './types'
 import { Layer, makeLayer, Shape, ShapeType, snapshot } from '../core/doc'
 import { touch } from '../core/compose'
-import { canRotate, newShape, shapeCenter, SHAPE_NAMES, textBox, turn } from '../core/shapes'
+import { canRotate, newShape, shapeCenter, SHAPE_EN, SHAPE_NAMES, textBox, turn } from '../core/shapes'
 import { h } from '../ui/dom'
 import { hint, sec, seg, select, slider, toggle } from '../ui/controls'
 import { colorWheel } from '../ui/color'
+import { tr } from '../i18n'
 
 const FONTS: [string, string][] = [['Inter', 'Inter'], ['Arial', 'Arial'], ['Helvetica', 'Helvetica'], ['Georgia', 'Georgia'], ['Times New Roman', 'Times New Roman'], ['Verdana', 'Verdana'], ['Trebuchet MS', 'Trebuchet MS'], ['Courier New', 'Courier New'], ['Impact', 'Impact']]
 const ICONS: Record<ShapeType, string> = { text: 'text', arrow: 'arrow', line: 'line', rect: 'rect', ellipse: 'ellipse', callout: 'callout', label: 'label', marker: 'marker' }
@@ -41,7 +42,7 @@ export function annotateTools(app: App): Tool[] {
     ta.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') ta.blur() })
     ta.addEventListener('blur', () => {
       if (!s.text.trim() && s.type === 'text') { doc.layers = doc.layers.filter(x => x !== l); doc.activeId = doc.layers[doc.layers.length - 1].id }
-      app.hist!.structural('Edit text', before)
+      app.hist!.structural(tr('Edit text'), before)
       doc.structure()
       closeEditor()
     })
@@ -107,7 +108,7 @@ export function annotateTools(app: App): Tool[] {
           else { s.x2 = s.x1 + sz * (type === 'callout' ? 1.6 : 1.2); s.y2 = s.y1 + sz * (type === 'callout' ? 0.6 : 0.8) }
           touch(cur); doc.changed()
         }
-        app.hist!.structural('Add ' + SHAPE_NAMES[type].toLowerCase(), before)
+        app.hist!.structural(tr('Add ' + SHAPE_EN[type].toLowerCase()), before)
         const l = cur
         cur = null; start = null
         doc.structure()
@@ -142,10 +143,10 @@ function shapePanel(app: App, type: ShapeType, style: Partial<Shape>, editText: 
     ;(s as any)[k] = v
     if (l) { touch(l); doc.changed() }
   }
-  const end = () => { if (snap) { app.hist!.structural('Edit ' + SHAPE_NAMES[type].toLowerCase(), snap); snap = null } }
+  const end = () => { if (snap) { app.hist!.structural(tr('Edit ' + SHAPE_EN[type].toLowerCase()), snap); snap = null } }
   const hasText = ['text', 'callout', 'label'].includes(type)
-  const out: (HTMLElement | null | false)[] = [sec(l ? 'Edit ' + SHAPE_NAMES[type].toLowerCase() : SHAPE_NAMES[type])]
-  if (!l) out.push(hint(type === 'text' ? 'Click the image to add text.' : ['label', 'marker'].includes(type) ? 'Click the image to place it.' : 'Drag on the image to draw it.'))
+  const out: (HTMLElement | null | false)[] = [sec(l ? tr('Edit ' + SHAPE_EN[type].toLowerCase()) : SHAPE_NAMES[type])]
+  if (!l) out.push(hint(type === 'text' ? tr('Click the image to add text.') : ['label', 'marker'].includes(type) ? tr('Click the image to place it.') : tr('Drag on the image to draw it.')))
   if (hasText && l) {
     const ta = h('textarea', { value: g('text'), rows: 3 }) as HTMLTextAreaElement
     ta.addEventListener('input', () => set('text', ta.value))
@@ -153,33 +154,33 @@ function shapePanel(app: App, type: ShapeType, style: Partial<Shape>, editText: 
     ta.addEventListener('keydown', e => e.stopPropagation())
     out.push(ta)
   }
-  if (type === 'marker' && l) out.push(slider('Number', () => g('num'), v => set('num', v), { min: 0, max: 99, onEnd: end }))
+  if (type === 'marker' && l) out.push(slider(tr('Number'), () => g('num'), v => set('num', v), { min: 0, max: 99, onEnd: end }))
   if (hasText || type === 'marker') {
-    out.push(select('Font', FONTS, () => g('font'), v => { set('font', v); end() }))
-    out.push(slider('Size', () => Math.round(g('size')), v => set('size', v), { min: 6, max: 600, onEnd: end }))
+    out.push(select(tr('Font'), FONTS, () => g('font'), v => { set('font', v); end() }))
+    out.push(slider(tr('Size'), () => Math.round(g('size')), v => set('size', v), { min: 6, max: 600, onEnd: end }))
   }
   if (hasText) {
     out.push(h('div', { class: 'seg' },
-      ...(['bold', 'italic'] as const).map(k => { const b = h('button', { class: g(k) ? 'on' : '', onclick: () => { set(k, !g(k)); b.classList.toggle('on', !!g(k)); end() } }, k === 'bold' ? 'Bold' : 'Italic'); return b })))
-    out.push(seg([['left', 'Left'], ['center', 'Centre'], ['right', 'Right']], () => g('align'), v => { set('align', v as any); end() }, 'Align'))
-    out.push(slider('Outline', () => g('outline'), v => set('outline', v), { min: 0, max: 40, def: 0, onEnd: end }))
+      ...(['bold', 'italic'] as const).map(k => { const b = h('button', { class: g(k) ? 'on' : '', onclick: () => { set(k, !g(k)); b.classList.toggle('on', !!g(k)); end() } }, k === 'bold' ? tr('Bold') : tr('Italic')); return b })))
+    out.push(seg([['left', tr('Left')], ['center', tr('Centre')], ['right', tr('Right')]], () => g('align'), v => { set('align', v as any); end() }, tr('Align')))
+    out.push(slider(tr('Outline'), () => g('outline'), v => set('outline', v), { min: 0, max: 40, def: 0, onEnd: end }))
   }
   if (type !== 'text') {
-    out.push(slider('Line width', () => g('width'), v => set('width', v), { min: 0, max: 80, onEnd: end }))
-    if (type !== 'marker' && type !== 'label') out.push(toggle('Dashed', () => g('dash'), v => { set('dash', v); end() }))
+    out.push(slider(tr('Line width'), () => g('width'), v => set('width', v), { min: 0, max: 80, onEnd: end }))
+    if (type !== 'marker' && type !== 'label') out.push(toggle(tr('Dashed'), () => g('dash'), v => { set('dash', v); end() }))
   }
-  if (l && canRotate(l.shape!)) out.push(slider('Rotation', () => Math.round(g('rot') || 0), v => set('rot', v), { min: -180, max: 180, def: 0, unit: '°', onEnd: end }))
-  if (type === 'rect' || type === 'callout' || type === 'label') out.push(slider('Corners', () => g('radius'), v => set('radius', v), { min: 0, max: 200, onEnd: end }))
-  if (type === 'rect' || type === 'ellipse' || type === 'callout' || type === 'label') out.push(toggle('Fill', () => g('fillOn'), v => { set('fillOn', v); end() }))
-  out.push(toggle('Shadow', () => g('shadow'), v => { set('shadow', v); end() }))
-  if (l) out.push(slider('Opacity', () => Math.round(l.opacity * 100), v => { if (!snap) snap = snapshot(doc); l.opacity = v / 100; doc.changed() }, { min: 0, max: 100, onEnd: end }))
-  const colorKeys: [keyof Shape, string][] = type === 'text' ? [['color', 'Text']] : type === 'marker' ? [['fill', 'Fill'], ['color', 'Number']] : hasText ? [['fill', 'Fill'], ['color', 'Text'], ['stroke', 'Line']] : type === 'rect' || type === 'ellipse' ? [['stroke', 'Line'], ['fill', 'Fill']] : [['stroke', 'Colour']]
-  if (hasText) colorKeys.push(['outlineColor', 'Outline'])
+  if (l && canRotate(l.shape!)) out.push(slider(tr('Rotation'), () => Math.round(g('rot') || 0), v => set('rot', v), { min: -180, max: 180, def: 0, unit: '°', onEnd: end }))
+  if (type === 'rect' || type === 'callout' || type === 'label') out.push(slider(tr('Corners'), () => g('radius'), v => set('radius', v), { min: 0, max: 200, onEnd: end }))
+  if (type === 'rect' || type === 'ellipse' || type === 'callout' || type === 'label') out.push(toggle(tr('Fill'), () => g('fillOn'), v => { set('fillOn', v); end() }))
+  out.push(toggle(tr('Shadow'), () => g('shadow'), v => { set('shadow', v); end() }))
+  if (l) out.push(slider(tr('Opacity'), () => Math.round(l.opacity * 100), v => { if (!snap) snap = snapshot(doc); l.opacity = v / 100; doc.changed() }, { min: 0, max: 100, onEnd: end }))
+  const colorKeys: [keyof Shape, string][] = type === 'text' ? [['color', tr('Text')]] : type === 'marker' ? [['fill', tr('Fill')], ['color', tr('Number')]] : hasText ? [['fill', tr('Fill')], ['color', tr('Text')], ['stroke', tr('Line')]] : type === 'rect' || type === 'ellipse' ? [['stroke', tr('Line')], ['fill', tr('Fill')]] : [['stroke', tr('Colour')]]
+  if (hasText) colorKeys.push(['outlineColor', tr('Outline')])
   let ck = colorKeys[0][0]
   const wheel = colorWheel({ hex: String(g(ck)), alpha: 1 }, (st, fin) => { set(ck, st.hex as any); if (fin) end(); if (!l && ck === colorKeys[0][0] && type !== 'label' && type !== 'callout') app.setColors(st.hex) })
-  out.push(sec('Colour'))
+  out.push(sec(tr('Colour')))
   if (colorKeys.length > 1) out.push(seg(colorKeys.map(([k, t]) => [k as string, t]) as [string, string][], () => ck as string, v => { ck = v as keyof Shape; (wheel as any).set(String(g(ck))) }))
   out.push(wheel)
-  if (l && hasText) out.push(h('button', { class: 'wide', onclick: () => editText(l) }, 'Edit on the image'))
+  if (l && hasText) out.push(h('button', { class: 'wide', onclick: () => editText(l) }, tr('Edit on the image')))
   return h('div', { class: 'ib' }, ...out.filter(Boolean) as HTMLElement[])
 }

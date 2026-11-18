@@ -5,6 +5,7 @@ import { transformShape } from './shapes'
 import { job } from './jobs'
 import { homography } from './px'
 import { canvas, ctx2d, getData, putData, mkID } from './util'
+import { tr } from '../i18n'
 
 type Setup = (x: CanvasRenderingContext2D) => void
 type PtFn = (x: number, y: number) => [number, number]
@@ -55,7 +56,7 @@ export function cropDoc(doc: Doc, hist: History, r: { x: number; y: number; w: n
   const a = (angle * Math.PI) / 180
   const sx = outW ? outW / w : 1, sy = outH ? outH / hh : 1
   const W = outW || w, H = outH || hh
-  transformDoc(doc, hist, 'Crop', W, H, x => {
+  transformDoc(doc, hist, tr('Crop'), W, H, x => {
     x.scale(sx, sy)
     x.translate(-r.x, -r.y)
     x.translate(cx, cy); x.rotate(-a); x.translate(-cx, -cy)
@@ -68,14 +69,14 @@ export function cropDoc(doc: Doc, hist: History, r: { x: number; y: number; w: n
 
 export function rotate90(doc: Doc, hist: History, dir: 1 | -1) {
   const W = doc.w, H = doc.h
-  transformDoc(doc, hist, dir > 0 ? 'Rotate right' : 'Rotate left', H, W, x => {
+  transformDoc(doc, hist, dir > 0 ? tr('Rotate right') : tr('Rotate left'), H, W, x => {
     if (dir > 0) { x.translate(H, 0); x.rotate(Math.PI / 2) } else { x.translate(0, W); x.rotate(-Math.PI / 2) }
   }, (px, py) => (dir > 0 ? [H - py, px] : [py, W - px]))
 }
 
 export function flip(doc: Doc, hist: History, horiz: boolean) {
   const W = doc.w, H = doc.h
-  transformDoc(doc, hist, horiz ? 'Flip horizontal' : 'Flip vertical', W, H, x => {
+  transformDoc(doc, hist, horiz ? tr('Flip horizontal') : tr('Flip vertical'), W, H, x => {
     if (horiz) { x.translate(W, 0); x.scale(-1, 1) } else { x.translate(0, H); x.scale(1, -1) }
   }, (px, py) => (horiz ? [W - px, py] : [px, H - py]))
 }
@@ -123,7 +124,7 @@ export async function resizeDoc(doc: Doc, hist: History, w: number, h: number, m
   }
   doc.w = w; doc.h = h
   doc.comp = canvas(w, h)
-  hist.structural('Resize', before)
+  hist.structural(tr('Resize'), before)
   doc.structure()
   doc.emit('selection')
 }
@@ -154,7 +155,7 @@ export async function perspectiveDoc(doc: Doc, hist: History, quad: number[]) {
   doc.selection = null
   doc.w = w; doc.h = h
   doc.comp = canvas(w, h)
-  hist.structural('Perspective', before)
+  hist.structural(tr('Perspective'), before)
   doc.structure()
   doc.emit('selection')
 }

@@ -1,10 +1,11 @@
 import type { App } from '../app'
 import type { Tool } from '../tools/types'
 import { GROUPS } from '../tools/types'
-import { h, icon, tip } from './dom'
+import { autoFit, h, icon, tip } from './dom'
 import { ACTIONS, fmtCombo } from './keys'
 import { colorPanel, SIZE_PRESETS } from '../tools/common'
 import { canvas, ctx2d } from '../core/util'
+import { tr, tx } from '../i18n'
 
 export type UIStyle = 'classic' | 'ps' | 'sai'
 
@@ -52,7 +53,7 @@ export function scrub(label: string, get: () => number, set: (v: number) => void
 }
 
 const stabSelect = (app: App, label: string) => {
-  const s = h('select', { 'aria-label': label }, [0, 1, 2, 3, 4, 5, 6, 7].map(i => h('option', { value: i, selected: (app.settings.stabilizer || 0) === i }, i ? 'S-' + i : 'Off'))) as HTMLSelectElement
+  const s = h('select', { 'aria-label': label }, [0, 1, 2, 3, 4, 5, 6, 7].map(i => h('option', { value: i, selected: (app.settings.stabilizer || 0) === i }, i ? 'S-' + i : tr('Off')))) as HTMLSelectElement
   s.addEventListener('change', () => { app.settings.stabilizer = +s.value; app.saveSettings() })
   return h('span', { class: 'ofld' }, h('span', { class: 'olab' }, label), s)
 }
@@ -63,30 +64,35 @@ export function psOptions(app: App, run: Record<string, () => void>) {
   const render = () => {
     bar.innerHTML = ''
     const t = app.tool
-    if (!t || !app.doc) { bar.append(h('span', { class: 'mute' }, app.doc ? '' : 'Open an image to start')); return }
+    if (!t || !app.doc) { bar.append(h('span', { class: 'mute' }, app.doc ? '' : tr('Open an image to start'))); return }
     bar.append(h('span', { class: 'otool' }, icon(t.icon), t.label), h('span', { class: 'sep' }))
     const b = t.brush?.()
     if (b) {
-      bar.append(scrub('Size', b.getSize, v => { b.setSize(v); app.view.draw() }, { min: b.minSize ?? 1, max: b.maxSize ?? 1000, unit: 'px' }))
+      bar.append(scrub(tr('Size'), b.getSize, v => { b.setSize(v); app.view.draw() }, { min: b.minSize ?? 1, max: b.maxSize ?? 1000, unit: 'px' }))
       const o = b.opts
-      if (o) bar.append(scrub('Hardness', () => Math.round(o.hardness * 100), v => (o.hardness = v / 100), { min: 0, max: 100, unit: '%' }))
-      if (b.getOpacity) bar.append(scrub('Opacity', () => Math.round(b.getOpacity!() * 100), v => b.setOpacity!(v / 100), { min: 1, max: 100, unit: '%' }))
-      if (o) bar.append(scrub('Flow', () => Math.round(o.flow * 100), v => (o.flow = v / 100), { min: 1, max: 100, unit: '%' }))
+      if (o) bar.append(scrub(tr('Hardness'), () => Math.round(o.hardness * 100), v => (o.hardness = v / 100), { min: 0, max: 100, unit: '%' }))
+      if (b.getOpacity) bar.append(scrub(tx('short', 'Opacity'), () => Math.round(b.getOpacity!() * 100), v => b.setOpacity!(v / 100), { min: 1, max: 100, unit: '%' }))
+      if (o) { const fl = scrub(tr('Flow'), () => Math.round(o.flow * 100), v => (o.flow = v / 100), { min: 1, max: 100, unit: '%' }); fl.dataset.fit = '5'; bar.append(fl) }
       if (o) {
-        const pr = tip(h('button', { class: 'ic' + (o.pressure ? ' on' : ''), onclick: () => { o.pressure = !o.pressure; render() } }, icon('pen')), 'Pen pressure changes size')
-        bar.append(pr, stabSelect(app, 'Smoothing'))
+        const pr = tip(h('button', { class: 'ic' + (o.pressure ? ' on' : ''), onclick: () => { o.pressure = !o.pressure; render() } }, icon('pen')), tr('Pen pressure changes size'))
+        const sm = stabSelect(app, tr('Smoothing'))
+        sm.dataset.fit = '4'
+        bar.append(pr, sm)
       }
       const l = app.doc.active
-      if (l?.canvas && b.opts) bar.append(tip(h('button', { class: 'ic' + (l.alphaLock ? ' on' : ''), onclick: () => app.hist!.op(l.alphaLock ? 'Unlock transparency' : 'Lock transparency', () => { l.alphaLock = !l.alphaLock }) }, icon('alpha')), 'Lock transparency'))
-    } else bar.append(h('span', { class: 'mute', style: { fontSize: '12px' } }, 'Settings for this tool are in Properties on the right.'))
+      if (l?.canvas && b.opts) bar.append(tip(h('button', { class: 'ic' + (l.alphaLock ? ' on' : ''), onclick: () => app.hist!.op(l.alphaLock ? tr('Unlock transparency') : tr('Lock transparency'), () => { l.alphaLock = !l.alphaLock }) }, icon('alpha')), tr('Lock transparency')))
+    } else bar.append(h('span', { class: 'mute', style: { fontSize: '12px' } }, tr('Settings for this tool are in Properties on the right.')))
     bar.append(h('span', { class: 'sp' }))
-    if (b) bar.append(h('span', { class: 'mute', style: { fontSize: '12px', display: 'flex', gap: '12px' } }, h('span', 'Ctrl-drag size'), h('span', 'Alt-drag opacity')), h('span', { class: 'sep' }))
+    if (b) bar.append(h('span', { class: 'mute', 'data-fit': 1, style: { fontSize: '12px', display: 'flex', gap: '12px' } }, h('span', tr('Ctrl-drag size')), h('span', tr('Alt-drag opacity'))), h('span', { class: 'sep', 'data-fit': 1 }))
     const z = h('button', { class: 'zoom', onclick: () => app.view.fit(true) }, Math.round(app.view.zoom * 100) + '%')
-    bar.append(tip(h('button', { class: 'ic', onclick: () => run.zoomOut() }, icon('minus')), 'Zoom out'), tip(z, 'Fit to screen'), tip(h('button', { class: 'ic', onclick: () => run.zoomIn() }, icon('plus')), 'Zoom in'),
-      tip(h('button', { class: 'ic' + (app.view.compare === 'split' ? ' on' : ''), onclick: () => run.compare() }, icon('compare')), 'Before and after'),
-      tip(h('button', { class: 'ic', onclick: () => run.fullscreen() }, icon('fullscreen')), 'Full screen (F11)'),
-      tip(h('button', { class: 'ic', onclick: () => run.settings() }, icon('gear')), 'Settings'))
+    bar.append(tip(h('button', { class: 'ic', onclick: () => run.zoomOut() }, icon('minus')), tr('Zoom out')), tip(z, tr('Fit to screen')), tip(h('button', { class: 'ic', onclick: () => run.zoomIn() }, icon('plus')), tr('Zoom in')),
+      tip(h('button', { class: 'ic' + (app.view.compare === 'split' ? ' on' : ''), 'data-fit': 3, onclick: () => run.compare() }, icon('compare')), tr('Before and after')),
+      tip(h('button', { class: 'ic', 'data-fit': 2, onclick: () => run.fullscreen() }, icon('fullscreen')), tr('Full screen (F11)')),
+      tip(h('button', { class: 'ic', 'data-fit': 2, onclick: () => run.settings() }, icon('gear')), tr('Settings')))
+    fit()
   }
+  // Hints go first when the window is narrow, then the less used buttons and fields.
+  const fit = autoFit(bar, 5)
   for (const ev of ['tool', 'panel', 'doc', 'layers', 'zoom', 'compare']) app.on(ev, render)
   render()
   return bar
@@ -94,7 +100,7 @@ export function psOptions(app: App, run: Record<string, () => void>) {
 
 /** Narrow icon toolbar with grouped tools (Photoshop style). */
 export function psStrip(app: App, run: Record<string, () => void>) {
-  const strip = h('nav', { id: 'strip', 'aria-label': 'Tools' })
+  const strip = h('nav', { id: 'strip', 'aria-label': tr('Tools') })
   let fly: HTMLElement | null = null
   const closeFly = () => { fly?.remove(); fly = null }
   addEventListener('pointerdown', e => { if (fly && !fly.contains(e.target as Node)) closeFly() }, true)
@@ -109,7 +115,7 @@ export function psStrip(app: App, run: Record<string, () => void>) {
   const render = () => {
     strip.innerHTML = ''
     strip.classList.toggle('two', app.settings.toolCols === 2)
-    strip.append(tip(h('button', { class: 'grip2', onclick: () => { app.settings.toolCols = app.settings.toolCols === 2 ? 1 : 2; app.saveSettings(); app.emit('style') } }), app.settings.toolCols === 2 ? 'One column' : 'Two columns'))
+    strip.append(tip(h('button', { class: 'grip2', onclick: () => { app.settings.toolCols = app.settings.toolCols === 2 ? 1 : 2; app.saveSettings(); app.emit('style') } }), app.settings.toolCols === 2 ? tr('One column') : tr('Two columns')))
     const grid = h('div', { class: 'tgrid' })
     for (const s of SLOTS) {
       if (s === '-') { grid.append(h('span', { class: 'tsep' })); continue }
@@ -117,7 +123,7 @@ export function psStrip(app: App, run: Record<string, () => void>) {
       const t = app.tools.get(face)
       if (!t) continue
       const k = shortcutOf(app, face)
-      const b = tip(h('button', { class: 'tb' + (s.includes(app.toolId) ? ' on' : '') }, icon(t.icon), s.length > 1 && h('span', { class: 'tri' })), t.label + (k ? ' (' + k + ')' : '') + (s.length > 1 ? ', hold for more' : ''))
+      const b = tip(h('button', { class: 'tb' + (s.includes(app.toolId) ? ' on' : '') }, icon(t.icon), s.length > 1 && h('span', { class: 'tri' })), t.label + (k ? ' (' + k + ')' : '') + (s.length > 1 ? tr(', hold for more') : ''))
       let hold = 0
       b.addEventListener('pointerdown', e => { if (e.button === 0 && s.length > 1) hold = window.setTimeout(() => { hold = -1; openFly(s, b) }, 380) })
       b.addEventListener('pointerup', () => { if (hold === -1) { hold = 0; return } clearTimeout(hold); hold = 0; app.setTool(face) })
@@ -126,8 +132,8 @@ export function psStrip(app: App, run: Record<string, () => void>) {
       grid.append(b)
     }
     strip.append(grid)
-    const fg = h('button', { class: 'sw fgs', style: { background: app.fg }, 'aria-label': 'Foreground colour' })
-    const bg = h('button', { class: 'sw bgs', style: { background: app.bgc }, 'aria-label': 'Background colour' })
+    const fg = h('button', { class: 'sw fgs', style: { background: app.fg }, 'aria-label': tr('Foreground colour') })
+    const bg = h('button', { class: 'sw bgs', style: { background: app.bgc }, 'aria-label': tr('Background colour') })
     const pop = () => {
       if (colorPop) { colorPop.remove(); colorPop = null; return }
       const r = fg.getBoundingClientRect()
@@ -139,9 +145,9 @@ export function psStrip(app: App, run: Record<string, () => void>) {
     fg.addEventListener('click', pop)
     bg.addEventListener('click', () => app.setColors(app.bgc, app.fg))
     strip.append(h('div', { class: 'fgbg2' }, bg, fg),
-      tip(h('button', { class: 'ic small', onclick: () => run.swap() }, icon('swap')), 'Swap colours (X)'),
+      tip(h('button', { class: 'ic small', onclick: () => run.swap() }, icon('swap')), tr('Swap colours (X)')),
       h('span', { class: 'sp' }),
-      tip(h('button', { class: 'tb', onclick: () => run.fullscreen() }, icon('fullscreen')), 'Full screen (F11)'))
+      tip(h('button', { class: 'tb', onclick: () => run.fullscreen() }, icon('fullscreen')), tr('Full screen (F11)')))
   }
   app.on('tool', () => { noteTool(app.toolId); render() })
   app.on('colors', render)
@@ -154,12 +160,12 @@ export function psStrip(app: App, run: Record<string, () => void>) {
 export function psDock(app: App, showTab: (t: 'props' | 'hist') => void, curTab: () => string) {
   const dock = h('div', { id: 'dock' })
   const items: [string, string, () => void, () => boolean][] = [
-    ['props', 'Properties', () => showTab('props'), () => curTab() === 'props' && !['adjust', 'levels', 'alpha', 'bg-replace'].includes(app.toolId)],
-    ['history', 'History', () => showTab('hist'), () => curTab() === 'hist'],
-    ['adjust', 'Adjustments', () => { showTab('props'); app.setTool('adjust') }, () => curTab() === 'props' && app.toolId === 'adjust'],
-    ['levels', 'Levels', () => { showTab('props'); app.setTool('levels') }, () => curTab() === 'props' && app.toolId === 'levels'],
-    ['alpha', 'Layer alpha', () => { showTab('props'); app.setTool('alpha') }, () => curTab() === 'props' && app.toolId === 'alpha'],
-    ['bg', 'Background', () => { showTab('props'); app.setTool('bg-replace') }, () => curTab() === 'props' && app.toolId === 'bg-replace']
+    ['props', tr('Properties'), () => showTab('props'), () => curTab() === 'props' && !['adjust', 'levels', 'alpha', 'bg-replace'].includes(app.toolId)],
+    ['history', tr('History'), () => showTab('hist'), () => curTab() === 'hist'],
+    ['adjust', tr('Adjustments'), () => { showTab('props'); app.setTool('adjust') }, () => curTab() === 'props' && app.toolId === 'adjust'],
+    ['levels', tr('Levels'), () => { showTab('props'); app.setTool('levels') }, () => curTab() === 'props' && app.toolId === 'levels'],
+    ['alpha', tr('Layer alpha'), () => { showTab('props'); app.setTool('alpha') }, () => curTab() === 'props' && app.toolId === 'alpha'],
+    ['bg', tr('Background'), () => { showTab('props'); app.setTool('bg-replace') }, () => curTab() === 'props' && app.toolId === 'bg-replace']
   ]
   const render = () => {
     dock.innerHTML = ''
@@ -173,28 +179,30 @@ export function psDock(app: App, showTab: (t: 'props' | 'hist') => void, curTab:
 /** Row of view and history controls under the menus (SAI style). */
 export function saiBar(app: App, run: Record<string, () => void>) {
   const bar = h('div', { id: 'saibar' })
-  const zin = h('input', { type: 'text', class: 'val', style: { width: '58px' }, 'aria-label': 'Zoom' }) as HTMLInputElement
+  const zin = h('input', { type: 'text', class: 'val', style: { width: '58px' }, 'aria-label': tr('Zoom') }) as HTMLInputElement
   zin.addEventListener('change', () => { const v = parseFloat(zin.value); if (v > 0) app.view.setZoom(v / 100); zin.blur() })
   zin.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') zin.blur() })
-  const ain = h('input', { type: 'text', class: 'val', style: { width: '48px' }, 'aria-label': 'Rotation' }) as HTMLInputElement
+  const ain = h('input', { type: 'text', class: 'val', style: { width: '48px' }, 'aria-label': tr('Rotation') }) as HTMLInputElement
   ain.addEventListener('change', () => { app.view.setAngle(parseFloat(ain.value) || 0); ain.blur() })
   ain.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') ain.blur() })
   const sb = (ic: string, label: string, fn: () => void) => tip(h('button', { class: 'sb', onclick: fn }, icon(ic)), label)
-  const undoB = sb('undo', 'Undo', () => run.undo()), redoB = sb('redo', 'Redo', () => run.redo())
-  const flipB = sb('fliph', 'Flip view', () => app.view.setFlip(!app.view.flip))
+  const undoB = sb('undo', tr('Undo'), () => run.undo()), redoB = sb('redo', tr('Redo'), () => run.redo())
+  const flipB = sb('fliph', tr('Flip view'), () => app.view.setFlip(!app.view.flip))
   const ants = h('input', { type: 'checkbox', checked: true }) as HTMLInputElement
+  const stab = stabSelect(app, tr('Stabilizer'))
+  stab.dataset.fit = '2'
   ants.addEventListener('change', () => app.view.setShowAnts(ants.checked))
   bar.append(undoB, redoB, h('span', { class: 'sep' }),
-    sb('x', 'Deselect', () => run.deselect()), sb('swap', 'Invert selection', () => run.invert()),
-    h('label', { class: 'ck' }, ants, 'Show selection'), h('span', { class: 'sep' }),
-    sb('minus', 'Zoom out', () => run.zoomOut()), zin, sb('plus', 'Zoom in', () => run.zoomIn()), sb('fit', 'Fit to window', () => run.fit()), h('span', { class: 'sep' }),
-    sb('rotl', 'Rotate view left', () => app.view.setAngle(app.view.angle - 15)), ain, sb('rotr', 'Rotate view right', () => app.view.setAngle(app.view.angle + 15)),
-    tip(h('button', { class: 'sb txt', onclick: () => app.view.setAngle(0) }, 'Reset'), 'Reset rotation'), flipB, h('span', { class: 'sep' }),
-    stabSelect(app, 'Stabilizer'),
+    sb('x', tr('Deselect'), () => run.deselect()), sb('swap', tr('Invert selection'), () => run.invert()),
+    h('label', { class: 'ck', 'data-fit': 4 }, ants, tr('Show selection')), h('span', { class: 'sep', 'data-fit': 4 }),
+    sb('minus', tr('Zoom out'), () => run.zoomOut()), zin, sb('plus', tr('Zoom in'), () => run.zoomIn()), sb('fit', tr('Fit to window'), () => run.fit()), h('span', { class: 'sep' }),
+    h('span', { class: 'sgrp', 'data-fit': 3 }, sb('rotl', tr('Rotate view left'), () => app.view.setAngle(app.view.angle - 15)), ain, sb('rotr', tr('Rotate view right'), () => app.view.setAngle(app.view.angle + 15)),
+      tip(h('button', { class: 'sb txt', onclick: () => app.view.setAngle(0) }, tr('Reset')), tr('Reset rotation')), flipB, h('span', { class: 'sep' })),
+    stab,
     h('span', { class: 'sp' }),
-    h('span', { class: 'mute hintx', style: { display: 'flex', gap: '12px' } }, h('span', 'Ctrl-drag size'), h('span', 'Alt-drag opacity')),
-    sb('compare', 'Before and after', () => run.compare()), sb('fullscreen', 'Full screen (F11)', () => run.fullscreen()), sb('gear', 'Settings', () => run.settings()),
-    h('button', { class: 'pri', onclick: () => run.export() }, icon('download'), 'Export'))
+    h('span', { class: 'mute hintx', 'data-fit': 1, style: { display: 'flex', gap: '12px' } }, h('span', tr('Ctrl-drag size')), h('span', tr('Alt-drag opacity'))),
+    h('span', { class: 'sgrp', 'data-fit': 5 }, sb('compare', tr('Before and after'), () => run.compare()), sb('fullscreen', tr('Full screen (F11)'), () => run.fullscreen()), sb('gear', tr('Settings'), () => run.settings())),
+    h('button', { class: 'pri', onclick: () => run.export() }, icon('download'), tr('Export')))
   const sync = () => {
     if (document.activeElement !== zin) zin.value = (Math.round(app.view.zoom * 1000) / 10) + '%'
     if (document.activeElement !== ain) ain.value = (app.view.angle > 0 ? '+' : '') + app.view.angle + '°'
@@ -202,6 +210,8 @@ export function saiBar(app: App, run: Record<string, () => void>) {
     undoB.toggleAttribute('disabled', !app.canUndo())
     redoB.toggleAttribute('disabled', !app.canRedo())
   }
+  // Hints go first when the window is narrow, then the stabilizer, rotation and the rarer buttons.
+  autoFit(bar, 5)
   let raf = 0
   for (const ev of ['view', 'zoom', 'history', 'doc', 'steps', 'tool']) app.on(ev, () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; sync() }) })
   sync()
@@ -213,7 +223,7 @@ const ptitle = (t: string, ...right: (HTMLElement | string)[]) => h('div', { cla
 /** Whole-image preview with the visible area, zoom and rotation (SAI style). */
 export function saiNavigator(app: App) {
   const W = 210, H = 140
-  const cv = h('canvas', { width: W * 2, height: H * 2, style: { width: W + 'px', height: H + 'px' }, 'aria-label': 'Navigator' }) as HTMLCanvasElement
+  const cv = h('canvas', { width: W * 2, height: H * 2, style: { width: W + 'px', height: H + 'px' }, 'aria-label': tr('Navigator') }) as HTMLCanvasElement
   let thumb: HTMLCanvasElement | null = null, geo = { s: 1, x: 0, y: 0 }
   const makeThumb = () => {
     const d = app.doc
@@ -243,10 +253,10 @@ export function saiNavigator(app: App) {
     app.view.draw()
   }
   cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); go(e); const mv = (ev: PointerEvent) => go(ev); cv.addEventListener('pointermove', mv); cv.addEventListener('pointerup', () => cv.removeEventListener('pointermove', mv), { once: true }) })
-  const zr = h('input', { type: 'range', min: -400, max: 500, value: 0, 'aria-label': 'Zoom' }) as HTMLInputElement
+  const zr = h('input', { type: 'range', min: -400, max: 500, value: 0, 'aria-label': tr('Zoom') }) as HTMLInputElement
   const zv = h('span', { class: 'val' })
   zr.addEventListener('input', () => app.view.setZoom(Math.pow(2, +zr.value / 100)))
-  const ar = h('input', { type: 'range', min: -180, max: 180, value: 0, 'aria-label': 'Rotation' }) as HTMLInputElement
+  const ar = h('input', { type: 'range', min: -180, max: 180, value: 0, 'aria-label': tr('Rotation') }) as HTMLInputElement
   const av = h('span', { class: 'val' })
   ar.addEventListener('input', () => app.view.setAngle(+ar.value))
   const sync = () => {
@@ -259,15 +269,15 @@ export function saiNavigator(app: App) {
   app.on('view', () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; sync() }) })
   for (const ev of ['doc', 'history', 'layers']) app.on(ev, () => { clearTimeout(tt); tt = window.setTimeout(() => { makeThumb(); sync() }, ev === 'doc' ? 0 : 300) })
   makeThumb(); sync()
-  return h('div', { class: 'pnl' }, ptitle('Navigator'),
+  return h('div', { class: 'pnl' }, ptitle(tr('Navigator')),
     h('div', { class: 'pb' }, h('div', { class: 'navbox' }, cv),
-      h('div', { class: 'srow' }, h('span', 'Zoom'), zr, zv),
-      h('div', { class: 'srow' }, h('span', 'Angle'), ar, av)))
+      h('div', { class: 'srow' }, h('span', tr('Zoom')), zr, zv),
+      h('div', { class: 'srow' }, h('span', tr('Angle')), ar, av)))
 }
 
 /** Colour panel (SAI style). */
 export function saiColor(app: App) {
-  return h('div', { class: 'pnl' }, ptitle('Colour'), h('div', { class: 'pb' }, colorPanel(app, false, undefined, undefined, 200)))
+  return h('div', { class: 'pnl' }, ptitle(tr('Colour')), h('div', { class: 'pb' }, colorPanel(app, false, undefined, undefined, 200)))
 }
 
 /** Tools as named tiles, picked by group (SAI style). */
@@ -279,7 +289,7 @@ export function saiTools(app: App) {
     if (!group) group = cur?.id || 'paint'
     const g = GROUPS.find(x => x.id === group) || GROUPS[0]
     box.innerHTML = ''
-    box.append(ptitle('Tools', h('span', { class: 'mute' }, g.name)),
+    box.append(ptitle(tr('Tools'), h('span', { class: 'mute' }, g.name)),
       h('div', { class: 'pb' },
         h('div', { class: 'gsel' }, GROUPS.map(x => tip(h('button', { class: x.id === g.id ? 'on' : '', onclick: () => { group = x.id; render() } }, icon(x.icon)), x.name))),
         h('div', { class: 'tiles' }, g.tools.map(id => { const t = app.tools.get(id); return t && h('button', { class: 'tile' + (id === app.toolId ? ' on' : ''), onclick: () => app.setTool(id) }, t.label) }))))

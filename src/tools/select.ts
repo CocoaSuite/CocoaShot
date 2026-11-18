@@ -13,6 +13,7 @@ import { Stroke, type BrushOpts } from '../core/brush'
 import { keyOf } from '../ui/keys'
 import type { Viewport, Pt } from '../view/viewport'
 import { toolSteps } from '../core/steps'
+import { tr, tx } from '../i18n'
 
 type Mode = 'new' | 'add' | 'sub' | 'int'
 export const sel = { mode: 'new' as Mode, feather: 0, tol: 32, contiguous: true, sample: true, grow: 4 }
@@ -48,16 +49,16 @@ export function selectionOps(app: App): HTMLElement[] {
   const doc = app.doc
   const has = !!doc?.selection
   const out: HTMLElement[] = [
-    sec('Selection'),
+    sec(tr('Selection')),
     h('div', { class: 'g2' },
-      btn('Select all', () => selectAll(app)), btn('Deselect', () => applySelection(app, null, 'new', 'Deselect')),
-      btn('Invert', () => invert(app)), btn('Copy to layer', () => toLayer(app))),
+      btn(tr('Select all'), () => selectAll(app)), btn(tr('Deselect'), () => applySelection(app, null, 'new', tr('Deselect'))),
+      btn(tr('Invert'), () => invert(app)), btn(tr('Copy to layer'), () => toLayer(app))),
   ]
   if (has) {
     out.push(
-      slider('Grow', () => sel.grow, v => (sel.grow = v), { min: -100, max: 100, unit: 'px' }),
-      h('div', { class: 'g2' }, btn('Grow or shrink', () => growSel(app, sel.grow)), btn('Smooth edges', () => featherSel(app, 3))),
-      h('div', { class: 'g2' }, btn('Delete pixels', () => deletePixels(app)), btn('Crop to selection', () => app.emit('crop-to-selection'))))
+      slider(tr('Grow'), () => sel.grow, v => (sel.grow = v), { min: -100, max: 100, unit: 'px' }),
+      h('div', { class: 'g2' }, btn(tr('Grow or shrink'), () => growSel(app, sel.grow)), btn(tr('Smooth edges'), () => featherSel(app, 3))),
+      h('div', { class: 'g2' }, btn(tr('Delete pixels'), () => deletePixels(app)), btn(tr('Crop to selection'), () => app.emit('crop-to-selection'))))
   }
   return out
 }
@@ -66,7 +67,7 @@ export function selectAll(app: App) {
   const doc = app.doc!
   const m = canvas(doc.w, doc.h), x = ctx2d(m)
   x.fillStyle = '#fff'; x.fillRect(0, 0, doc.w, doc.h)
-  applySelection(app, m, 'new', 'Select all')
+  applySelection(app, m, 'new', tr('Select all'))
 }
 
 export function invert(app: App) {
@@ -74,7 +75,7 @@ export function invert(app: App) {
   const m = canvas(doc.w, doc.h), x = ctx2d(m)
   x.fillStyle = '#fff'; x.fillRect(0, 0, doc.w, doc.h)
   if (doc.selection) { x.globalCompositeOperation = 'destination-out'; x.drawImage(doc.selection, 0, 0) }
-  applySelection(app, m, 'new', 'Invert selection')
+  applySelection(app, m, 'new', tr('Invert selection'))
 }
 
 function maskOp(app: App, label: string, fn: (a: Float32Array, w: number, h: number) => Float32Array) {
@@ -88,14 +89,14 @@ function maskOp(app: App, label: string, fn: (a: Float32Array, w: number, h: num
   applySelection(app, canvasFromAlpha(u, doc.w, doc.h), 'new', label)
   sel.feather = f0
 }
-export const growSel = (app: App, px: number) => maskOp(app, px >= 0 ? 'Grow selection' : 'Shrink selection', (f, w, h) => morph(f, w, h, px))
-export const featherSel = (app: App, px: number) => maskOp(app, 'Feather selection', (f, w, h) => gauss(f, w, h, px))
+export const growSel = (app: App, px: number) => maskOp(app, px >= 0 ? tr('Grow selection') : tr('Shrink selection'), (f, w, h) => morph(f, w, h, px))
+export const featherSel = (app: App, px: number) => maskOp(app, tr('Feather selection'), (f, w, h) => gauss(f, w, h, px))
 
 export async function toLayer(app: App) {
   const doc = app.doc!
   const a = doc.active
-  if (!a?.canvas) { toast('Select a layer with pixels first'); return }
-  await app.hist!.op('Copy to layer', () => {
+  if (!a?.canvas) { toast(tr('Select a layer with pixels first')); return }
+  await app.hist!.op(tr('Copy to layer'), () => {
     const nl = makeCopy(doc, a)
     // Text, shapes, outlines and backgrounds are redrawn from their settings; the copy keeps their pixels instead.
     if (nl.kind !== 'paint' && nl.kind !== 'highlight') {
@@ -104,7 +105,7 @@ export async function toLayer(app: App) {
       nl.kind = 'paint'; nl.shape = null; nl.outline = null; nl.bg = null; nl.bgFor = null
     }
     if (doc.selection) { const x = ctx2d(nl.canvas!); x.globalCompositeOperation = 'destination-in'; x.drawImage(doc.selection, 0, 0) }
-    nl.name = a.name + ' copy'
+    nl.name = tr('{0} copy', a.name)
     doc.add(nl, doc.activeId)
   })
 }
@@ -121,11 +122,11 @@ export function makeCopy(doc: any, l: Layer): Layer {
   return n
 }
 
-export function deletePixels(app: App, label = 'Delete pixels') {
+export function deletePixels(app: App, label = tr('Delete pixels')) {
   const doc = app.doc!
   const l = app.activeRaster()
   if (!l) return
-  if (!doc.selection) { toast('Make a selection first'); return }
+  if (!doc.selection) { toast(tr('Make a selection first')); return }
   const r = { x: 0, y: 0, w: doc.w, h: doc.h }
   const before = getData(l.canvas!)
   const x = ctx2d(l.canvas!)
@@ -135,7 +136,7 @@ export function deletePixels(app: App, label = 'Delete pixels') {
   doc.changed()
 }
 
-const modeSeg = () => seg<Mode>([['new', 'New'], ['add', 'Add'], ['sub', 'Subtract'], ['int', 'Intersect']], () => sel.mode, v => (sel.mode = v))
+const modeSeg = () => seg<Mode>([['new', tr('New')], ['add', tr('Add')], ['sub', tr('Subtract')], ['int', tr('Intersect')]], () => sel.mode, v => (sel.mode = v))
 
 function shapeSelTool(app: App, id: string, label: string, ic: string, kind: 'rect' | 'ellipse' | 'lasso'): Tool {
   let a: { x: number; y: number } | null = null, b: { x: number; y: number } | null = null, pts: number[] = [], mode: Mode = 'new'
@@ -159,7 +160,7 @@ function shapeSelTool(app: App, id: string, label: string, ic: string, kind: 're
       const snap = kind !== 'lasso'
       const l = snap ? Math.round(Math.min(a.x, b.x)) : Math.min(a.x, b.x), t = snap ? Math.round(Math.min(a.y, b.y)) : Math.min(a.y, b.y)
       const w = snap ? Math.round(Math.max(a.x, b.x)) - l : Math.abs(b.x - a.x), hh = snap ? Math.round(Math.max(a.y, b.y)) - t : Math.abs(b.y - a.y)
-      if (kind === 'lasso' ? pts.length < 6 : w < 2 || hh < 2) { a = b = null; if (mode === 'new' && doc.selection) applySelection(app, null, 'new', 'Deselect'); return }
+      if (kind === 'lasso' ? pts.length < 6 : w < 2 || hh < 2) { a = b = null; if (mode === 'new' && doc.selection) applySelection(app, null, 'new', tr('Deselect')); return }
       x.beginPath()
       if (kind === 'rect') x.rect(l, t, w, hh)
       else if (kind === 'ellipse') x.ellipse(l + w / 2, t + hh / 2, w / 2, hh / 2, 0, 0, Math.PI * 2)
@@ -184,7 +185,7 @@ function shapeSelTool(app: App, id: string, label: string, ic: string, kind: 're
       x.restore()
     },
     panel: () => h('div', { class: 'ib' }, sec(label), modeSeg(),
-      slider('Feather', () => sel.feather, v => (sel.feather = v), { min: 0, max: 100, unit: 'px', def: 0 }),
+      slider(tr('Feather'), () => sel.feather, v => (sel.feather = v), { min: 0, max: 100, unit: 'px', def: 0 }),
       ...selectionOps(app))
   }
 }
@@ -316,7 +317,7 @@ export function selectTools(app: App): Tool[] {
       if (!d.float && d.l.mask) d.l.mask = copyCanvas(d.l.mask)
       touch(d.l)
     }
-    app.hist!.structural(label || (d0.handle === 2 ? 'Rotate ' + d0.l.name : 'Move ' + (d0.float ? 'selection' : d0.l.name)), before)
+    app.hist!.structural(label || (d0.handle === 2 ? tr('Rotate {0}', d0.l.name) : d0.float ? tr('Move selection') : tr('Move {0}', d0.l.name)), before)
     doc.changed()
     if (list.some(d => d.float)) doc.emit('selection')
   }
@@ -402,12 +403,12 @@ export function selectTools(app: App): Tool[] {
     const before = snapshot(doc)
     for (const it of sp.pix) { const bl = before.layers.find(x => x.ref === it.l)!.p; bl.canvas = it.orig; if (it.mask) bl.mask = it.mask }
     for (const it of sp.shp) before.layers.find(x => x.ref === it.l)!.p.shape = it.shape
-    app.hist!.structural('Turn ' + chosenName(doc), before)
+    app.hist!.structural(tr('Turn {0}', chosenName(doc)), before)
     doc.structure()
   }
 
   const move: Tool = {
-    id: 'move', label: 'Move', icon: 'move',
+    id: 'move', label: tr('Move'), icon: 'move',
     cursor: () => 'move',
     down(p) {
       const doc = app.doc!
@@ -441,10 +442,10 @@ export function selectTools(app: App): Tool[] {
         if (hit && !chosenLayers(doc).includes(hit)) { doc.picked.clear(); doc.activeId = hit.id; l = hit; app.emit('layers') }
       }
       if (!l) return
-      if (!doc.picked.size && shownLocked(doc, l)) { toast(`${l.name} is locked`); return }
-      if (!doc.picked.size && !shownVisible(doc, l)) toast(`${l.name} is hidden`)
+      if (!doc.picked.size && shownLocked(doc, l)) { toast(tr('{0} is locked', l.name)); return }
+      if (!doc.picked.size && !shownVisible(doc, l)) toast(tr('{0} is hidden', l.name))
       drag = beginChosen(p.x, p.y)
-      dragName = doc.picked.size || l.kind === 'group' ? 'Move ' + chosenName(doc) : ''
+      dragName = doc.picked.size || l.kind === 'group' ? tr('Move {0}', chosenName(doc)) : ''
       if (!drag.length) drag = null
     },
     move(p, pressed) {
@@ -483,11 +484,11 @@ export function selectTools(app: App): Tool[] {
       const doc = app.doc
       const l = doc?.active
       if (!doc || !l) return true
-      if (!doc.picked.size && shownLocked(doc, l)) { toast(`${l.name} is locked`); return true }
+      if (!doc.picked.size && shownLocked(doc, l)) { toast(tr('{0} is locked', l.name)); return true }
       const k = e.shiftKey ? 10 : 1
       const list = beginChosen(0, 0)
       for (const d of list) apply(d, v[0] * k, v[1] * k)
-      finish(list, 'Nudge ' + (doc.selection && !isMulti(doc) ? 'selection' : chosenName(doc)))
+      finish(list, doc.selection && !isMulti(doc) ? tr('Nudge selection') : tr('Nudge {0}', chosenName(doc)))
       return true
     },
     overlay(x, v) {
@@ -538,14 +539,14 @@ export function selectTools(app: App): Tool[] {
       }
       x.restore()
     },
-    panel: () => h('div', { class: 'ib' }, sec('Move'),
-      hint('Drag to move the selected layer, or only the selected pixels when there is a selection. Arrow keys nudge by 1 px, Shift+arrow by 10 px, and Shift-drag keeps the move straight. Ctrl-click picks the layer under the cursor. Shift-click things in the image to pick several, and Shift-click again to take one out. Drag the filled handle above text, shapes, a folder or several picked layers to turn them (Shift snaps to 15°); Ctrl+T also scales them.'),
-      toggle('Pick layer by clicking', () => moveOpts.autoPick, v => (moveOpts.autoPick = v)),
+    panel: () => h('div', { class: 'ib' }, sec(tr('Move')),
+      hint(tr('Drag to move the selected layer, or only the selected pixels when there is a selection. Arrow keys nudge by 1 px, Shift+arrow by 10 px, and Shift-drag keeps the move straight. Ctrl-click picks the layer under the cursor. Shift-click things in the image to pick several, and Shift-click again to take one out. Drag the filled handle above text, shapes, a folder or several picked layers to turn them (Shift snaps to 15°); Ctrl+T also scales them.')),
+      toggle(tr('Pick layer by clicking'), () => moveOpts.autoPick, v => (moveOpts.autoPick = v)),
       ...selectionOps(app))
   }
 
   const wand: Tool = {
-    id: 'wand', label: 'Magic wand', icon: 'wand',
+    id: 'wand', label: tr('Magic wand'), icon: 'wand',
     cursor: () => 'crosshair',
     down(p) {
       const doc = app.doc!
@@ -554,13 +555,13 @@ export function selectTools(app: App): Tool[] {
       const src = sel.sample ? doc.comp : doc.active?.canvas || doc.comp
       const d = getData(src).data
       const m = flood(d, doc.w, doc.h, x, y, sel.tol, sel.contiguous)
-      applySelection(app, canvasFromAlpha(m, doc.w, doc.h), modeFrom(p.e), 'Magic wand')
+      applySelection(app, canvasFromAlpha(m, doc.w, doc.h), modeFrom(p.e), tr('Magic wand'))
     },
-    panel: () => h('div', { class: 'ib' }, sec('Magic wand'), hint('Click an area to select similar colours.'), modeSeg(),
-      slider('Tolerance', () => sel.tol, v => (sel.tol = v), { min: 0, max: 255, def: 32 }),
-      slider('Feather', () => sel.feather, v => (sel.feather = v), { min: 0, max: 100, def: 0 }),
-      toggle('Connected areas only', () => sel.contiguous, v => (sel.contiguous = v)),
-      toggle('Sample all layers', () => sel.sample, v => (sel.sample = v)),
+    panel: () => h('div', { class: 'ib' }, sec(tr('Magic wand')), hint(tr('Click an area to select similar colours.')), modeSeg(),
+      slider(tr('Tolerance'), () => sel.tol, v => (sel.tol = v), { min: 0, max: 255, def: 32 }),
+      slider(tr('Feather'), () => sel.feather, v => (sel.feather = v), { min: 0, max: 100, def: 0 }),
+      toggle(tr('Connected areas only'), () => sel.contiguous, v => (sel.contiguous = v)),
+      toggle(tr('Sample all layers'), () => sel.sample, v => (sel.sample = v)),
       ...selectionOps(app))
   }
 
@@ -576,7 +577,7 @@ export function selectTools(app: App): Tool[] {
     reset() { pts = []; ptsAhead = []; app.emit('steps') }
   }
   const obj: Tool = {
-    id: 'obj-sel', label: 'Object', icon: 'sparkle', steps: objSteps,
+    id: 'obj-sel', label: tr('Object'), icon: 'sparkle', steps: objSteps,
     cursor: () => 'crosshair',
     async down(p) {
       const doc = app.doc!
@@ -587,7 +588,7 @@ export function selectTools(app: App): Tool[] {
       ptsAhead = []
       app.emit('steps')
       app.view.draw()
-      const ok = await app.run('Finding the object', async prog => {
+      const ok = await app.run(tr('Finding the object'), async prog => {
         const src = rgbaOf(doc.comp, 1024)
         // The image may have changed since the last click: compare a fingerprint of what the AI sees.
         const key = doc.rid + ':' + fingerprint(src.data)
@@ -601,7 +602,7 @@ export function selectTools(app: App): Tool[] {
         })
         const m = canvasFromAlpha(r.mask, r.w, r.h)
         const full = canvas(doc.w, doc.h); const fx = ctx2d(full); fx.imageSmoothingQuality = 'high'; fx.drawImage(m, 0, 0, doc.w, doc.h)
-        applySelection(app, full, pts.length > 1 && mode === 'new' ? 'new' : mode, 'Select object')
+        applySelection(app, full, pts.length > 1 && mode === 'new' ? 'new' : mode, tr('Select object'))
         return true
       })
       // A failed or cancelled lookup made no selection, so its point is not an undo step.
@@ -616,23 +617,23 @@ export function selectTools(app: App): Tool[] {
     },
     activate() { objSteps.reset() },
     deactivate() { objSteps.reset() },
-    panel: () => h('div', { class: 'ib' }, sec('Select object'),
-      hint('Click an object to select it. Keep clicking to refine the selection.'),
-      seg<'a' | 'r'>([['a', 'Include part'], ['r', 'Exclude part']], () => (addPart ? 'a' : 'r'), v => (addPart = v === 'a')),
-      jobBox(app), btn('Start over', () => { objSteps.reset(); applySelection(app, null, 'new', 'Deselect') }, 'wide'), ...selectionOps(app))
+    panel: () => h('div', { class: 'ib' }, sec(tr('Select object')),
+      hint(tr('Click an object to select it. Keep clicking to refine the selection.')),
+      seg<'a' | 'r'>([['a', tr('Include part')], ['r', tr('Exclude part')]], () => (addPart ? 'a' : 'r'), v => (addPart = v === 'a')),
+      jobBox(app), btn(tr('Start over'), () => { objSteps.reset(); applySelection(app, null, 'new', tr('Deselect')) }, 'wide'), ...selectionOps(app))
   }
 
   const subject: Tool = {
-    id: 'subject', label: 'Subject', icon: 'person',
-    panel: () => h('div', { class: 'ib' }, sec('Select subject'),
-      hint('Finds the main subject of the photo and selects it.'),
-      h('button', { class: 'pri big wide', onclick: () => selectSubject(app) }, icon('sparkle'), 'Select subject'), jobBox(app), ...selectionOps(app))
+    id: 'subject', label: tx('tool', 'Subject'), icon: 'person',
+    panel: () => h('div', { class: 'ib' }, sec(tr('Select subject')),
+      hint(tr('Finds the main subject of the photo and selects it.')),
+      h('button', { class: 'pri big wide', onclick: () => selectSubject(app) }, icon('sparkle'), tr('Select subject')), jobBox(app), ...selectionOps(app))
   }
 
   return [move,
-    shapeSelTool(app, 'marquee', 'Rectangle', 'rect', 'rect'),
-    shapeSelTool(app, 'ellipse-sel', 'Ellipse', 'ellipse', 'ellipse'),
-    shapeSelTool(app, 'lasso', 'Lasso', 'lasso', 'lasso'),
+    shapeSelTool(app, 'marquee', tr('Rectangle'), 'rect', 'rect'),
+    shapeSelTool(app, 'ellipse-sel', tr('Ellipse'), 'ellipse', 'ellipse'),
+    shapeSelTool(app, 'lasso', tr('Lasso'), 'lasso', 'lasso'),
     polyTool(app), selBrushTool(app), wand, obj, subject]
 }
 
@@ -648,7 +649,7 @@ function polyTool(app: App): Tool {
       x.fillStyle = '#fff'; x.beginPath(); x.moveTo(pts[0], pts[1])
       for (let i = 2; i < pts.length; i += 2) x.lineTo(pts[i], pts[i + 1])
       x.closePath(); x.fill()
-      applySelection(app, m, mode, 'Polygon select')
+      applySelection(app, m, mode, tr('Polygon select'))
     }
     discard()
   }
@@ -659,7 +660,7 @@ function polyTool(app: App): Tool {
     return { x: lx + Math.cos(a) * d, y: ly + Math.sin(a) * d }
   }
   return {
-    id: 'poly', label: 'Polygon', icon: 'persp', steps,
+    id: 'poly', label: tr('Polygon'), icon: 'persp', steps,
     cursor: () => 'crosshair',
     down(p) {
       const q = snap(p)
@@ -687,20 +688,20 @@ function polyTool(app: App): Tool {
       x.strokeStyle = '#000'; x.lineDashOffset = 4 / v.zoom; x.stroke()
       x.restore()
     },
-    panel: () => h('div', { class: 'ib' }, sec('Polygon'), hint('Click to place corners. Click the first corner or double-click to finish. Ctrl+Z or Backspace removes the last corner.'), modeSeg(),
-      slider('Feather', () => sel.feather, v => (sel.feather = v), { min: 0, max: 100, unit: 'px', def: 0 }), ...selectionOps(app))
+    panel: () => h('div', { class: 'ib' }, sec(tr('Polygon')), hint(tr('Click to place corners. Click the first corner or double-click to finish. Ctrl+Z or Backspace removes the last corner.')), modeSeg(),
+      slider(tr('Feather'), () => sel.feather, v => (sel.feather = v), { min: 0, max: 100, unit: 'px', def: 0 }), ...selectionOps(app))
   }
 }
 
 export async function selectSubject(app: App) {
   const doc = app.doc
   if (!doc) return
-  await app.run('Finding the subject', async prog => {
+  await app.run(tr('Finding the subject'), async prog => {
     const src = rgbaOf(doc.comp, 1024)
     const r = await ai(app, 'removeBg', { ...src, model: app.settings.bgModel }, prog)
     const m = canvasFromAlpha(r.mask, r.w, r.h)
     const full = canvas(doc.w, doc.h); const fx = ctx2d(full); fx.imageSmoothingQuality = 'high'; fx.drawImage(m, 0, 0, doc.w, doc.h)
-    applySelection(app, full, 'new', 'Select subject')
+    applySelection(app, full, 'new', tr('Select subject'))
   })
 }
 
@@ -713,14 +714,14 @@ function selBrushTool(app: App): Tool {
   let st: Stroke | null = null
   let tint: HTMLCanvasElement | null = null
   return {
-    id: 'sel-brush', label: 'Brush select', icon: 'brush',
+    id: 'sel-brush', label: tr('Brush select'), icon: 'brush',
     cursor: () => 'none',
     brush: () => ({ getSize: () => bo.size, setSize: v => { bo.size = v }, getOpacity: () => bo.opacity, setOpacity: v => { bo.opacity = v }, opts: bo }),
     down(p) {
       const doc = app.doc!
       const remove = sub !== p.e.altKey
       if (remove && !doc.selection) return
-      st = new Stroke(doc, doc.active || doc.layers[0], remove ? 'sel-sub' : 'sel-add', bo, app.hist!, null, remove ? 'Brush select (subtract)' : 'Brush select')
+      st = new Stroke(doc, doc.active || doc.layers[0], remove ? 'sel-sub' : 'sel-add', bo, app.hist!, null, remove ? tr('Brush select (subtract)') : tr('Brush select'))
       app.stroke = st
       st.begin(p.x, p.y, p.p)
     },
@@ -744,12 +745,12 @@ function selBrushTool(app: App): Tool {
       }
       drawBrushCursor(x, v, bo.size)
     },
-    panel: () => h('div', { class: 'ib' }, sec('Brush select'),
-      hint('Paint over what you want to select. Alt-paint takes away from the selection. [ and ] change the size.'),
-      seg<'a' | 's'>([['a', 'Add'], ['s', 'Subtract']], () => (sub ? 's' : 'a'), v => (sub = v === 's')),
-      slider('Size', () => bo.size, v => { bo.size = v; app.view.draw() }, { min: 1, max: 1000, unit: 'px' }),
-      slider('Hardness', () => Math.round(bo.hardness * 100), v => (bo.hardness = v / 100), { min: 0, max: 100 }),
-      slider('Strength', () => Math.round(bo.opacity * 100), v => (bo.opacity = v / 100), { min: 1, max: 100, unit: '%' }),
+    panel: () => h('div', { class: 'ib' }, sec(tr('Brush select')),
+      hint(tr('Paint over what you want to select. Alt-paint takes away from the selection. [ and ] change the size.')),
+      seg<'a' | 's'>([['a', tr('Add')], ['s', tr('Subtract')]], () => (sub ? 's' : 'a'), v => (sub = v === 's')),
+      slider(tr('Size'), () => bo.size, v => { bo.size = v; app.view.draw() }, { min: 1, max: 1000, unit: 'px' }),
+      slider(tr('Hardness'), () => Math.round(bo.hardness * 100), v => (bo.hardness = v / 100), { min: 0, max: 100 }),
+      slider(tr('Strength'), () => Math.round(bo.opacity * 100), v => (bo.opacity = v / 100), { min: 1, max: 100, unit: '%' }),
       ...selectionOps(app))
   }
 }

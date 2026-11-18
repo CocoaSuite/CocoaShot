@@ -14,6 +14,7 @@ import { adjLayer, autoAdjust } from './adjust'
 import { applySelection } from './select'
 import { native } from '../native'
 import { toolSteps } from '../core/steps'
+import { tr, tx } from '../i18n'
 
 function maskBrush(app: App, size: { v: number }, onDone: (mask: HTMLCanvasElement) => void) {
   let m: HTMLCanvasElement | null = null
@@ -100,24 +101,24 @@ const CATS: Record<string, string[]> = {
 
 export function aiTools(app: App): Tool[] {
   const rm = { size: { v: 50 }, method: 'ai' as 'ai' | 'quick' }
-  const target = () => { const l = targetLayer(app); if (!l) toast('Select an image layer first'); else if (l.locked) { toast(`${l.name} is locked`); return null } return l }
+  const target = () => { const l = targetLayer(app); if (!l) toast(tr('Select an image layer first')); else if (l.locked) { toast(tr('{0} is locked', l.name)); return null } return l }
   const rmBrush = maskBrush(app, rm.size, mask => {
     const l = target()
     if (!l) return
-    app.run('Removing the object', async p => {
-      await inpaintLayer(app, l, mask, rm.method, 'Remove object')
+    app.run(tr('Removing the object'), async p => {
+      await inpaintLayer(app, l, mask, rm.method, tr('Remove object'))
     })
   })
   const remove: Tool = {
-    id: 'ai-remove', label: 'Remove object', icon: 'sparkle',
+    id: 'ai-remove', label: tr('Remove object'), icon: 'sparkle',
     cursor: () => 'none',
     brush: () => ({ getSize: () => rm.size.v, setSize: v => { rm.size.v = v }, minSize: 4, maxSize: 600 }),
     down: p => rmBrush.down(p), move: (p, pr) => rmBrush.move(p, pr), up: () => rmBrush.up(),
     overlay: (x, v) => rmBrush.overlay(x, v),
-    panel: () => h('div', { class: 'ib' }, sec('Remove object'),
-      hint('Paint over anything you want gone. It is removed when you let go, and the area is rebuilt from its surroundings.'),
-      slider('Brush size', () => rm.size.v, v => (rm.size.v = v), { min: 4, max: 600 }),
-      seg([['ai', 'AI, best'], ['quick', 'Quick fill']], () => rm.method, v => (rm.method = v as any), 'Method'),
+    panel: () => h('div', { class: 'ib' }, sec(tr('Remove object')),
+      hint(tr('Paint over anything you want gone. It is removed when you let go, and the area is rebuilt from its surroundings.')),
+      slider(tr('Brush size'), () => rm.size.v, v => (rm.size.v = v), { min: 4, max: 600 }),
+      seg([['ai', tr('AI, best')], ['quick', tr('Quick fill')]], () => rm.method, v => (rm.method = v as any), tr('Method')),
       jobBox(app))
   }
 
@@ -127,57 +128,57 @@ export function aiTools(app: App): Tool[] {
     if (!l) return
     const bb = bboxOfAlpha(alphaOf(mask), mask.width, mask.height)
     const method = bb && Math.max(bb.w, bb.h) > 80 ? 'ai' : 'quick'
-    app.run('Healing', () => inpaintLayer(app, l, mask, method, 'Heal'))
+    app.run(tr('Healing'), () => inpaintLayer(app, l, mask, method, tr('Heal')))
   })
   const cleanup: Tool = {
-    id: 'ai-cleanup', label: 'Cleanup', icon: 'heal',
+    id: 'ai-cleanup', label: tr('Cleanup'), icon: 'heal',
     cursor: () => 'none',
     brush: () => ({ getSize: () => cl.size.v, setSize: v => { cl.size.v = v }, minSize: 2, maxSize: 300 }),
     down: p => healBrush.down(p), move: (p, pr) => healBrush.move(p, pr), up: () => healBrush.up(),
     overlay: (x, v) => healBrush.overlay(x, v),
     panel: () => h('div', { class: 'ib' },
-      sec('Heal'), hint('Paint over dust, spots, scratches or damage to repair them.'),
-      slider('Brush size', () => cl.size.v, v => (cl.size.v = v), { min: 2, max: 300 }),
-      sec('Reduce noise'),
-      slider('Strength', () => cl.noise, v => (cl.noise = v), { min: 1, max: 100, def: 40 }),
+      sec(tr('Heal')), hint(tr('Paint over dust, spots, scratches or damage to repair them.')),
+      slider(tr('Brush size'), () => cl.size.v, v => (cl.size.v = v), { min: 2, max: 300 }),
+      sec(tr('Reduce noise')),
+      slider(tr('Strength'), () => cl.noise, v => (cl.noise = v), { min: 1, max: 100, def: 40 }),
       h('button', {
         class: 'wide', onclick: () => {
           const l = target()
           if (!l) return
           const doc = app.doc!, hist = app.hist!
-          app.run('Reducing noise', async () => {
+          app.run(tr('Reducing noise'), async () => {
             const d = getData(l.canvas!)
             const before = getData(l.canvas!)
             const out: Uint8ClampedArray = await job('denoise', { data: d.data, w: d.width, h: d.height, strength: cl.noise / 100 }, [d.data.buffer])
             putData(l.canvas!, mkID(out, d.width, d.height))
             touch(l)
-            hist.raster('Reduce noise', l, 'canvas', { x: 0, y: 0, w: d.width, h: d.height }, before)
+            hist.raster(tr('Reduce noise'), l, 'canvas', { x: 0, y: 0, w: d.width, h: d.height }, before)
             doc.changed()
           })
         }
-      }, 'Reduce noise'),
+      }, tr('Reduce noise')),
       jobBox(app))
   }
 
   let scale: 2 | 4 = 2
   const upscale: Tool = {
-    id: 'ai-upscale', label: 'Upscale', icon: 'up',
+    id: 'ai-upscale', label: tr('Upscale'), icon: 'up',
     panel() {
       const d = app.doc!
-      return h('div', { class: 'ib' }, sec('AI upscale'),
-        hint('Enlarges the image and rebuilds fine detail. Large images take a while.'),
+      return h('div', { class: 'ib' }, sec(tr('AI upscale')),
+        hint(tr('Enlarges the image and rebuilds fine detail. Large images take a while.')),
         seg([['2', '2×'], ['4', '4×']], () => String(scale) as '2' | '4', v => { scale = +v as 2 | 4; app.emit('panel') }),
-        hint(`${d.w} × ${d.h} px becomes ${d.w * scale} × ${d.h * scale} px.`),
+        hint(tr('{0} × {1} px becomes {2} × {3} px.', d.w, d.h, d.w * scale, d.h * scale)),
         h('button', {
           class: 'pri big wide', disabled: !!app.job, onclick: () => {
             const l = targetLayer(app)
             if (!l) return
-            if (d.w * d.h * scale * scale > 120e6) { toast('The result would be too large. Crop or resize first.'); return }
+            if (d.w * d.h * scale * scale > 120e6) { toast(tr('The result would be too large. Crop or resize first.')); return }
             const hist = app.hist!
-            app.run('Upscaling', async p => {
+            app.run(tr('Upscaling'), async p => {
               const src = rgbaOf(l.canvas!)
               const r = await ai(app, 'upscale', { ...src, scale }, p)
-              p(null, 'Finishing')
+              p(null, tr('Finishing'))
               const W = d.w * scale, H = d.h * scale
               await resizeDoc(d, hist, W, H, 'lanczos')
               const up = canvas(W, H)
@@ -188,26 +189,26 @@ export function aiTools(app: App): Tool[] {
               const before = getData(l.canvas!)
               putData(l.canvas!, getData(up))
               touch(l)
-              hist.raster('Upscale detail', l, 'canvas', { x: 0, y: 0, w: W, h: H }, before)
+              hist.raster(tr('Upscale detail'), l, 'canvas', { x: 0, y: 0, w: W, h: H }, before)
               d.structure()
               app.view.fit()
             })
           }
-        }, icon('sparkle'), 'Upscale'),
+        }, icon('sparkle'), tr('Upscale')),
         jobBox(app))
     }
   }
 
   const en = { color: true, noise: false, sharpen: true }
   const enhance: Tool = {
-    id: 'ai-enhance', label: 'Enhance', icon: 'ai',
-    panel: () => h('div', { class: 'ib' }, sec('Enhance'),
-      hint('Improves exposure, colour and clarity in one step. The colour changes stay adjustable in Adjustments.'),
-      toggle('Exposure and colour', () => en.color, v => (en.color = v)),
-      toggle('Sharpen details', () => en.sharpen, v => (en.sharpen = v)),
-      toggle('Reduce noise', () => en.noise, v => (en.noise = v)),
+    id: 'ai-enhance', label: tr('Enhance'), icon: 'ai',
+    panel: () => h('div', { class: 'ib' }, sec(tr('Enhance')),
+      hint(tr('Improves exposure, colour and clarity in one step. The colour changes stay adjustable in Adjustments.')),
+      toggle(tr('Exposure and colour'), () => en.color, v => (en.color = v)),
+      toggle(tr('Sharpen details'), () => en.sharpen, v => (en.sharpen = v)),
+      toggle(tr('Reduce noise'), () => en.noise, v => (en.noise = v)),
       h('button', {
-        class: 'pri big wide', onclick: () => app.run('Enhancing', async () => {
+        class: 'pri big wide', onclick: () => app.run(tr('Enhancing'), async () => {
           const doc = app.doc!, hist = app.hist!
           if (en.noise) {
             const l = targetLayer(app)
@@ -216,7 +217,7 @@ export function aiTools(app: App): Tool[] {
               const out: Uint8ClampedArray = await job('denoise', { data: d.data, w: d.width, h: d.height, strength: 0.3 }, [d.data.buffer])
               putData(l.canvas, mkID(out, d.width, d.height))
               touch(l)
-              hist.raster('Reduce noise', l, 'canvas', { x: 0, y: 0, w: d.width, h: d.height }, before)
+              hist.raster(tr('Reduce noise'), l, 'canvas', { x: 0, y: 0, w: d.width, h: d.height }, before)
             }
           }
           if (en.color || en.sharpen) {
@@ -226,18 +227,18 @@ export function aiTools(app: App): Tool[] {
             if (!en.color) { auto.levels = [0, 255, 0, 255, 0, 255]; auto.exposure = 0; auto.vibrance = 0; auto.shadows = 0; auto.highlights = 0 }
             if (!en.sharpen) { auto.sharpness = 0; auto.clarity = 0 }
             Object.assign(l.adjust!, auto)
-            hist.structural('Enhance', before)
+            hist.structural(tr('Enhance'), before)
           }
           doc.structure()
         })
-      }, icon('sparkle'), 'Enhance'),
+      }, icon('sparkle'), tr('Enhance')),
       jobBox(app))
   }
 
   let found: { label: string; score: number; box: number[]; on: boolean }[] = []
   const detectSteps = toolSteps(app, () => found.map(f => f.on), v => { v.forEach((on, i) => { if (found[i]) found[i].on = on }) })
   const detect: Tool = {
-    id: 'ai-detect', label: 'Find objects', icon: 'person', steps: detectSteps,
+    id: 'ai-detect', label: tr('Find objects'), icon: 'person', steps: detectSteps,
     activate() { found = []; detectSteps.reset() },
     overlay(x, v) {
       x.save()
@@ -246,7 +247,7 @@ export function aiTools(app: App): Tool[] {
         const a = v.toScreen(f.box[0], f.box[1]), b = v.toScreen(f.box[2], f.box[3])
         x.strokeStyle = f.on ? '#8AA7D9' : 'rgba(255,255,255,.4)'; x.lineWidth = f.on ? 2 : 1
         x.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y)
-        const t = f.label, w = x.measureText(t).width + 10
+        const t = tr(f.label), w = x.measureText(t).width + 10
         x.fillStyle = f.on ? '#8AA7D9' : 'rgba(30,30,30,.8)'; x.fillRect(a.x, a.y - 18, w, 18)
         x.fillStyle = f.on ? '#111' : '#fff'; x.fillText(t, a.x + 5, a.y - 5)
       }
@@ -258,20 +259,20 @@ export function aiTools(app: App): Tool[] {
     },
     panel() {
       const doc = app.doc!
-      const find = () => app.run('Looking for objects', async p => {
+      const find = () => app.run(tr('Looking for objects'), async p => {
         const src = rgbaOf(doc.comp, 1200)
         const s = doc.w / src.w
         const r = await ai(app, 'detect', { ...src, threshold: 0.75 }, p)
         found = r.map((f: any) => ({ ...f, box: f.box.map((v: number) => v * s), on: true }))
         detectSteps.reset()
-        if (!found.length) toast('No objects found')
+        if (!found.length) toast(tr('No objects found'))
         app.view.draw()
       })
       const selectFound = async () => {
         const list = found.filter(f => f.on)
         if (!list.length) return false
         let ok = false
-        await app.run('Selecting', async p => {
+        await app.run(tr('Selecting'), async p => {
           const src = rgbaOf(doc.comp, 1024)
           const s = src.w / doc.w
           samCache.key = ''
@@ -283,29 +284,29 @@ export function aiTools(app: App): Tool[] {
             const r = await ai(app, 'samMask', { box: f.box.map(v => v * s) }, p)
             fx.drawImage(canvasFromAlpha(r.mask, r.w, r.h), 0, 0, doc.w, doc.h)
           }
-          applySelection(app, full, 'new', 'Select objects')
+          applySelection(app, full, 'new', tr('Select objects'))
           ok = true
         })
         return ok
       }
       const pick = (cat: string) => { found.forEach(f => (f.on = cat === 'all' || (CATS[cat] || []).includes(f.label) || (cat === 'Objects' && !Object.values(CATS).flat().includes(f.label)))); app.emit('panel'); app.view.draw() }
       const counts = Object.keys(CATS).concat('Objects').map(c => [c, found.filter(f => (CATS[c] ? CATS[c].includes(f.label) : !Object.values(CATS).flat().includes(f.label))).length] as [string, number])
-      return h('div', { class: 'ib' }, sec('Find objects'),
-        hint('Finds people, animals, vehicles and everyday objects so you can select, highlight or outline them in one click.'),
-        h('button', { class: 'pri big wide', onclick: find }, icon('sparkle'), found.length ? 'Search again' : 'Find objects'),
+      return h('div', { class: 'ib' }, sec(tr('Find objects')),
+        hint(tr('Finds people, animals, vehicles and everyday objects so you can select, highlight or outline them in one click.')),
+        h('button', { class: 'pri big wide', onclick: find }, icon('sparkle'), found.length ? tr('Search again') : tr('Find objects')),
         jobBox(app),
-        found.length > 0 && sec(`${found.length} found`),
-        found.length > 0 && h('div', { class: 'g2' }, btn('All', () => pick('all')), ...counts.filter(c => c[1]).map(([c, n]) => btn(`${c} (${n})`, () => pick(c)))),
-        found.length > 0 && hint('Click a box on the image to include or leave it out.'),
+        found.length > 0 && sec(tr('{0} found', found.length)),
+        found.length > 0 && h('div', { class: 'g2' }, btn(tr('All'), () => pick('all')), ...counts.filter(c => c[1]).map(([c, n]) => btn(tr('{0} ({1})', tr(c), n), () => pick(c)))),
+        found.length > 0 && hint(tr('Click a box on the image to include or leave it out.')),
         found.length > 0 && h('div', { class: 'g2' },
-          h('button', { class: 'pri', onclick: () => selectFound() }, 'Select'),
-          btn('Highlight', async () => { if (await selectFound()) app.setTool('highlight'); toast('Selected. Use Highlight the selection.') }),
-          btn('Outline', async () => { if (await selectFound()) app.setTool('outline'); toast('Selected. Use Outline selection.') }),
-          btn('Remove background', async () => {
+          h('button', { class: 'pri', onclick: () => selectFound() }, tx('verb', 'Select')),
+          btn(tx('verb', 'Highlight'), async () => { if (await selectFound()) app.setTool('highlight'); toast(tr('Selected. Use Highlight the selection.')) }),
+          btn(tx('verb', 'Outline'), async () => { if (await selectFound()) app.setTool('outline'); toast(tr('Selected. Use Outline selection.')) }),
+          btn(tr('Remove background'), async () => {
             if (!(await selectFound())) return
             const l = targetLayer(app)
             if (!l || !doc.selection) return
-            await app.hist!.op('Keep selected objects', () => { l.mask = canvas(doc.w, doc.h); l.maskOff = false; ctx2d(l.mask).drawImage(doc.selection!, 0, 0); l.maskAI = canvas(doc.w, doc.h); ctx2d(l.maskAI).drawImage(doc.selection!, 0, 0); touch(l); l.maskDirty = true })
+            await app.hist!.op(tr('Keep selected objects'), () => { l.mask = canvas(doc.w, doc.h); l.maskOff = false; ctx2d(l.mask).drawImage(doc.selection!, 0, 0); l.maskAI = canvas(doc.w, doc.h); ctx2d(l.maskAI).drawImage(doc.selection!, 0, 0); touch(l); l.maskDirty = true })
           })))
     }
   }

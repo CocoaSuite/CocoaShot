@@ -1,5 +1,6 @@
 import type { App } from '../app'
 import { h } from './dom'
+import { lang, tr, type Lang } from '../i18n'
 
 /**
  * First launch: "hello" is written in one stroke over the blurred app, with the CocoaSuite hello sound,
@@ -16,19 +17,6 @@ const wait = (ms: number) => new Promise(r => setTimeout(r, RM() ? 0 : ms))
 const HELLO: Record<Lang, { vb: string; d: string }> = {
   en: { vb: '0 0 360 180', d: 'M14 132 C 34 112, 64 60, 64 34 C 64 14, 46 14, 41 38 C 36 68, 36 116, 34 148 C 41 114, 56 94, 74 94 C 91 94, 91 114, 89 134 C 88 149, 96 151, 108 144 C 121 137, 141 124, 141 109 C 141 97, 124 97, 118 111 C 111 129, 121 151, 141 149 C 161 147, 176 129, 186 109 C 201 79, 211 44, 206 29 C 201 17, 186 24, 184 54 C 182 89, 184 129, 196 147 C 206 157, 221 144, 231 124 C 246 89, 254 49, 248 29 C 242 17, 228 24, 227 54 C 225 89, 227 129, 239 147 C 249 157, 264 147, 274 131 C 281 111, 296 99, 311 101 C 331 104, 331 144, 308 149 C 288 153, 281 127, 296 109 C 304 101, 318 99, 334 104' },
   ru: { vb: '0 0 450 210', d: 'M10 142 C 18 124, 26 106, 32 96 C 31 116, 29 134, 28 150 C 33 122, 44 96, 58 96 C 72 96, 70 122, 69 150 C 74 132, 84 112, 94 96 C 93 130, 91 165, 89 192 C 88 160, 91 122, 101 106 C 111 94, 128 96, 128 116 C 128 140, 106 150, 96 138 C 108 146, 124 136, 134 116 C 137 108, 139 101, 141 96 C 139 120, 135 150, 151 150 C 167 150, 177 120, 183 96 C 181 120, 177 150, 193 150 C 203 150, 210 138, 216 122 C 222 102, 232 64, 228 44 C 224 26, 206 34, 208 64 C 210 94, 212 124, 216 146 C 222 156, 244 154, 248 136 C 251 122, 240 116, 228 120 C 244 114, 252 104, 248 94 C 244 84, 226 92, 218 104 C 232 128, 250 134, 264 128 C 282 122, 290 110, 288 102 C 286 92, 268 94, 263 110 C 257 128, 266 150, 284 150 C 298 150, 306 136, 312 120 C 316 108, 320 100, 324 96 C 322 118, 320 136, 319 150 C 323 122, 332 96, 344 96 C 356 96, 356 122, 354 150 C 358 122, 368 96, 380 96 C 392 96, 392 122, 390 150 C 394 152, 404 146, 412 132' }
-}
-
-type Lang = 'en' | 'ru'
-/**
- * Languages the interface is translated into. The greeting follows the computer's language among these,
- * so adding 'ru' here (with the Russian interface) makes it write «Привет» on Russian systems.
- */
-export const UI_LANGS: Lang[] = ['en']
-/** The language to greet in: the first of the system's preferred languages that CocoaShot speaks, else English. */
-export function uiLang(): Lang {
-  const prefs = [...(navigator.languages || []), navigator.language].filter(Boolean)
-  for (const l of prefs) { const k = l.slice(0, 2).toLowerCase() as Lang; if (UI_LANGS.includes(k)) return k }
-  return 'en'
 }
 
 const A = 'var(--brand)'
@@ -55,12 +43,12 @@ const ILL: Record<string, string> = {
 
 type Step = { ill: string; title: string; text: string; at?: string }
 const STEPS: Step[] = [
-  { ill: 'tools', at: '#left #tools', title: 'Tools, grouped by task', text: 'Pick what you want to do, like Background or Crop & Resize, then the tool under it. Keys work too: B brush, M select, C crop, T text.' },
-  { ill: 'canvas', at: '#desk', title: 'Your image', text: 'Drop an image here or paste one. Hold Space and drag to move around, Ctrl and scroll to zoom, and Ctrl+Z steps back.' },
-  { ill: 'props', at: '#right', title: 'Everything the tool can do', text: 'The selected tool’s settings appear here. History, next to Properties, takes you back to any step.' },
-  { ill: 'layers', at: '#layersBox', title: 'Layers', text: 'Edits can live on their own layers. Drag to reorder, Ctrl- or Shift-click to pick several, and right-click for more.' },
-  { ill: 'save', at: '#top .topc, #top > .pri', title: 'Save and export', text: 'Save project keeps layers, masks and text editable. Export makes a PNG, JPG, PDF, PSD and more. Everything stays on this computer.' },
-  { ill: 'styles', title: 'Make it yours', text: 'This is the Classic layout. Prefer something familiar? Switch to Photoshop style or SAI style now, or any time in Settings, General.' }
+  { ill: 'tools', at: '#left #tools', title: tr('Tools, grouped by task'), text: tr('Pick what you want to do, like Background or Crop & Resize, then the tool under it. Keys work too: B brush, M select, C crop, T text.') },
+  { ill: 'canvas', at: '#desk', title: tr('Your image'), text: tr('Drop an image here or paste one. Hold Space and drag to move around, Ctrl and scroll to zoom, and Ctrl+Z steps back.') },
+  { ill: 'props', at: '#right', title: tr('Everything the tool can do'), text: tr('The selected tool’s settings appear here. History, next to Properties, takes you back to any step.') },
+  { ill: 'layers', at: '#layersBox', title: tr('Layers'), text: tr('Edits can live on their own layers. Drag to reorder, Ctrl- or Shift-click to pick several, and right-click for more.') },
+  { ill: 'save', at: '#top .topc, #top > .pri', title: tr('Save and export'), text: tr('Save project keeps layers, masks and text editable. Export makes a PNG, JPG, PDF, PSD and more. Everything stays on this computer.') },
+  { ill: 'styles', title: tr('Make it yours'), text: tr('This is the Classic layout. Prefer something familiar? Switch to Photoshop style or SAI style now, or any time in Settings, General.') }
 ]
 
 let running = false
@@ -75,10 +63,11 @@ export function onboard(app: App): Promise<void> {
     let picked: string | null = null
     const setStyle = (s: string) => { if ((app.settings.uiStyle || 'classic') === s) return; app.settings.uiStyle = s as any; app.saveSettings(); app.emit('style') }
 
-    const O = h('div', { id: 'onb', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Welcome to CocoaShot' })
-    const W = HELLO[uiLang()]
-    O.innerHTML = `<div class="onbHi" hidden></div><div class="onbH"><svg viewBox="${W.vb}" aria-hidden="true"><path d="${W.d}"/></svg><div class="onbTap">Click or press any key</div></div>
-      <div class="onbC" hidden><div class="onbS"><div class="onbIll"><svg viewBox="0 0 240 120"></svg></div><h3></h3><p></p><div class="onbSt" hidden></div></div><div class="onbD">${STEPS.map(() => '<i></i>').join('')}</div><div class="onbR"><button class="onbSk">Skip</button><span class="sp"></span><button class="onbBk">Back</button><button class="pri onbNx"></button></div></div>`
+    const O = h('div', { id: 'onb', role: 'dialog', 'aria-modal': 'true', 'aria-label': tr('Welcome to CocoaShot') })
+    // The greeting is in the interface's language, which on a first launch is the computer's own.
+    const W = HELLO[lang]
+    O.innerHTML = `<div class="onbHi" hidden></div><div class="onbH"><svg viewBox="${W.vb}" aria-hidden="true"><path d="${W.d}"/></svg><div class="onbTap">${tr('Click or press any key')}</div></div>
+      <div class="onbC" hidden><div class="onbS"><div class="onbIll"><svg viewBox="0 0 240 120"></svg></div><h3></h3><p></p><div class="onbSt" hidden></div></div><div class="onbD">${STEPS.map(() => '<i></i>').join('')}</div><div class="onbR"><button class="onbSk">${tr('Skip')}</button><span class="sp"></span><button class="onbBk">${tr('Back')}</button><button class="pri onbNx"></button></div></div>`
     document.body.appendChild(O)
     const H = O.querySelector('.onbH') as HTMLElement, P = H.querySelector('path') as SVGPathElement
     const C = O.querySelector('.onbC') as HTMLElement, SS = C.querySelector('.onbS') as HTMLElement
@@ -162,14 +151,14 @@ export function onboard(app: App): Promise<void> {
         if (!ST.hidden) {
           ST.innerHTML = ''
           const cur = picked || 'classic'
-          for (const [v, t] of [['classic', 'Classic'], ['ps', 'Photoshop style'], ['sai', 'SAI style']] as const) {
+          for (const [v, t] of [['classic', tr('Classic')], ['ps', tr('Photoshop style')], ['sai', tr('SAI style')]] as const) {
             const b = h('button', { class: v === cur ? 'on' : '', onclick: () => { picked = v; ST.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)) } }, t)
             ST.appendChild(b)
           }
         }
         C.querySelectorAll('.onbD i').forEach((d, k) => d.classList.toggle('on', k === n))
         ;(C.querySelector('.onbBk') as HTMLElement).style.visibility = n ? 'visible' : 'hidden'
-        C.querySelector('.onbNx')!.textContent = n === STEPS.length - 1 ? 'Start editing' : 'Next'
+        C.querySelector('.onbNx')!.textContent = n === STEPS.length - 1 ? tr('Start editing') : tr('Next')
         point(st)
       }
       if (i < 0 || RM()) { fill(); i = n; return }

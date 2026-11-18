@@ -4,6 +4,7 @@ import { readPsd } from 'ag-psd'
 import { Blend, cloneAdjust, Doc, Layer, makeLayer, normalizeTree, normFx } from './doc'
 import { blendFromPsd, decodeHeic, decodeSvg, decodeTga, encodeAvif, encodeIco, encodePdf, encodePsd } from './formats'
 import { canvas, ctx2d, getData, putData, mkID } from './util'
+import { tr } from '../i18n'
 
 export const IMAGE_EXT = /\.(png|jpe?g|jfif|webp|avif|heic|heif|bmp|tiff?|gif|psd|svg|ico|cur|tga)$/i
 
@@ -17,7 +18,7 @@ export async function decodeImage(name: string, data: ArrayBuffer): Promise<{ ca
   if (ext === 'tga') return { canvas: decodeTga(data) }
   if (ext === 'tif' || ext === 'tiff') {
     const ifds = UTIF.decode(data)
-    if (!ifds.length) throw new Error('This TIFF file has no images')
+    if (!ifds.length) throw new Error(tr('This TIFF file has no images'))
     UTIF.decodeImage(data, ifds[0])
     const rgba = UTIF.toRGBA8(ifds[0])
     const w = ifds[0].width, h = ifds[0].height
@@ -33,7 +34,7 @@ export async function decodeImage(name: string, data: ArrayBuffer): Promise<{ ca
     // ag-psd lists layers bottom to top. Parent links are enough: the document puts each folder above its contents.
     const walk = (ch: any[] | undefined, parent: number | null) => {
       for (const l of ch || []) {
-        const common = { name: l.name || 'Layer', opacity: l.opacity ?? 1, visible: !l.hidden, blend: blendFromPsd(l.blendMode), clip: !!l.clipping, parent }
+        const common = { name: l.name || tr('Layer'), opacity: l.opacity ?? 1, visible: !l.hidden, blend: blendFromPsd(l.blendMode), clip: !!l.clipping, parent }
         if (l.children) {
           const at = layers.length
           layers.push({ ...common, canvas: null, folder: true, open: !!l.opened })
@@ -57,15 +58,15 @@ export async function decodeImage(name: string, data: ArrayBuffer): Promise<{ ca
 }
 
 export type ExportFormat = 'png' | 'jpg' | 'webp' | 'avif' | 'tiff' | 'bmp' | 'psd' | 'pdf' | 'ico'
-export const FORMATS: [ExportFormat, string][] = [['png', 'PNG'], ['jpg', 'JPG'], ['webp', 'WEBP'], ['avif', 'AVIF'], ['tiff', 'TIFF'], ['bmp', 'BMP'], ['psd', 'PSD (layers)'], ['pdf', 'PDF'], ['ico', 'ICO (icon)']]
+export const FORMATS: [ExportFormat, string][] = [['png', 'PNG'], ['jpg', 'JPG'], ['webp', 'WEBP'], ['avif', 'AVIF'], ['tiff', 'TIFF'], ['bmp', 'BMP'], ['psd', tr('PSD (layers)')], ['pdf', 'PDF'], ['ico', tr('ICO (icon)')]]
 export const EXT: Record<ExportFormat, string> = { png: 'png', jpg: 'jpg', webp: 'webp', avif: 'avif', tiff: 'tif', bmp: 'bmp', psd: 'psd', pdf: 'pdf', ico: 'ico' }
 export interface ExportOpts { format: ExportFormat; quality: number; w: number; h: number; transparent: boolean; matte: string; srgb: boolean; maxCompress: boolean }
 
-const blob = (c: HTMLCanvasElement, type: string, q?: number) => new Promise<Blob>((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('Encoding failed'))), type, q))
+const blob = (c: HTMLCanvasElement, type: string, q?: number) => new Promise<Blob>((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error(tr('Encoding failed')))), type, q))
 
 /** Encodes an export. PSD needs the document (it keeps layers); everything else uses the flattened image c. */
 export async function encode(c: HTMLCanvasElement, o: ExportOpts, doc?: Doc): Promise<Uint8Array> {
-  if (o.format === 'psd') { if (!doc) throw new Error('Nothing to export'); return encodePsd(doc, o.w, o.h) }
+  if (o.format === 'psd') { if (!doc) throw new Error(tr('Nothing to export')); return encodePsd(doc, o.w, o.h) }
   if (o.format === 'pdf') return encodePdf(c, o.quality, o.transparent)
   let src = c
   const flat = !o.transparent || o.format === 'jpg'
@@ -184,9 +185,9 @@ export async function saveProject(doc: Doc): Promise<Uint8Array> {
 
 export async function loadProject(data: ArrayBuffer, fileName: string): Promise<Doc> {
   const z = unzipSync(new Uint8Array(data))
-  if (!z['project.json']) throw new Error('This is not a CocoaShot project')
+  if (!z['project.json']) throw new Error(tr('This is not a CocoaShot project'))
   const p = JSON.parse(strFromU8(z['project.json']))
-  if (!Array.isArray(p.layers) || !z['original.png']) throw new Error('This project is damaged')
+  if (!Array.isArray(p.layers) || !z['original.png']) throw new Error(tr('This project is damaged'))
   const orig = await fromPng(z['original.png'])
   const doc = new Doc(orig, p.name || fileName.replace(/\.cocoashot$/i, ''))
   doc.w = p.w; doc.h = p.h
@@ -207,7 +208,7 @@ export async function loadProject(data: ArrayBuffer, fileName: string): Promise<
     doc.layers.push(l)
   }
   normalizeTree(doc)
-  if (!doc.layers.length) throw new Error('This project has no layers')
+  if (!doc.layers.length) throw new Error(tr('This project has no layers'))
   if (z['selection.png']) doc.selection = await fromPng(z['selection.png'])
   doc.activeId = doc.layer(p.active) ? p.active : doc.layers[doc.layers.length - 1].id
   doc.modified = false

@@ -2,6 +2,7 @@ import { Doc, Layer } from './doc'
 import { History } from './history'
 import { StrokePreview, touch, touchMask } from './compose'
 import { canvas, copyCanvas, ctx2d, getData, putData, Rect, rectClip, rectUnion } from './util'
+import { tr } from '../i18n'
 
 export type BrushMode = 'paint' | 'erase' | 'clone' | 'blur' | 'sharpen' | 'smudge' | 'mask-keep' | 'mask-remove' | 'mask-restore' | 'sel-add' | 'sel-sub'
 
@@ -67,7 +68,7 @@ export class Stroke {
   rem = 0
   cloneOff: { x: number; y: number } | null = null
 
-  constructor(public doc: Doc, public layer: Layer, public mode: BrushMode, public o: BrushOpts, public hist: History, cloneSrc?: { x: number; y: number } | null, public label = 'Brush', public cloneImg: HTMLCanvasElement | null = null) {
+  constructor(public doc: Doc, public layer: Layer, public mode: BrushMode, public o: BrushOpts, public hist: History, cloneSrc?: { x: number; y: number } | null, public label = tr('Brush'), public cloneImg: HTMLCanvasElement | null = null) {
     if (mode.startsWith('mask')) {
       if (!layer.mask) { layer.mask = canvas(doc.w, doc.h); const x = ctx2d(layer.mask); x.fillStyle = '#fff'; x.fillRect(0, 0, doc.w, doc.h) }
       this.target = layer.mask

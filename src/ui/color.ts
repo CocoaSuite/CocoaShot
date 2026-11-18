@@ -1,5 +1,6 @@
 import { h, icon, tip } from './dom'
 import { clamp, hex2rgb, rgb2hex } from '../core/util'
+import { tr } from '../i18n'
 
 export function rgb2hsv(r: number, g: number, b: number) {
   r /= 255; g /= 255; b /= 255
@@ -87,7 +88,7 @@ export function colorWheel(st: ColorState, onChange: (s: ColorState, final: bool
   cv.addEventListener('pointermove', e => { if (cv.hasPointerCapture(e.pointerId)) handle(e) })
   cv.addEventListener('pointerup', e => { if (cv.hasPointerCapture(e.pointerId)) { handle(e, true); mode = null; pushRecent(st.hex); drawChips() } })
 
-  const hexIn = h('input', { type: 'text', value: st.hex, style: { width: '86px', fontVariantNumeric: 'tabular-nums' }, 'aria-label': 'Hex colour' }) as HTMLInputElement
+  const hexIn = h('input', { type: 'text', value: st.hex, style: { width: '86px', fontVariantNumeric: 'tabular-nums' }, 'aria-label': tr('Hex colour') }) as HTMLInputElement
   const nums = [0, 1, 2].map(i => h('input', { type: 'number', min: 0, max: 255, 'aria-label': 'RGB'[i] }) as HTMLInputElement)
   const syncFields = () => {
     hexIn.value = st.hex
@@ -106,7 +107,7 @@ export function colorWheel(st: ColorState, onChange: (s: ColorState, final: bool
   let abar: HTMLDivElement | null = null
   const knob = h('i')
   if (opts.alpha) {
-    abar = h('div', { class: 'alphabar', role: 'slider', 'aria-label': 'Opacity' }, knob)
+    abar = h('div', { class: 'alphabar', role: 'slider', 'aria-label': tr('Opacity') }, knob)
     const ah = (e: PointerEvent, fin: boolean) => {
       const b = abar!.getBoundingClientRect()
       st.alpha = clamp((e.clientX - b.left) / b.width, 0, 1)
@@ -133,7 +134,7 @@ export function colorWheel(st: ColorState, onChange: (s: ColorState, final: bool
     h('div', { style: { display: 'flex', justifyContent: 'center' } }, cv),
     abar,
     h('div', { class: 'cwrow' }, hexIn, ...nums,
-      opts.pick && tip(h('button', { class: 'ic', onclick: opts.pick }, icon('dropper')), 'Pick a colour from the image')),
+      opts.pick && tip(h('button', { class: 'ic', onclick: opts.pick }, icon('dropper')), tr('Pick a colour from the image'))),
     chips)
   ;(el as any).set = (hx: string) => { st.hex = hx; [hh, s, v] = rgb2hsv(...(hex2rgb(hx) as [number, number, number])); draw(); syncFields() }
   return el

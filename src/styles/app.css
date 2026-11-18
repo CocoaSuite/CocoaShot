@@ -8,7 +8,7 @@
 [hidden]{display:none!important}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--fg);font:13px/1.4 var(--sans);overflow:hidden;user-select:none;-webkit-user-select:none}
-#app{height:100%;display:grid;grid-template-rows:42px minmax(0,1fr) 26px}
+#app{height:100%;display:grid;grid-template-rows:42px minmax(0,1fr) 26px;grid-template-columns:minmax(0,1fr)}
 button,input,select,textarea{font:inherit;color:inherit}
 button{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;transition:border-color .12s,background .12s}
 button:hover{border-color:var(--mute)}
@@ -51,6 +51,16 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .status{color:var(--mute);font-size:12px;display:flex;align-items:center;gap:6px;white-space:nowrap}
 .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block;flex:none}
 .dot.busy{background:var(--warn)}
+/* The top bar never wraps: when the window is too narrow, the name shrinks first, then the shortcut icons
+   that repeat menu items give way, least used first, then the menus close up and the name shrinks (autoFit in dom.ts). The options
+   bars of the Photoshop and SAI layouts do the same with their hints and less used controls. */
+#top>*{flex-shrink:0}
+#top>.dname{min-width:44px}
+#top.fit6>.dname{flex-shrink:1}
+.topc{display:flex;align-items:center}
+#top.fit5 .mt{padding:4px 5px}
+#opts>*,#saibar>*{flex-shrink:0}
+.fit1 [data-fit="1"],.fit2 [data-fit="2"],.fit3 [data-fit="3"],.fit4 [data-fit="4"],.fit5 [data-fit="5"],.fit6 [data-fit="6"],.fit7 [data-fit="7"],.fit8 [data-fit="8"]{display:none!important}
 .zoom{min-width:48px;text-align:center;color:var(--mute);font-variant-numeric:tabular-nums;background:none;border:0;padding:4px 2px;justify-content:center}
 
 #mid{display:grid;grid-template-columns:var(--lw,220px) 4px minmax(0,1fr) 4px var(--rw,288px);min-height:0}
@@ -108,7 +118,8 @@ aside{background:var(--panel);min-height:0;min-width:0;overflow:hidden;display:f
 .sec:first-child{border-top:0;padding-top:0;margin-top:0}
 .sec button{text-transform:none;letter-spacing:0;font-size:12px;padding:2px 8px}
 .seg{display:flex;gap:3px;flex:1;flex-wrap:wrap}
-.seg button{flex:1;padding:5px 4px;justify-content:center;background:none;border-color:transparent;font-size:12px;min-width:0}
+/* Equal widths while the words fit; a word never gets cut, the row wraps instead. */
+.seg button{flex:1;padding:5px 4px;justify-content:center;background:none;border-color:transparent;font-size:12px;min-width:max-content}
 .seg button:hover{background:var(--panel2)}
 .seg button.on{background:var(--selbg);border-color:var(--selbd)}
 .iconpick{display:flex;gap:8px;flex:1}
@@ -117,7 +128,7 @@ aside{background:var(--panel);min-height:0;min-width:0;overflow:hidden;display:f
 .iconpick button.on{background:var(--selbg);border-color:var(--selbd)}
 .iconpick .art{display:block;width:44px;height:44px}
 .iconpick .art svg{display:block;width:100%;height:100%}
-.sl{display:grid;grid-template-columns:82px minmax(0,1fr) 46px;align-items:center;gap:8px;font-size:12px}
+.sl{display:grid;grid-template-columns:82px minmax(0,1fr) 50px;align-items:center;gap:8px;font-size:12px}
 .sl label{color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sl label.rs{cursor:pointer}
 .sl label.rs:hover{color:var(--fg)}
@@ -130,9 +141,11 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.2)}
 .fr{display:flex;align-items:center;gap:8px;font-size:12px}
 .fr>label:first-child{flex:0 0 82px;color:var(--mute)}
 .fr>.grow{flex:1;min-width:0}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+/* Columns stay equal: a long label wraps inside its button instead of pushing the grid past the panel. */
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.g2 button,.g3 button{min-width:0;white-space:normal;text-align:center}
 .g2 button{justify-content:center}
-.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .chkl{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px}
 .sw{position:relative;width:34px;height:20px;flex:none}
 .sw input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
@@ -205,6 +218,15 @@ input[type=range]:active::-webkit-slider-thumb{transform:scale(1.2)}
 .rec button:hover{background:var(--panel2)}
 .textedit{position:absolute;z-index:6;background:transparent;border:1px dashed var(--sel);outline:0;resize:none;overflow:hidden;padding:0;margin:0;white-space:pre;line-height:1.25}
 #layersBox .sl{grid-template-columns:48px minmax(0,1fr) 50px}
+/* Russian labels run longer than English ones: wider label columns, so none is cut short. */
+:lang(ru) .sl{grid-template-columns:100px minmax(0,1fr) 50px}
+:lang(ru) .fr>label:first-child{flex:0 0 auto;min-width:64px;white-space:nowrap}
+:lang(ru) #layersBox .sl{grid-template-columns:58px minmax(0,1fr) 50px}
+:lang(ru) .srow{grid-template-columns:auto minmax(0,1fr) 48px}
+:lang(ru) .seg button{padding-left:2px;padding-right:2px}
+:lang(ru) .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+:lang(ru) .tile{padding:0 2px}
+:lang(ru).ui-sai .fr>label:first-child{min-width:56px}
 
 .lvg{width:100%;height:75px;display:block;background:var(--panel2);border:1px solid var(--line);border-radius:6px}
 .notes{margin:0;max-height:220px;overflow:auto;white-space:pre-wrap;font:12px/1.5 var(--sans);color:var(--mute);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
@@ -330,6 +352,7 @@ input.val{text-align:right}
 .sb.on{background:var(--selbg);border-color:var(--selbd)}
 .sb svg.i{width:14px;height:14px}
 #saibar .sep{height:16px}
+#saibar .sgrp{display:flex;align-items:center;gap:3px}
 #saibar .ck{display:flex;align-items:center;gap:5px;font-size:11px;margin:0 2px}
 #saibar .ofld{font-size:11px}
 #saibar select{height:20px;font-size:11px;padding:0 4px}

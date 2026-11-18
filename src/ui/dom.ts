@@ -1,3 +1,4 @@
+import { tr, trMessage } from '../i18n'
 type Attrs = Record<string, any>
 type Child = Node | string | number | null | undefined | false | Child[]
 
@@ -150,7 +151,23 @@ export function tip<T extends HTMLElement>(el: T, text: string): T {
   return el
 }
 
+/**
+ * Keeps a one-line bar from overflowing: while its content is wider than the bar, parts marked
+ * data-fit="1", then "2" and so on are hidden (the bar gets fit1, fit2 … classes; see app.css).
+ * Returns a function to call again when the content changes.
+ */
+export function autoFit(bar: HTMLElement, levels: number) {
+  const fit = () => {
+    for (let i = 1; i <= levels; i++) bar.classList.remove('fit' + i)
+    for (let i = 1; i <= levels && bar.scrollWidth > bar.clientWidth + 1; i++) bar.classList.add('fit' + i)
+  }
+  new ResizeObserver(fit).observe(bar)
+  return fit
+}
+
 export function toast(msg: string, opts: { err?: boolean; action?: string; onAction?: () => void; ms?: number } = {}) {
+  // Messages from errors and the desktop app's own process arrive in English.
+  msg = trMessage(msg)
   let box = document.getElementById('toasts')
   if (!box) { box = h('div', { id: 'toasts' }); document.body.appendChild(box) }
   for (const el of box.children) if ((el.firstChild as HTMLElement)?.textContent === msg) el.remove()
@@ -189,7 +206,7 @@ export function modal(build: (close: () => void) => HTMLElement, wide = false, o
   return close
 }
 
-export function confirmBox(title: string, text: string, yes: string, no = 'Cancel', extra?: string): Promise<'yes' | 'no' | 'extra'> {
+export function confirmBox(title: string, text: string, yes: string, no = tr('Cancel'), extra?: string): Promise<'yes' | 'no' | 'extra'> {
   return new Promise(res => {
     let v: 'yes' | 'no' | 'extra' = 'no'
     modal(close => h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },

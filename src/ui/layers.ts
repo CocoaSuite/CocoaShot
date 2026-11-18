@@ -5,6 +5,7 @@ import { canvas, copyCanvas, ctx2d, uid } from '../core/util'
 import { h, icon, tip, toast } from './dom'
 import { select, slider, toggle } from './controls'
 import { BLENDS } from '../tools/paint'
+import { tr, tx } from '../i18n'
 
 const KIND_ICON: Record<string, string> = { text: 'text', shape: 'shape', adjust: 'sliders', outline: 'outline', group: 'folder' }
 
@@ -13,15 +14,15 @@ export function layersPanel(app: App, box: HTMLElement) {
   const opac = h('div', { class: 'lopac' })
   const btns = () => {
     const doc = app.doc
-    const del = tip(h('button', { class: 'ic', onclick: () => removeLayer(app) }, icon('trash')), 'Delete layer')
+    const del = tip(h('button', { class: 'ic', onclick: () => removeLayer(app) }, icon('trash')), tr('Delete layer'))
     del.toggleAttribute('disabled', !doc || doc.layers.length < 2)
-    const fx = tip(h('button', { class: 'ic', onclick: () => app.setTool('effects') }, icon('fx')), 'Layer effects')
+    const fx = tip(h('button', { class: 'ic', onclick: () => app.setTool('effects') }, icon('fx')), tr('Layer effects'))
     fx.toggleAttribute('disabled', !doc?.active?.canvas)
-    return [tip(h('button', { class: 'ic', onclick: () => newLayer(app) }, icon('plus')), 'New paint layer'),
-      tip(h('button', { class: 'ic', onclick: () => newFolder(app) }, icon('folder')), 'New folder'),
-      tip(h('button', { class: 'ic', onclick: () => newAdjust(app) }, icon('sliders')), 'New adjustment layer'), fx,
-      tip(h('button', { class: 'ic', onclick: () => app.setTool('alpha') }, icon('alpha')), 'Edit layer alpha'),
-      tip(h('button', { class: 'ic', onclick: () => duplicate(app) }, icon('copy')), 'Duplicate layer'), del]
+    return [tip(h('button', { class: 'ic', onclick: () => newLayer(app) }, icon('plus')), tr('New paint layer')),
+      tip(h('button', { class: 'ic', onclick: () => newFolder(app) }, icon('folder')), tr('New folder')),
+      tip(h('button', { class: 'ic', onclick: () => newAdjust(app) }, icon('sliders')), tr('New adjustment layer')), fx,
+      tip(h('button', { class: 'ic', onclick: () => app.setTool('alpha') }, icon('alpha')), tr('Edit layer alpha')),
+      tip(h('button', { class: 'ic', onclick: () => duplicate(app) }, icon('copy')), tr('Duplicate layer')), del]
   }
   const controls = () => {
     const a = app.doc?.active
@@ -29,19 +30,19 @@ export function layersPanel(app: App, box: HTMLElement) {
     const ch = (label: string, fn: () => void) => app.hist!.op(label, fn)
     let snap: any = null
     return h('div', { class: 'lctl' },
-      select('Mode', BLENDS, () => a.blend, v => ch('Blend mode', () => { a.blend = v })),
-      slider('Opacity', () => Math.round(a.opacity * 100), v => { if (!snap) snap = snapshot(app.doc!); a.opacity = v / 100; app.doc!.changed() }, { min: 0, max: 100, onEnd: () => { if (snap) { app.hist!.structural('Layer opacity', snap); snap = null } } }),
+      select(tr('Mode'), BLENDS, () => a.blend, v => ch(tr('Blend mode'), () => { a.blend = v })),
+      slider(tx('short', 'Opacity'), () => Math.round(a.opacity * 100), v => { if (!snap) snap = snapshot(app.doc!); a.opacity = v / 100; app.doc!.changed() }, { min: 0, max: 100, onEnd: () => { if (snap) { app.hist!.structural(tr('Layer opacity'), snap); snap = null } } }),
       a.canvas ? h('div', { class: 'lchk' },
-        toggle('Lock transparency', () => a.alphaLock, v => ch(v ? 'Lock transparency' : 'Unlock transparency', () => { a.alphaLock = v })),
-        toggle('Clip to layer below', () => a.clip, v => ch(v ? 'Clip to layer below' : 'Release clipping', () => { a.clip = v })),
-        toggle('Lock layer', () => a.locked, v => ch(v ? 'Lock layer' : 'Unlock layer', () => { a.locked = v }))) : null)
+        toggle(tr('Lock transparency'), () => a.alphaLock, v => ch(v ? tr('Lock transparency') : tr('Unlock transparency'), () => { a.alphaLock = v })),
+        toggle(tr('Clip to layer below'), () => a.clip, v => ch(v ? tr('Clip to layer below') : tr('Release clipping'), () => { a.clip = v })),
+        toggle(tr('Lock layer'), () => a.locked, v => ch(v ? tr('Lock layer') : tr('Unlock layer'), () => { a.locked = v }))) : null)
   }
   const arrange = () => {
     const st = app.settings.uiStyle
     box.innerHTML = ''
-    if (st === 'classic') box.append(h('div', { class: 'ph' }, h('span', 'Layers'), h('span', { style: { display: 'flex', gap: '1px' } }, ...btns())), list, opac)
-    else if (st === 'ps') box.append(h('div', { class: 'ph' }, h('span', 'Layers')), controls() || '', list, h('div', { class: 'lbar' }, ...btns()))
-    else box.append(h('div', { class: 'pt' }, h('span', 'Layers')), h('div', { class: 'pb' }, controls() || '', h('div', { class: 'lbar' }, ...btns())), list)
+    if (st === 'classic') box.append(h('div', { class: 'ph' }, h('span', tr('Layers')), h('span', { style: { display: 'flex', gap: '1px' } }, ...btns())), list, opac)
+    else if (st === 'ps') box.append(h('div', { class: 'ph' }, h('span', tr('Layers'))), controls() || '', list, h('div', { class: 'lbar' }, ...btns()))
+    else box.append(h('div', { class: 'pt' }, h('span', tr('Layers'))), h('div', { class: 'pb' }, controls() || '', h('div', { class: 'lbar' }, ...btns())), list)
   }
   app.on('new-layer', () => newLayer(app))
 
@@ -77,29 +78,29 @@ export function layersPanel(app: App, box: HTMLElement) {
       const th = h('span', { class: 'thumb' + (l.canvas ? ' chk' : '') })
       if (l.canvas && l.kind !== 'text' && l.kind !== 'shape') { const c = h('canvas'); drawThumb(l, c); th.appendChild(c); thumbs.set(l.id, c) }
       else th.appendChild(icon(KIND_ICON[l.kind] || 'layers'))
-      const sub = (l.kind === 'group' ? childrenOf(doc, l.id).length + ' inside  ' : '') + (BLENDS.find(b => b[0] === l.blend)?.[1] || 'Normal') + '  ' + Math.round(l.opacity * 100) + '%'
+      const sub = (l.kind === 'group' ? tr('{0} inside', childrenOf(doc, l.id).length) + '  ' : '') + (BLENDS.find(b => b[0] === l.blend)?.[1] || tr('Normal')) + '  ' + Math.round(l.opacity * 100) + '%'
       const nm = h('span', { class: 'nm' }, h('span', { class: 'nmt' }, l.name), h('span', { class: 'lsub' }, sub))
       nm.addEventListener('dblclick', () => {
         const i = h('input', { type: 'text', value: l.name }) as HTMLInputElement
         nm.innerHTML = ''; nm.appendChild(i); i.focus(); i.select()
-        const done = () => { const v = i.value.trim(); if (v && v !== l.name) app.hist!.op(l.kind === 'group' ? 'Rename folder' : 'Rename layer', () => { l.name = v }); else render() }
+        const done = () => { const v = i.value.trim(); if (v && v !== l.name) app.hist!.op(l.kind === 'group' ? tr('Rename folder') : tr('Rename layer'), () => { l.name = v }); else render() }
         i.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') i.blur(); if (e.key === 'Escape') { i.value = l.name; i.blur() } })
         i.addEventListener('blur', done)
       })
       const eye = tip(h('button', { class: 'lb', onclick: (e: MouseEvent) => {
         e.stopPropagation()
         if (e.altKey) { soloLayer(app, l); return }
-        app.hist!.op(l.visible ? 'Hide layer' : 'Show layer', () => { l.visible = !l.visible })
-      } }, icon(l.visible ? 'eye' : 'eyeoff')), (l.visible ? 'Hide' : 'Show') + '. Alt-click shows only this layer')
-      const lock = tip(h('button', { class: 'lb', onclick: (e: Event) => { e.stopPropagation(); app.hist!.op(l.locked ? 'Unlock layer' : 'Lock layer', () => { l.locked = !l.locked }) } }, icon(l.locked ? 'lock' : 'unlock')), l.locked ? 'Unlock' : 'Lock')
+        app.hist!.op(l.visible ? tr('Hide layer') : tr('Show layer'), () => { l.visible = !l.visible })
+      } }, icon(l.visible ? 'eye' : 'eyeoff')), l.visible ? tr('Hide. Alt-click shows only this layer') : tr('Show. Alt-click shows only this layer'))
+      const lock = tip(h('button', { class: 'lb', onclick: (e: Event) => { e.stopPropagation(); app.hist!.op(l.locked ? tr('Unlock layer') : tr('Lock layer'), () => { l.locked = !l.locked }) } }, icon(l.locked ? 'lock' : 'unlock')), l.locked ? tr('Unlock') : tr('Lock'))
       if (!l.locked) lock.style.opacity = '.45'
       const fold = l.kind === 'group'
-        ? tip(h('button', { class: 'lb fold' + (l.collapsed ? '' : ' open'), onclick: (e: Event) => { e.stopPropagation(); l.collapsed = !l.collapsed; render() } }, icon('chev')), l.collapsed ? 'Open folder' : 'Close folder')
+        ? tip(h('button', { class: 'lb fold' + (l.collapsed ? '' : ' open'), onclick: (e: Event) => { e.stopPropagation(); l.collapsed = !l.collapsed; render() } }, icon('chev')), l.collapsed ? tr('Open folder') : tr('Close folder'))
         : null
       const badges = h('span', { style: { display: 'flex', gap: '2px', color: 'var(--mute)' } },
-        l.fx && (l.fx.shadow.on || l.fx.glow.on || l.fx.stroke.on || l.fx.inner.on || l.fx.overlay.on) && tip(h('button', { class: 'lb fxb', onclick: (e: Event) => { e.stopPropagation(); doc.activeId = l.id; app.emit('layers'); app.emit('active'); app.setTool('effects') } }, icon('fx')), 'Layer effects'),
-        l.mask && tip(h('button', { class: 'lb' + (l.maskOff ? ' off' : ''), onclick: (e: Event) => { e.stopPropagation(); doc.activeId = l.id; toggleMask(app) } }, icon('mask')), l.maskOff ? 'Mask disabled: click to enable' : 'Mask: click to disable'),
-        l.alphaLock && tip(h('span', {}, icon('alpha')), 'Transparency locked'))
+        l.fx && (l.fx.shadow.on || l.fx.glow.on || l.fx.stroke.on || l.fx.inner.on || l.fx.overlay.on) && tip(h('button', { class: 'lb fxb', onclick: (e: Event) => { e.stopPropagation(); doc.activeId = l.id; app.emit('layers'); app.emit('active'); app.setTool('effects') } }, icon('fx')), tr('Layer effects')),
+        l.mask && tip(h('button', { class: 'lb' + (l.maskOff ? ' off' : ''), onclick: (e: Event) => { e.stopPropagation(); doc.activeId = l.id; toggleMask(app) } }, icon('mask')), l.maskOff ? tr('Mask disabled: click to enable') : tr('Mask: click to disable')),
+        l.alphaLock && tip(h('span', {}, icon('alpha')), tr('Transparency locked')))
       const hidden = !shownVisible(doc, l)
       const row = h('div', { class: 'lr' + (l.id === doc.activeId ? ' on' : doc.picked.has(l.id) ? ' pk' : '') + (hidden ? ' hid' : '') + (l.clip ? ' clip' : '') + (fold ? ' grp' : ''), 'data-id': l.id, draggable: false },
         fold, th, nm, badges, eye, lock)
@@ -169,9 +170,9 @@ export function layersPanel(app: App, box: HTMLElement) {
             const before = snapshot(doc)
             if (moveLayer(doc, id, d.ref, d.where)) {
               if (d.where === 'into' && ref) ref.collapsed = false
-              app.hist!.structural(d.where === 'into' ? 'Move into ' + (ref?.name || 'folder') : 'Reorder layers', before)
+              app.hist!.structural(d.where === 'into' ? tr('Move into {0}', ref?.name || tr('Folder')) : tr('Reorder layers'), before)
               doc.structure()
-            } else toast("A folder can't go inside itself")
+            } else toast(tr("A folder can't go inside itself"))
           }
           dragId = null
         }
@@ -182,7 +183,7 @@ export function layersPanel(app: App, box: HTMLElement) {
     const a = doc.active
     if (a) {
       let snap: any = null
-      opac.appendChild(slider('Opacity', () => Math.round(a.opacity * 100), v => { if (!snap) snap = snapshot(doc); a.opacity = v / 100; doc.changed() }, { min: 0, max: 100, onEnd: () => { if (snap) { app.hist!.structural('Layer opacity', snap); snap = null } } }))
+      opac.appendChild(slider(tx('short', 'Opacity'), () => Math.round(a.opacity * 100), v => { if (!snap) snap = snapshot(doc); a.opacity = v / 100; doc.changed() }, { min: 0, max: 100, onEnd: () => { if (snap) { app.hist!.structural(tr('Layer opacity'), snap); snap = null } } }))
     }
   }
   app.on('style', render)
@@ -199,15 +200,15 @@ export function layersPanel(app: App, box: HTMLElement) {
 export function newLayer(app: App) {
   const doc = app.doc
   if (!doc) return
-  app.hist!.op('New layer', () => { const l = makeLayer('paint', 'Layer ' + (doc.layers.length + 1), doc.w, doc.h); doc.add(l, doc.activeId) })
+  app.hist!.op(tr('New layer'), () => { const l = makeLayer('paint', tr('Layer {0}', doc.layers.length + 1), doc.w, doc.h); doc.add(l, doc.activeId) })
 }
 
 export function newFolder(app: App) {
   const doc = app.doc
   if (!doc) return
-  app.hist!.op('New folder', () => {
+  app.hist!.op(tr('New folder'), () => {
     const n = doc.layers.filter(l => l.kind === 'group').length + 1
-    doc.add(makeLayer('group', 'Folder ' + n, doc.w, doc.h, false), doc.activeId)
+    doc.add(makeLayer('group', tr('Folder {0}', n), doc.w, doc.h, false), doc.activeId)
   })
 }
 
@@ -219,8 +220,8 @@ export function groupLayer(app: App) {
   // Several picked layers go into the folder together, in their order, where the topmost one was.
   const list = chosen(app).filter(l => !chosen(app).some(o => o !== l && isInside(doc, l, o)))
   const top = list[list.length - 1] || a
-  app.hist!.op('Put in folder', () => {
-    const g = makeLayer('group', 'Folder ' + (doc.layers.filter(l => l.kind === 'group').length + 1), doc.w, doc.h, false)
+  app.hist!.op(tr('Put in folder'), () => {
+    const g = makeLayer('group', tr('Folder {0}', doc.layers.filter(l => l.kind === 'group').length + 1), doc.w, doc.h, false)
     g.parent = top.parent
     doc.layers.splice(doc.index(top.id) + 1, 0, g)
     for (const l of list) l.parent = g.id
@@ -234,8 +235,8 @@ export function ungroup(app: App) {
   const doc = app.doc
   const g = doc?.active
   if (!doc || !g) return
-  if (g.kind !== 'group') { toast('Select a folder first'); return }
-  app.hist!.op('Remove folder', () => {
+  if (g.kind !== 'group') { toast(tr('Select a folder first')); return }
+  app.hist!.op(tr('Remove folder'), () => {
     const kids = childrenOf(doc, g.id)
     for (const k of kids) k.parent = g.parent
     doc.layers = doc.layers.filter(l => l !== g)
@@ -246,8 +247,8 @@ export function ungroup(app: App) {
 export function newAdjust(app: App) {
   const doc = app.doc
   if (!doc) return
-  app.hist!.op('New adjustment layer', () => {
-    const l = makeLayer('adjust', 'Adjustments', doc.w, doc.h, false)
+  app.hist!.op(tr('New adjustment layer'), () => {
+    const l = makeLayer('adjust', tr('Adjustments'), doc.w, doc.h, false)
     l.adjust = freshAdjust()
     doc.add(l, doc.activeId)
   })
@@ -267,11 +268,11 @@ export function duplicate(app: App) {
   const doc = app.doc
   const a = doc?.active
   if (!doc || !a) return
-  app.hist!.op(a.kind === 'group' ? 'Duplicate folder' : 'Duplicate layer', () => {
+  app.hist!.op(a.kind === 'group' ? tr('Duplicate folder') : tr('Duplicate layer'), () => {
     const block = subtree(doc, a)
     const ids = new Map(block.map(l => [l.id, uid()]))
     const copies = block.map(l => { const n = copyLayer(l, ids.get(l.id)!); n.parent = l === a ? a.parent : ids.get(l.parent!) || l.parent; return n })
-    copies[copies.length - 1].name = a.name + ' copy'
+    copies[copies.length - 1].name = tr('{0} copy', a.name)
     doc.layers.splice(doc.index(a.id) + 1, 0, ...copies)
     doc.activeId = copies[copies.length - 1].id
   })
@@ -282,8 +283,8 @@ export function removeLayer(app: App) {
   const a = doc?.active
   if (!doc || !a) return
   const gone = [...new Set(chosen(app).flatMap(l => subtree(doc, l)))]
-  if (doc.layers.length - gone.length < 1 || !doc.layers.some(l => !gone.includes(l) && l.kind !== 'group')) { toast('An image needs at least one layer'); return }
-  app.hist!.op(gone.length > 1 && doc.picked.size ? 'Delete layers' : a.kind === 'group' ? 'Delete folder' : 'Delete layer', () => {
+  if (doc.layers.length - gone.length < 1 || !doc.layers.some(l => !gone.includes(l) && l.kind !== 'group')) { toast(tr('An image needs at least one layer')); return }
+  app.hist!.op(gone.length > 1 && doc.picked.size ? tr('Delete layers') : a.kind === 'group' ? tr('Delete folder') : tr('Delete layer'), () => {
     const i = doc.index(gone[0].id)
     doc.picked.clear()
     const ids = new Set(gone.map(l => l.id))
@@ -342,13 +343,13 @@ export function mergeDown(app: App) {
   if (list.length < 2) {
     const sib = childrenOf(doc, a.parent)
     const below = sib[sib.indexOf(a) - 1]
-    if (!below) { toast('There is no layer below to merge into'); return }
+    if (!below) { toast(tr('There is no layer below to merge into')); return }
     list = [below, a]
   }
   list = list.flatMap(l => (l.kind === 'group' ? subtree(doc, l).filter(x => x.kind !== 'group') : [l]))
-  if (list.some(l => shownLocked(doc, l))) { toast('Unlock the layers first'); return }
-  if (list[0].kind === 'adjust') { toast('An adjustment layer can only be merged into a layer below it'); return }
-  mergeInto(app, list, composeList(doc, list), list.length > 2 ? 'Merge layers' : 'Merge down')
+  if (list.some(l => shownLocked(doc, l))) { toast(tr('Unlock the layers first')); return }
+  if (list[0].kind === 'adjust') { toast(tr('An adjustment layer can only be merged into a layer below it')); return }
+  mergeInto(app, list, composeList(doc, list), list.length > 2 ? tr('Merge layers') : tr('Merge down'))
 }
 
 /** Merges everything visible into one layer; hidden layers stay as they are. */
@@ -356,19 +357,19 @@ export function mergeVisible(app: App) {
   const doc = app.doc
   if (!doc) return
   const list = doc.layers.filter(l => l.kind !== 'group' && shownVisible(doc, l))
-  if (list.length < 2) { toast('Nothing to merge: fewer than two layers are showing'); return }
-  if (list.some(l => shownLocked(doc, l))) { toast('Unlock the layers first'); return }
+  if (list.length < 2) { toast(tr('Nothing to merge: fewer than two layers are showing')); return }
+  if (list.some(l => shownLocked(doc, l))) { toast(tr('Unlock the layers first')); return }
   // The merged image is the whole picture, so it leaves any folder, and folders it empties go too.
-  mergeInto(app, list, flatten(doc), 'Merge visible', true)
+  mergeInto(app, list, flatten(doc), tr('Merge visible'), true)
 }
 
 /** Adds a mask to the active layer: white (shows everything), or from the selection. */
 export function addMask(app: App, fromSel = false) {
   const doc = app.doc
   const l = doc?.active
-  if (!doc || !l?.canvas) { toast('Select a layer with pixels first'); return }
-  if (fromSel && !doc.selection) { toast('Make a selection first'); return }
-  app.hist!.op(fromSel ? 'Mask from selection' : 'Add mask', () => {
+  if (!doc || !l?.canvas) { toast(tr('Select a layer with pixels first')); return }
+  if (fromSel && !doc.selection) { toast(tr('Make a selection first')); return }
+  app.hist!.op(fromSel ? tr('Mask from selection') : tr('Add mask'), () => {
     const m = canvas(doc.w, doc.h), x = ctx2d(m)
     if (fromSel) x.drawImage(doc.selection!, 0, 0)
     else { x.fillStyle = '#fff'; x.fillRect(0, 0, doc.w, doc.h) }
@@ -380,7 +381,7 @@ export function addMask(app: App, fromSel = false) {
 export function invertMask(app: App) {
   const l = app.doc?.active
   if (!l?.mask) return
-  app.hist!.op('Invert mask', () => {
+  app.hist!.op(tr('Invert mask'), () => {
     const m = canvas(l.mask!.width, l.mask!.height), x = ctx2d(m)
     x.fillStyle = '#fff'; x.fillRect(0, 0, m.width, m.height)
     x.globalCompositeOperation = 'destination-out'; x.drawImage(l.mask!, 0, 0)
@@ -391,14 +392,14 @@ export function invertMask(app: App) {
 export function toggleMask(app: App) {
   const l = app.doc?.active
   if (!l?.mask) return
-  app.hist!.op(l.maskOff ? 'Enable mask' : 'Disable mask', () => { l.maskOff = !l.maskOff; l.maskDirty = true; l.dirty = true; l.cache = null })
+  app.hist!.op(l.maskOff ? tr('Enable mask') : tr('Disable mask'), () => { l.maskOff = !l.maskOff; l.maskDirty = true; l.dirty = true; l.cache = null })
 }
 
 /** Makes the mask's effect permanent in the layer's pixels. */
 export function applyMask(app: App, l = app.doc?.active) {
   if (!l?.mask || !l.canvas) return
-  if (l.maskOff) { toast('The mask is disabled. Enable it first, or delete it.'); return }
-  app.hist!.op('Apply mask', () => {
+  if (l.maskOff) { toast(tr('The mask is disabled. Enable it first, or delete it.')); return }
+  app.hist!.op(tr('Apply mask'), () => {
     const m = effectiveMask(l)!
     const c = copyCanvas(l.canvas!), x = ctx2d(c)
     x.globalCompositeOperation = 'destination-in'; x.drawImage(m, 0, 0)
@@ -408,7 +409,7 @@ export function applyMask(app: App, l = app.doc?.active) {
 
 export function deleteMask(app: App, l = app.doc?.active) {
   if (!l?.mask) return
-  app.hist!.op('Delete mask', () => { l.mask = null; l.maskAI = null; l.maskOff = false; l.dirty = true; l.cache = null })
+  app.hist!.op(tr('Delete mask'), () => { l.mask = null; l.maskAI = null; l.maskOff = false; l.dirty = true; l.cache = null })
 }
 
 /** Alt-click on an eye: show only this layer, or, when it already is the only one, show them all again. */
@@ -416,7 +417,7 @@ export function soloLayer(app: App, l: Layer) {
   const doc = app.doc!
   const others = doc.layers.filter(x => x !== l && x.kind !== 'group' && !isInside(doc, l, x) && !isInside(doc, x, l))
   const alone = others.every(x => !x.visible)
-  app.hist!.op(alone ? 'Show all layers' : 'Show only ' + l.name, () => {
+  app.hist!.op(alone ? tr('Show all layers') : tr('Show only {0}', l.name), () => {
     for (const x of others) x.visible = alone
     l.visible = true
     for (const a of doc.layers) if (isInside(doc, l, a)) a.visible = true
@@ -431,25 +432,25 @@ export function layerMenu(app: App, x: number, y: number) {
   document.querySelector('.ctx')?.remove()
   const many = doc.picked.size > 0
   const items: ([string, () => void, boolean?] | '-')[] = [
-    ['Rename', () => (document.querySelector(`.lr[data-id="${l.id}"] .nm`) as HTMLElement | null)?.dispatchEvent(new MouseEvent('dblclick'))],
-    ['Duplicate', () => duplicate(app)],
-    [many ? 'Delete layers' : 'Delete', () => removeLayer(app)],
+    [tr('Rename'), () => (document.querySelector(`.lr[data-id="${l.id}"] .nm`) as HTMLElement | null)?.dispatchEvent(new MouseEvent('dblclick'))],
+    [tr('Duplicate'), () => duplicate(app)],
+    [many ? tr('Delete layers') : tr('Delete'), () => removeLayer(app)],
     '-',
-    [many ? 'Merge layers' : 'Merge down', () => mergeDown(app)],
-    ['Merge visible', () => mergeVisible(app)],
-    [many ? 'Put layers in a folder' : 'Put in folder', () => groupLayer(app)],
-    ...(l.kind === 'group' ? [['Remove folder, keep layers', () => ungroup(app)] as [string, () => void]] : []),
+    [many ? tr('Merge layers') : tr('Merge down'), () => mergeDown(app)],
+    [tr('Merge visible'), () => mergeVisible(app)],
+    [many ? tr('Put layers in a folder') : tr('Put in folder'), () => groupLayer(app)],
+    ...(l.kind === 'group' ? [[tr('Remove folder, keep layers'), () => ungroup(app)] as [string, () => void]] : []),
     '-',
-    ...(l.canvas && !l.mask ? [['Add mask', () => addMask(app)] as [string, () => void], ['Mask from selection', () => addMask(app, true), !doc.selection] as [string, () => void, boolean]] : []),
+    ...(l.canvas && !l.mask ? [[tr('Add mask'), () => addMask(app)] as [string, () => void], [tr('Mask from selection'), () => addMask(app, true), !doc.selection] as [string, () => void, boolean]] : []),
     ...(l.mask ? [
-      [l.maskOff ? 'Enable mask' : 'Disable mask', () => toggleMask(app)] as [string, () => void],
-      ['Invert mask', () => invertMask(app)] as [string, () => void],
-      ['Apply mask', () => applyMask(app)] as [string, () => void],
-      ['Delete mask', () => deleteMask(app)] as [string, () => void]] : []),
+      [l.maskOff ? tr('Enable mask') : tr('Disable mask'), () => toggleMask(app)] as [string, () => void],
+      [tr('Invert mask'), () => invertMask(app)] as [string, () => void],
+      [tr('Apply mask'), () => applyMask(app)] as [string, () => void],
+      [tr('Delete mask'), () => deleteMask(app)] as [string, () => void]] : []),
     '-',
-    ['Layer effects', () => app.setTool('effects'), !l.canvas || l.kind === 'background'],
-    [l.locked ? 'Unlock' : 'Lock', () => app.hist!.op(l.locked ? 'Unlock layer' : 'Lock layer', () => { l.locked = !l.locked })],
-    ['Show only this layer', () => soloLayer(app, l)]
+    [tr('Layer effects'), () => app.setTool('effects'), !l.canvas || l.kind === 'background'],
+    [l.locked ? tr('Unlock') : tr('Lock'), () => app.hist!.op(l.locked ? tr('Unlock layer') : tr('Lock layer'), () => { l.locked = !l.locked })],
+    [tr('Show only this layer'), () => soloLayer(app, l)]
   ]
   const box = h('div', { class: 'dd ctx', role: 'menu' })
   let last: any = '-'

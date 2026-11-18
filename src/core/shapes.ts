@@ -1,16 +1,19 @@
 import type { Shape, ShapeType } from './doc'
 import type { Rect } from './util'
+import { tr } from '../i18n'
 
-export const SHAPE_NAMES: Record<ShapeType, string> = {
+/** Shape names in English, for building the history labels "Add arrow", "Edit arrow" (each translated whole). */
+export const SHAPE_EN: Record<ShapeType, string> = {
   text: 'Text', arrow: 'Arrow', line: 'Line', rect: 'Rectangle', ellipse: 'Ellipse', callout: 'Callout', label: 'Label', marker: 'Number'
 }
+export const SHAPE_NAMES = Object.fromEntries(Object.entries(SHAPE_EN).map(([k, v]) => [k, tr(v)])) as Record<ShapeType, string>
 
 export function newShape(type: ShapeType, x: number, y: number, color: string, scale: number): Shape {
   const s = Math.max(12, Math.round(28 * scale))
   return {
     type, x1: x, y1: y, x2: x, y2: y, stroke: color, fill: type === 'label' || type === 'callout' ? '#ffffff' : color,
     fillOn: type === 'label' || type === 'callout' || type === 'marker', width: Math.max(2, Math.round(4 * scale)), dash: false, radius: Math.round(8 * scale),
-    text: type === 'text' ? 'Text' : type === 'callout' ? 'Note' : type === 'label' ? 'Label' : '',
+    text: type === 'text' ? tr('Text') : type === 'callout' ? tr('Note') : type === 'label' ? tr('Label') : '',
     font: 'Inter', size: s, bold: type !== 'text', italic: false, align: type === 'text' ? 'left' : 'center',
     color: type === 'label' || type === 'callout' ? '#111111' : type === 'marker' ? '#ffffff' : color,
     shadow: false, outline: 0, outlineColor: '#000000', num: 1

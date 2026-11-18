@@ -13,6 +13,7 @@ import { ai, brushControls, drawBrushCursor, jobBox, rgbaOf } from './common'
 import { native, pickLocal } from '../native'
 import { BG_MODELS } from '../ui/dialogs'
 import { applyMask, deleteMask } from '../ui/layers'
+import { tr, num, tx } from '../i18n'
 
 const opts = { subject: 'auto' as 'auto' | 'person' | 'product' | 'animal', hair: true }
 
@@ -40,13 +41,13 @@ async function refineFull(src: HTMLCanvasElement, mask: HTMLCanvasElement, r: nu
 export async function removeBackground(app: App) {
   const doc = app.doc!, hist = app.hist!
   const l = targetLayer(app)
-  if (!l) { toast('Select an image layer first'); return }
+  if (!l) { toast(tr('Select an image layer first')); return }
   const t0 = performance.now()
-  await app.run('Removing the background', async prog => {
+  await app.run(tr('Removing the background'), async prog => {
     const model = opts.subject === 'person' ? 'modnet' : app.settings.bgModel
     const src = rgbaOf(l.canvas!, 1024)
     const r = await ai(app, 'removeBg', { ...src, model }, prog)
-    prog(null, 'Matching edges at full resolution')
+    prog(null, tr('Matching edges at full resolution'))
     const small = canvasFromAlpha(r.mask, r.w, r.h)
     let full = canvas(doc.w, doc.h)
     const fx = ctx2d(full); fx.imageSmoothingQuality = 'high'; fx.drawImage(small, 0, 0, doc.w, doc.h)
@@ -61,38 +62,38 @@ export async function removeBackground(app: App) {
     l.maskOpts = { feather: 0, smooth: 0, shift: 0 }
     touchMask(l)
     doc.activeId = l.id
-    hist.structural('Remove background', before)
+    hist.structural(tr('Remove background'), before)
     doc.structure()
-    toast(`Background removed in ${((performance.now() - t0) / 1000).toFixed(1)} s. Use Refine to fix any edge.`)
+    toast(tr('Background removed in {0} s. Use Refine to fix any edge.', num((performance.now() - t0) / 1000, 1)))
   })
 }
 
 function previewSeg(app: App) {
-  return seg<'normal' | 'mask' | 'overlay'>([['normal', 'Transparent'], ['mask', 'Mask'], ['overlay', 'Overlay']], () => app.view.maskView, v => { app.view.maskView = v; app.view.draw() })
+  return seg<'normal' | 'mask' | 'overlay'>([['normal', tr('Transparent')], ['mask', tr('Mask')], ['overlay', tr('Overlay')]], () => app.view.maskView, v => { app.view.maskView = v; app.view.draw() })
 }
 
 function maskActions(app: App, l: Layer | null) {
   if (!l?.mask) return []
-  return [sec('Mask'),
+  return [sec(tr('Mask')),
     h('div', { class: 'g2' },
-      btn('Apply mask', () => applyMask(app, l)),
-      btn('Remove mask', () => deleteMask(app, l), 'danger'))]
+      btn(tr('Apply mask'), () => applyMask(app, l)),
+      btn(tr('Remove mask'), () => deleteMask(app, l), 'danger'))]
 }
 
 export function bgTools(app: App): Tool[] {
   const remove: Tool = {
-    id: 'bg-remove', label: 'Remove', icon: 'bg',
+    id: 'bg-remove', label: tr('Remove'), icon: 'bg',
     panel() {
       const l = targetLayer(app)
       return h('div', { class: 'ib' },
-        sec('Background removal'),
-        h('button', { class: 'pri big wide', onclick: () => removeBackground(app), disabled: !!app.job }, icon('sparkle'), 'Remove background'),
+        sec(tr('Background removal')),
+        h('button', { class: 'pri big wide', onclick: () => removeBackground(app), disabled: !!app.job }, icon('sparkle'), tr('Remove background')),
         jobBox(app),
-        hint(l?.mask ? 'The background is hidden with a mask, so nothing is lost. Refine lets you paint corrections.' : 'Runs on this computer. Your image is never uploaded.'),
-        seg([['auto', 'Auto'], ['person', 'Person'], ['product', 'Product'], ['animal', 'Animal']], () => opts.subject, v => (opts.subject = v as any), 'Subject'),
-        select('Model', BG_MODELS, () => app.settings.bgModel, v => { app.settings.bgModel = v; app.saveSettings() }),
-        toggle('Hair and fur detail', () => opts.hair, v => (opts.hair = v)),
-        l?.mask && sec('Preview'), l?.mask && previewSeg(app),
+        hint(l?.mask ? tr('The background is hidden with a mask, so nothing is lost. Refine lets you paint corrections.') : tr('Runs on this computer. Your image is never uploaded.')),
+        seg([['auto', tr('Auto')], ['person', tr('Person')], ['product', tr('Product')], ['animal', tr('Animal')]], () => opts.subject, v => (opts.subject = v as any), tr('Subject')),
+        select(tr('Model'), BG_MODELS, () => app.settings.bgModel, v => { app.settings.bgModel = v; app.saveSettings() }),
+        toggle(tr('Hair and fur detail'), () => opts.hair, v => (opts.hair = v)),
+        l?.mask && sec(tr('Preview')), l?.mask && previewSeg(app),
         ...maskActions(app, l))
     }
   }
@@ -101,15 +102,15 @@ export function bgTools(app: App): Tool[] {
   let mode: 'mask-keep' | 'mask-remove' | 'mask-restore' = 'mask-keep'
   let stroke: Stroke | null = null
   const refine: Tool = {
-    id: 'bg-refine', label: 'Refine edges', icon: 'brush',
+    id: 'bg-refine', label: tr('Refine edges'), icon: 'brush',
     cursor: () => 'none',
     brush: () => ({ getSize: () => bo.size, setSize: v => { bo.size = v } }),
     down(p) {
       const l = targetLayer(app)
       if (!l) return
-      if (l.locked) { toast(`${l.name} is locked`); return }
+      if (l.locked) { toast(tr('{0} is locked', l.name)); return }
       const m = p.e.altKey ? (mode === 'mask-keep' ? 'mask-remove' : 'mask-keep') : mode
-      stroke = new Stroke(app.doc!, l, m, bo, app.hist!, null, m === 'mask-keep' ? 'Keep area' : m === 'mask-remove' ? 'Remove area' : 'Restore area')
+      stroke = new Stroke(app.doc!, l, m, bo, app.hist!, null, m === 'mask-keep' ? tr('Keep area') : m === 'mask-remove' ? tr('Remove area') : tr('Restore area'))
       app.stroke = stroke
       stroke.begin(p.x, p.y, p.p)
     },
@@ -118,29 +119,29 @@ export function bgTools(app: App): Tool[] {
     overlay: (x, v) => drawBrushCursor(x, v, bo.size),
     panel() {
       const l = targetLayer(app)
-      if (!l?.mask) return h('div', { class: 'ib' }, sec('Refine edges'), hint('Remove the background first, or paint with Keep or Remove to build a mask by hand.'),
-        h('div', { class: 'seg' }, ...(['mask-keep', 'mask-remove'] as const).map(m => h('button', { class: mode === m ? 'on' : '', onclick: () => { mode = m; app.emit('panel') } }, m === 'mask-keep' ? 'Keep' : 'Remove'))),
-        ...brushControls(app, bo, { flow: false }), btn('Remove background', () => removeBackground(app), 'pri wide'))
+      if (!l?.mask) return h('div', { class: 'ib' }, sec(tr('Refine edges')), hint(tr('Remove the background first, or paint with Keep or Remove to build a mask by hand.')),
+        h('div', { class: 'seg' }, ...(['mask-keep', 'mask-remove'] as const).map(m => h('button', { class: mode === m ? 'on' : '', onclick: () => { mode = m; app.emit('panel') } }, m === 'mask-keep' ? tr('Keep') : tr('Remove')))),
+        ...brushControls(app, bo, { flow: false }), btn(tr('Remove background'), () => removeBackground(app), 'pri wide'))
       const upd = () => { touchMask(l); app.doc!.changed() }
       let snapBefore: any = null
       const startEdit = () => { if (!snapBefore) snapBefore = snapshot(app.doc!) }
       const endEdit = (label: string) => () => { if (snapBefore) { app.hist!.structural(label, snapBefore); snapBefore = null } }
       return h('div', { class: 'ib' },
-        sec('Brush'),
-        seg([['mask-keep', 'Keep'], ['mask-remove', 'Remove'], ['mask-restore', 'Restore']], () => mode, v => (mode = v as any)),
+        sec(tr('Brush')),
+        seg([['mask-keep', tr('Keep')], ['mask-remove', tr('Remove')], ['mask-restore', tr('Restore')]], () => mode, v => (mode = v as any)),
         ...brushControls(app, bo, { flow: false }),
-        sec('Edges'),
-        slider('Feather', () => l.maskOpts.feather, v => { startEdit(); l.maskOpts.feather = v; upd() }, { min: 0, max: 40, step: 0.5, def: 0, onEnd: endEdit('Feather edge') }),
-        slider('Smooth', () => l.maskOpts.smooth, v => { startEdit(); l.maskOpts.smooth = v; upd() }, { min: 0, max: 100, def: 0, onEnd: endEdit('Smooth edge') }),
-        slider('Shift edge', () => l.maskOpts.shift, v => { startEdit(); l.maskOpts.shift = v; upd() }, { min: -40, max: 40, def: 0, onEnd: endEdit('Shift edge') }),
+        sec(tr('Edges')),
+        slider(tr('Feather'), () => l.maskOpts.feather, v => { startEdit(); l.maskOpts.feather = v; upd() }, { min: 0, max: 40, step: 0.5, def: 0, onEnd: endEdit(tr('Feather edge')) }),
+        slider(tr('Smooth'), () => l.maskOpts.smooth, v => { startEdit(); l.maskOpts.smooth = v; upd() }, { min: 0, max: 100, def: 0, onEnd: endEdit(tr('Smooth edge')) }),
+        slider(tr('Shift edge'), () => l.maskOpts.shift, v => { startEdit(); l.maskOpts.shift = v; upd() }, { min: -40, max: 40, def: 0, onEnd: endEdit(tr('Shift edge')) }),
         h('button', {
-          class: 'wide', onclick: () => { const doc = app.doc!, hist = app.hist!; app.run('Refining edges', async () => {
+          class: 'wide', onclick: () => { const doc = app.doc!, hist = app.hist!; app.run(tr('Refining edges'), async () => {
             const nm = await refineFull(l.canvas!, l.mask!, Math.max(3, Math.round(Math.max(doc.w, doc.h) / 400)), 0.002)
-            await hist.op('Refine edges', () => { l.mask = nm; touchMask(l) })
+            await hist.op(tr('Refine edges'), () => { l.mask = nm; touchMask(l) })
           }) }
-        }, icon('sparkle'), 'Snap edges to detail'),
+        }, icon('sparkle'), tr('Snap edges to detail')),
         jobBox(app),
-        sec('Preview'), previewSeg(app),
+        sec(tr('Preview')), previewSeg(app),
         ...maskActions(app, l))
     }
   }
@@ -151,12 +152,12 @@ export function bgTools(app: App): Tool[] {
     const doc = app.doc!
     const l = targetLayer(app)
     if (!l) return
-    if (!l.mask && mode !== 'none') toast('Tip: remove the background first so the new one shows through')
-    await app.hist!.op('Replace background', () => {
+    if (!l.mask && mode !== 'none') toast(tr('Tip: remove the background first so the new one shows through'))
+    await app.hist!.op(tr('Replace background'), () => {
       let b = bgOf(l)
       if (mode === 'none') { if (b) doc.layers = doc.layers.filter(x => x !== b); doc.activeId = l.id; return }
       if (!b) {
-        b = makeLayer('background', 'Background', doc.w, doc.h)
+        b = makeLayer('background', tr('Background'), doc.w, doc.h)
         b.bgFor = l.id
         doc.layers.splice(doc.index(l.id), 0, b)
       }
@@ -166,7 +167,7 @@ export function bgTools(app: App): Tool[] {
     })
   }
   const replace: Tool = {
-    id: 'bg-replace', label: 'Replace', icon: 'image',
+    id: 'bg-replace', label: tr('Replace'), icon: 'image',
     panel() {
       const l = targetLayer(app)
       const b = l && bgOf(l)
@@ -179,19 +180,19 @@ export function bgTools(app: App): Tool[] {
         const f = native ? await native.openDialog('image-only') : await pickLocal('image/*')
         if (!f) return
         try { await setBg('image', (await decodeImage(f.name, f.data)).canvas) }
-        catch (e: any) { toast(e.message || 'That image could not be opened', { err: true }) }
+        catch (e: any) { toast(e.message || tr('That image could not be opened'), { err: true }) }
       }
       return h('div', { class: 'ib' },
-        sec('Replace background'),
-        seg([['none', 'None'], ['color', 'Colour'], ['image', 'Image'], ['blur', 'Blur']], () => cur, async v => {
+        sec(tr('Replace background')),
+        seg([['none', tr('None')], ['color', tr('Colour')], ['image', tx('bg', 'Image')], ['blur', tr('Blur')]], () => cur, async v => {
           if (v === 'image') await pickImage()
           else await setBg(v as any)
           app.emit('panel')
         }),
-        cur === 'color' && colorWheel({ hex: b?.bg?.color || rep.color, alpha: 1 }, (s, fin) => { rep.color = s.hex; update(); if (fin) done('Background colour') }),
-        cur === 'blur' && slider('Blur', () => b?.bg?.blur ?? rep.blur, v => { rep.blur = v; update() }, { min: 1, max: 120, unit: 'px', def: 16, onEnd: () => done('Background blur') }),
-        cur === 'blur' && hint('Uses the original photo, blurred, behind your subject.'),
-        cur === 'image' && btn('Choose another image', pickImage, 'wide'))
+        cur === 'color' && colorWheel({ hex: b?.bg?.color || rep.color, alpha: 1 }, (s, fin) => { rep.color = s.hex; update(); if (fin) done(tr('Background colour')) }),
+        cur === 'blur' && slider(tr('Blur'), () => b?.bg?.blur ?? rep.blur, v => { rep.blur = v; update() }, { min: 1, max: 120, unit: 'px', def: 16, onEnd: () => done(tr('Background blur')) }),
+        cur === 'blur' && hint(tr('Uses the original photo, blurred, behind your subject.')),
+        cur === 'image' && btn(tr('Choose another image'), pickImage, 'wide'))
     }
   }
   return [remove, refine, replace]

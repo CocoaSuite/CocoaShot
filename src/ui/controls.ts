@@ -1,4 +1,5 @@
 import { h, tip } from './dom'
+import { tr } from '../i18n'
 
 export interface SliderOpts { min: number; max: number; step?: number; unit?: string; def?: number; onEnd?: () => void; fmt?: (v: number) => string }
 
@@ -16,7 +17,7 @@ export function slider(label: string, get: () => number, set: (v: number) => voi
   r.id = id
   const lab = h('label', { for: id, class: o.def !== undefined ? 'rs' : '' }, label)
   if (o.def !== undefined) {
-    tip(lab, 'Click to reset')
+    tip(lab, tr('Click to reset'))
     lab.addEventListener('click', e => { e.preventDefault(); apply(o.def!); o.onEnd?.() })
   }
   fill()

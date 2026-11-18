@@ -1,6 +1,7 @@
 import { Adjust, LV0 } from './doc'
 import { canvas, ctx2d, getData, putData, Rect } from './util'
 import { gauss, levelsIdentity, levelsLUT } from './px'
+import { tr } from '../i18n'
 
 const lvNorm = (a: Adjust) => (a.lv || LV0).map((v, i) => (i % 5 === 2 ? v : v / 255))
 
@@ -78,7 +79,7 @@ class GL {
 
   constructor() {
     const gl = this.c.getContext('webgl2', { premultipliedAlpha: false, preserveDrawingBuffer: true })
-    if (!gl) throw new Error('WebGL2 is not available')
+    if (!gl) throw new Error(tr('WebGL2 is not available'))
     this.gl = gl
     const sh = (type: number, src: string) => {
       const s = gl.createShader(type)!

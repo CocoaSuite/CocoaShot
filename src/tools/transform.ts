@@ -11,6 +11,7 @@ import { btn, hint, sec, seg, select, toggle } from '../ui/controls'
 import type { Pt, Viewport } from '../view/viewport'
 import { Box, buildMesh, drawMesh, gridOver, locate, Mesh, quadMapper, rasterMesh, warpAt, warpInfluence } from '../core/warp'
 import { toolSteps } from '../core/steps'
+import { tr } from '../i18n'
 
 /**
  * How the layer is reshaped. Box scales, rotates and moves it; Distort moves each corner freely;
@@ -154,7 +155,7 @@ export function transformTool(app: App): Tool {
     if (!doc) return false
     const a = doc.active
     if (isMulti(doc)) return beginGroup(doc)
-    if (a && (a.shape || a.kind === 'text')) { app.setTool('move'); toast('Text and shapes: drag their round handles to resize, and the filled handle above them to turn them'); return false }
+    if (a && (a.shape || a.kind === 'text')) { app.setTool('move'); toast(tr('Text and shapes: drag their round handles to resize, and the filled handle above them to turn them')); return false }
     const l = app.activeRaster()
     if (!l || !l.canvas) return false
     const orig = copyCanvas(l.canvas)
@@ -162,14 +163,14 @@ export function transformTool(app: App): Tool {
     let bb = bboxOfAlpha(alphaOf(orig), doc.w, doc.h)
     if (doc.selection) {
       const sb = bboxOfAlpha(alphaOf(doc.selection), doc.w, doc.h)
-      if (!sb) { toast('The selection is empty'); return false }
+      if (!sb) { toast(tr('The selection is empty')); return false }
       float = copyCanvas(orig)
       const fx = ctx2d(float); fx.globalCompositeOperation = 'destination-in'; fx.drawImage(doc.selection, 0, 0)
       base = copyCanvas(orig)
       const bx = ctx2d(base); bx.globalCompositeOperation = 'destination-out'; bx.drawImage(doc.selection, 0, 0)
       bb = bboxOfAlpha(alphaOf(float), doc.w, doc.h) || sb
     }
-    if (!bb) { toast(`${l.name} is empty`); return false }
+    if (!bb) { toast(tr('{0} is empty', l.name)); return false }
     const mb = { x: bb.x - 1, y: bb.y - 1, w: bb.w + 2, h: bb.h + 2 }
     st = {
       doc, hist: app.hist!, l, group: null, extras: [], shapes: [], orig, origMask: l.mask && !doc.selection ? copyCanvas(l.mask) : null, origSel: doc.selection,
@@ -199,12 +200,12 @@ export function transformTool(app: App): Tool {
   const beginGroup = (doc: Doc): boolean => {
     const name = chosenName(doc)
     const a = doc.active
-    if (a && doc.picked.size === 0 && shownLocked(doc, a)) { toast(`${a.name} is locked`); return false }
-    if (mode !== 'box') { mode = 'box'; toast('Several layers or a folder can be scaled, turned and moved. Distort and Warp work on one layer at a time.') }
+    if (a && doc.picked.size === 0 && shownLocked(doc, a)) { toast(tr('{0} is locked', a.name)); return false }
+    if (mode !== 'box') { mode = 'box'; toast(tr('Several layers or a folder can be scaled, turned and moved. Distort and Warp work on one layer at a time.')) }
     const { pixels: ras, shapes: shp } = transformable(doc)
-    if (!ras.length && !shp.length) { toast(`${name} has nothing to transform`); return false }
+    if (!ras.length && !shp.length) { toast(tr('{0} has nothing to transform', name)); return false }
     const b = boundsOf(doc, { pixels: ras, shapes: shp })
-    if (!b) { toast(`${name} is empty`); return false }
+    if (!b) { toast(tr('{0} is empty', name)); return false }
     // The first pixel layer leads (an empty stand-in when the folder holds only text and shapes).
     const lead = ras[0] || null
     const leadL: Layer = lead || { ...shp[0], canvas: canvas(doc.w, doc.h), mask: null, shape: null, kind: 'paint' } as Layer
@@ -267,7 +268,7 @@ export function transformTool(app: App): Tool {
         e.l.shape = shapeThrough(e.shape, m, s)
         touch(e.l)
       }
-      s.hist.structural('Transform ' + s.group.name, before)
+      s.hist.structural(tr('Transform {0}', s.group.name), before)
       s.doc.structure()
       app.emit('panel')
       return
@@ -285,7 +286,7 @@ export function transformTool(app: App): Tool {
       }
       if (s.origSel) s.doc.selection = meshInto(s.origSel, mesh, 'clear', 'clear')
       touch(s.l)
-      s.hist.structural(s.mode === 'warp' ? 'Warp' : 'Distort', before)
+      s.hist.structural(s.mode === 'warp' ? tr('Warp') : tr('Distort'), before)
       s.doc.structure()
       s.doc.emit('selection')
       app.emit('panel')
@@ -314,7 +315,7 @@ export function transformTool(app: App): Tool {
       s.doc.selection = ns
     }
     touch(s.l)
-    s.hist.structural('Free transform', before)
+    s.hist.structural(tr('Free transform'), before)
     s.doc.structure()
     s.doc.emit('selection')
     app.emit('panel')
@@ -336,7 +337,7 @@ export function transformTool(app: App): Tool {
    */
   const setMode = (m: Mode) => {
     if (m === mode && (!st || st.mode === m)) return
-    if (m !== 'box' && (st?.group || (app.doc && isMulti(app.doc)))) { toast('Distort and Warp work on one layer at a time. Pick a single layer.'); app.emit('panel'); return }
+    if (m !== 'box' && (st?.group || (app.doc && isMulti(app.doc)))) { toast(tr('Distort and Warp work on one layer at a time. Pick a single layer.')); app.emit('panel'); return }
     const s = st
     const order: Mode[] = ['box', 'distort', 'warp']
     if (s && order.indexOf(m) < order.indexOf(s.mode) && changed(s)) {
@@ -460,7 +461,7 @@ export function transformTool(app: App): Tool {
   }
 
   return {
-    id: 'transform', label: 'Free transform', icon: 'transform', steps,
+    id: 'transform', label: tr('Free transform'), icon: 'transform', steps,
     cursor(p) {
       if (!st || !p) return 'default'
       if (st.mode !== 'box') {
@@ -619,51 +620,51 @@ export function transformTool(app: App): Tool {
     panel() {
       const l = app.doc?.active
       if (!st && !(l && ((l.canvas && ['image', 'paint', 'highlight'].includes(l.kind)) || isMulti(app.doc!)))) {
-        return h('div', { class: 'ib' }, sec('Free transform'), hint('Select an image or paint layer, or a folder, to scale, rotate, distort or warp it. For text and shapes, use Move: drag their handles, and the filled handle above them to turn them.'))
+        return h('div', { class: 'ib' }, sec(tr('Free transform')), hint(tr('Select an image or paint layer, or a folder, to scale, rotate, distort or warp it. For text and shapes, use Move: drag their handles, and the filled handle above them to turn them.')))
       }
       const s = st
       const deg = s ? ((s.a * 180) / Math.PI) : 0
       const m = s ? s.mode : mode
-      const modes = seg<Mode>([['box', 'Scale'], ['distort', 'Distort'], ['warp', 'Warp']], () => m, v => setMode(v), 'Transform mode')
-      const sel = app.doc?.selection ? 'Reshapes the selected part of the layer. ' : ''
+      const modes = seg<Mode>([['box', tr('Scale')], ['distort', tr('Distort')], ['warp', tr('Warp')]], () => m, v => setMode(v), tr('Transform mode'))
+      const sel = app.doc?.selection ? tr('Reshapes the selected part of the layer. ') : ''
       const finish = h('div', { class: 'g2' },
-        h('button', { disabled: !s, onclick: () => cancel() }, 'Cancel'),
-        h('button', { class: 'pri', disabled: !s, onclick: () => commit() }, 'Apply'))
+        h('button', { disabled: !s, onclick: () => cancel() }, tr('Cancel')),
+        h('button', { class: 'pri', disabled: !s, onclick: () => commit() }, tr('Apply')))
       if (m === 'distort') {
         return h('div', { class: 'ib' },
-          sec('Distort' + (s ? ': ' + (s.group || s.l).name : '')), modes,
-          hint(sel + 'Drag a corner to move it on its own, or an edge to slide it. Drag inside to move, outside to rotate. Shift-click corners to move several, and use the arrow keys to nudge. Enter applies, Esc cancels, Ctrl+Z steps back.'),
-          toggle('High-quality preview', () => quality, v => { quality = v; render() }),
-          btn('Reset corners', resetShape, 'wide'),
+          sec(tr('Distort') + (s ? ': ' + (s.group || s.l).name : '')), modes,
+          hint(sel + tr('Drag a corner to move it on its own, or an edge to slide it. Drag inside to move, outside to rotate. Shift-click corners to move several, and use the arrow keys to nudge. Enter applies, Esc cancels, Ctrl+Z steps back.')),
+          toggle(tr('High-quality preview'), () => quality, v => { quality = v; render() }),
+          btn(tr('Reset corners'), resetShape, 'wide'),
           finish)
       }
       if (m === 'warp') {
         return h('div', { class: 'ib' },
-          sec('Warp' + (s ? ': ' + (s.group || s.l).name : '')), modes,
-          hint(sel + 'Drag a grid point to bend the layer, or drag anywhere inside to pull the surface. Alt-drag inside moves it, drag outside rotates. Shift-click points to move several together. Enter applies, Esc cancels, Ctrl+Z steps back.'),
-          select('Grid', GRIDS, () => String(s ? s.cols : warpCells), v => setCells(+v)),
-          toggle('High-quality preview', () => quality, v => { quality = v; render() }),
-          btn('Reset grid', resetShape, 'wide'),
+          sec(tr('Warp') + (s ? ': ' + (s.group || s.l).name : '')), modes,
+          hint(sel + tr('Drag a grid point to bend the layer, or drag anywhere inside to pull the surface. Alt-drag inside moves it, drag outside rotates. Shift-click points to move several together. Enter applies, Esc cancels, Ctrl+Z steps back.')),
+          select(tr('Grid'), GRIDS, () => String(s ? s.cols : warpCells), v => setCells(+v)),
+          toggle(tr('High-quality preview'), () => quality, v => { quality = v; render() }),
+          btn(tr('Reset grid'), resetShape, 'wide'),
           finish)
       }
       const edit = (fn: () => void) => () => { if (begin() && st) { inner.mark(); fn(); render(); app.emit('panel') } }
       return h('div', { class: 'ib' },
-        sec('Free transform' + (s ? ': ' + (s.group || s.l).name : '')), modes,
-        hint(sel + 'Drag inside to move, a handle to resize, or just outside a corner to rotate. Hold Shift to ' + (keepRatio ? 'resize freely' : 'keep the proportions') + ' or snap rotation, Alt to resize from the centre, Ctrl to drag a corner on its own. Enter applies, Esc cancels.'),
-        toggle('Keep proportions at the corners', () => keepRatio, v => { keepRatio = v; app.emit('panel') }),
-        toggle('High-quality resampling', () => quality, v => { quality = v; render() }),
+        sec(tr('Free transform') + (s ? ': ' + (s.group || s.l).name : '')), modes,
+        hint(sel + (keepRatio ? tr('Drag inside to move, a handle to resize, or just outside a corner to rotate. Hold Shift to resize freely or snap rotation, Alt to resize from the centre, Ctrl to drag a corner on its own. Enter applies, Esc cancels.') : tr('Drag inside to move, a handle to resize, or just outside a corner to rotate. Hold Shift to keep the proportions or snap rotation, Alt to resize from the centre, Ctrl to drag a corner on its own. Enter applies, Esc cancels.'))),
+        toggle(tr('Keep proportions at the corners'), () => keepRatio, v => { keepRatio = v; app.emit('panel') }),
+        toggle(tr('High-quality resampling'), () => quality, v => { quality = v; render() }),
         s && h('div', { class: 'g3' },
-          numIn('Width', () => Math.abs(s.sx) * 100, v => (s.sx = Math.sign(s.sx) * Math.max(0.1, v) / 100), '%'),
-          numIn('Height', () => Math.abs(s.sy) * 100, v => (s.sy = Math.sign(s.sy) * Math.max(0.1, v) / 100), '%'),
-          numIn('Angle', () => deg, v => (s.a = (v * Math.PI) / 180), '°')),
+          numIn(tr('Width'), () => Math.abs(s.sx) * 100, v => (s.sx = Math.sign(s.sx) * Math.max(0.1, v) / 100), '%'),
+          numIn(tr('Height'), () => Math.abs(s.sy) * 100, v => (s.sy = Math.sign(s.sy) * Math.max(0.1, v) / 100), '%'),
+          numIn(tr('Angle'), () => deg, v => (s.a = (v * Math.PI) / 180), '°')),
         s && h('div', { class: 'g2' },
-          numIn('Move across', () => s.cx - s.bx, v => (s.cx = s.bx + v), 'px'),
-          numIn('Move down', () => s.cy - s.by, v => (s.cy = s.by + v), 'px')),
+          numIn(tr('Move across'), () => s.cx - s.bx, v => (s.cx = s.bx + v), 'px'),
+          numIn(tr('Move down'), () => s.cy - s.by, v => (s.cy = s.by + v), 'px')),
         h('div', { class: 'g3' },
-          btn('Flip across', edit(() => { st!.sx = -st!.sx })),
-          btn('Flip up', edit(() => { st!.sy = -st!.sy })),
-          btn('Turn 90°', edit(() => { st!.a += Math.PI / 2 }))),
-        btn('Fit to image', edit(() => {
+          btn(tr('Flip across'), edit(() => { st!.sx = -st!.sx })),
+          btn(tr('Flip up'), edit(() => { st!.sy = -st!.sy })),
+          btn(tr('Turn 90°'), edit(() => { st!.a += Math.PI / 2 }))),
+        btn(tr('Fit to image'), edit(() => {
           const t = st!, d = t.doc
           const k = Math.min(d.w / t.bw, d.h / t.bh)
           t.sx = Math.sign(t.sx) * k; t.sy = Math.sign(t.sy) * k; t.a = 0; t.cx = d.w / 2; t.cy = d.h / 2

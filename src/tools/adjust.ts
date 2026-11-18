@@ -7,13 +7,14 @@ import { ALPHA0, AlphaOpts, autoRange, editAlpha, histogramStats, histograms, le
 import { alphaOf, canvas, clamp, ctx2d, getData, putData } from '../core/util'
 import { h, icon, toast } from '../ui/dom'
 import { btn, hint, sec, seg, slider, toggle } from '../ui/controls'
+import { tr } from '../i18n'
 
 export function adjLayer(app: App, create: boolean): Layer | null {
   const doc = app.doc!
   if (doc.active?.kind === 'adjust') return doc.active
   const top = [...doc.layers].reverse().find(l => l.kind === 'adjust')
   if (top || !create) return top || null
-  const l = makeLayer('adjust', 'Adjustments', doc.w, doc.h, false)
+  const l = makeLayer('adjust', tr('Adjustments'), doc.w, doc.h, false)
   l.adjust = freshAdjust()
   doc.layers.push(l)
   return l
@@ -41,7 +42,7 @@ export function autoAdjust(doc: Doc, l: Layer | null, kind: 'enhance' | 'wb' | '
 export function adjustTool(app: App): Tool {
   let snap: any = null
   return {
-    id: 'adjust', label: 'Adjustments', icon: 'adjust',
+    id: 'adjust', label: tr('Adjustments'), icon: 'adjust',
     panel() {
       const doc = app.doc!
       const ex = adjLayer(app, false)
@@ -54,7 +55,7 @@ export function adjustTool(app: App): Tool {
         return l
       }
       const changed = () => { ensure(); doc.changed() }
-      const end = () => { if (snap) { app.hist!.structural('Adjust', snap); snap = null; app.emit('layers') } }
+      const end = () => { if (snap) { app.hist!.structural(tr('Adjust'), snap); snap = null; app.emit('layers') } }
       const S = (label: string, k: keyof Adjust, min = -100, max = 100) => {
         const el = slider(label, () => a[k] as number, v => { (a as any)[k] = v; changed() }, { min, max, def: 0, onEnd: end })
         sliders.push(el)
@@ -72,29 +73,29 @@ export function adjustTool(app: App): Tool {
         sliders.forEach(s => (s as any).sync())
       }
       return h('div', { class: 'ib' },
-        sec('Auto', btn('Reset all', () => {
+        sec(tr('Auto'), btn(tr('Reset all'), () => {
           snap = snapshot(doc)
           Object.assign(a, freshAdjust())
           changed(); end(); app.emit('panel')
         })),
         h('div', { class: 'g2' },
-          h('button', { onclick: () => auto('enhance') }, icon('sparkle'), 'Enhance'),
-          btn('White balance', () => auto('wb')), btn('Contrast', () => auto('contrast')), btn('Colour', () => auto('color'))),
-        sec('Light'),
-        S('Exposure', 'exposure'), S('Brightness', 'brightness'), S('Contrast', 'contrast'), S('Highlights', 'highlights'),
-        S('Shadows', 'shadows'), S('Whites', 'whites'), S('Blacks', 'blacks'), S('Gamma', 'gamma'),
-        sec('Colour'),
-        S('Temperature', 'temperature'), S('Tint', 'tint'), S('Saturation', 'saturation'), S('Vibrance', 'vibrance'), S('Hue', 'hue', -180, 180),
-        sec('Detail'),
-        S('Sharpness', 'sharpness', 0, 100), S('Clarity', 'clarity', -100, 100),
-        sec('Effects'),
-        h('div', { class: 'seg' }, flag('Grayscale', 'grayscale'), flag('Sepia', 'sepia'), flag('Invert', 'invert')),
-        h('button', { class: 'wide' + (app.view.compare === 'split' ? ' on' : ''), onclick: (e: Event) => { app.view.compare = app.view.compare === 'split' ? 'off' : 'split'; (e.currentTarget as HTMLElement).classList.toggle('on'); app.emit('compare'); app.view.draw() } }, icon('compare'), 'Before and after'))
+          h('button', { onclick: () => auto('enhance') }, icon('sparkle'), tr('Enhance')),
+          btn(tr('White balance'), () => auto('wb')), btn(tr('Contrast'), () => auto('contrast')), btn(tr('Colour'), () => auto('color'))),
+        sec(tr('Light')),
+        S(tr('Exposure'), 'exposure'), S(tr('Brightness'), 'brightness'), S(tr('Contrast'), 'contrast'), S(tr('Highlights'), 'highlights'),
+        S(tr('Shadows'), 'shadows'), S(tr('Whites'), 'whites'), S(tr('Blacks'), 'blacks'), S(tr('Gamma'), 'gamma'),
+        sec(tr('Colour')),
+        S(tr('Temperature'), 'temperature'), S(tr('Tint'), 'tint'), S(tr('Saturation'), 'saturation'), S(tr('Vibrance'), 'vibrance'), S(tr('Hue'), 'hue', -180, 180),
+        sec(tr('Detail')),
+        S(tr('Sharpness'), 'sharpness', 0, 100), S(tr('Clarity'), 'clarity', -100, 100),
+        sec(tr('Effects')),
+        h('div', { class: 'seg' }, flag(tr('Grayscale'), 'grayscale'), flag(tr('Sepia'), 'sepia'), flag(tr('Invert'), 'invert')),
+        h('button', { class: 'wide' + (app.view.compare === 'split' ? ' on' : ''), onclick: (e: Event) => { app.view.compare = app.view.compare === 'split' ? 'off' : 'split'; (e.currentTarget as HTMLElement).classList.toggle('on'); app.emit('compare'); app.view.draw() } }, icon('compare'), tr('Before and after')))
     }
   }
 }
 
-const LV_LABEL: [LvChannel, string][] = [['rgb', 'RGB'], ['r', 'Red'], ['g', 'Green'], ['b', 'Blue'], ['a', 'Alpha']]
+const LV_LABEL: [LvChannel, string][] = [['rgb', 'RGB'], ['r', tr('Red')], ['g', tr('Green')], ['b', tr('Blue')], ['a', tr('Alpha')]]
 const LV_TINT: Record<LvChannel, string> = { rgb: 'var(--fg)', r: '#e5484d', g: '#30a46c', b: '#3e63dd', a: 'var(--mute)' }
 
 function levelsGraph(hist: Uint32Array | null, p: number[], o: number, tint: string) {
@@ -136,7 +137,7 @@ function lvSliders(p: number[], o: number, set: () => void, end: () => void, red
     els.push(el)
     return el
   }
-  return [S('Input black', 0, 0, 254, 0), S('Midtones', 2, 0.1, 9.99, 1, 0.01), S('Input white', 1, 1, 255, 255), S('Output black', 3, 0, 255, 0), S('Output white', 4, 0, 255, 255)]
+  return [S(tr('Input black'), 0, 0, 254, 0), S(tr('Midtones'), 2, 0.1, 9.99, 1, 0.01), S(tr('Input white'), 1, 1, 255, 255), S(tr('Output black'), 3, 0, 255, 0), S(tr('Output white'), 4, 0, 255, 255)]
 }
 
 export function levelsTool(app: App): Tool {
@@ -144,7 +145,7 @@ export function levelsTool(app: App): Tool {
   let histKey = '', histCache: ReturnType<typeof histograms> | null = null
   let ch: LvChannel = 'rgb'
   return {
-    id: 'levels', label: 'Levels', icon: 'levels',
+    id: 'levels', label: tr('Levels'), icon: 'levels',
     panel() {
       const doc = app.doc!
       const ex = adjLayer(app, false)
@@ -156,7 +157,7 @@ export function levelsTool(app: App): Tool {
         return l
       }
       const changed = () => { ensure(); doc.changed() }
-      const end = () => { if (snap) { app.hist!.structural('Levels', snap); snap = null; app.emit('layers') } }
+      const end = () => { if (snap) { app.hist!.structural(tr('Levels'), snap); snap = null; app.emit('layers') } }
       const ci = LV_CH.indexOf(ch), o = ci * 5
       // The histogram of everything below is reused until the image changes.
       const key = doc.rid + ':' + doc.rev + ':' + (ex?.id || '')
@@ -177,12 +178,12 @@ export function levelsTool(app: App): Tool {
         changed(); end(); app.emit('panel')
       }
       return h('div', { class: 'ib' },
-        sec('Levels', btn('Auto', auto)),
+        sec(tr('Levels'), btn(tr('Auto'), auto)),
         seg(LV_LABEL, () => ch, v => { ch = v; app.emit('panel') }),
         graph,
-        ch === 'a' ? hint('Changes the transparency of everything below this adjustment layer.') : null,
+        ch === 'a' ? hint(tr('Changes the transparency of everything below this adjustment layer.')) : null,
         ...lvSliders(a.lv, o, changed, end, redraw),
-        h('div', { class: 'g2' }, btn('Reset ' + LV_LABEL[ci][1], () => reset(false)), btn('Reset all levels', () => reset(true))))
+        h('div', { class: 'g2' }, btn(tr('Reset {0}', LV_LABEL[ci][1]), () => reset(false)), btn(tr('Reset all levels'), () => reset(true))))
     }
   }
 }
@@ -214,7 +215,7 @@ export function alphaTool(app: App): Tool {
     if (raf) { cancelAnimationFrame(raf); render() }
     const l = target, b = base
     clear()
-    app.hist.raster('Layer alpha', l, 'canvas', { x: 0, y: 0, w: b.width, h: b.height }, b)
+    app.hist.raster(tr('Layer alpha'), l, 'canvas', { x: 0, y: 0, w: b.width, h: b.height }, b)
     app.doc?.changed()
   }
   const cancel = () => {
@@ -231,35 +232,35 @@ export function alphaTool(app: App): Tool {
   }
   const setView = (v: boolean) => { app.view.alphaView = v; app.view.draw() }
   return {
-    id: 'alpha', label: 'Layer alpha', icon: 'alpha',
+    id: 'alpha', label: tr('Layer alpha'), icon: 'alpha',
     deactivate() { commit(); setView(false) },
     panel() {
       const l = app.doc?.active
       if (target && l !== target) commit()
       const ok = !!l && !!l.canvas && !['text', 'shape', 'outline', 'adjust', 'background'].includes(l.kind)
-      if (!ok) return h('div', { class: 'ib' }, sec('Layer alpha'), hint('Select an image or paint layer to edit its transparency.'))
+      if (!ok) return h('div', { class: 'ib' }, sec(tr('Layer alpha')), hint(tr('Select an image or paint layer to edit its transparency.')))
       const src = base || getData(l!.canvas!)
       const graph = levelsGraph(histograms(src.data, Math.max(1, Math.round(src.width * src.height / 400000)))[4], o.lv, 0, 'var(--mute)')
       const redraw = () => (graph as any).draw()
       const pending = !!target
       return h('div', { class: 'ib' },
-        sec('Layer alpha: ' + l!.name),
-        hint(app.doc!.selection ? 'Only the selected area changes.' : 'Edits the transparency of the selected layer. Black is fully transparent, white is fully opaque.'),
-        toggle('Show alpha as black and white', () => app.view.alphaView, setView),
-        sec('Alpha levels'),
+        sec(tr('Layer alpha: {0}', l!.name)),
+        hint(app.doc!.selection ? tr('Only the selected area changes.') : tr('Edits the transparency of the selected layer. Black is fully transparent, white is fully opaque.')),
+        toggle(tr('Show alpha as black and white'), () => app.view.alphaView, setView),
+        sec(tr('Alpha levels')),
         graph,
         ...lvSliders(o.lv, 0, changed, () => {}, redraw),
-        sec('Edges'),
-        slider('Grow or shrink', () => o.grow, v => { o.grow = v; changed() }, { min: -50, max: 50, def: 0, unit: 'px' }),
-        slider('Feather', () => o.feather, v => { o.feather = v; changed() }, { min: 0, max: 50, step: 0.5, def: 0, unit: 'px' }),
-        toggle('Hard edges', () => o.hard, v => { o.hard = v; changed() }),
-        toggle('Invert alpha', () => o.invert, v => { o.invert = v; changed() }),
+        sec(tr('Edges')),
+        slider(tr('Grow or shrink'), () => o.grow, v => { o.grow = v; changed() }, { min: -50, max: 50, def: 0, unit: 'px' }),
+        slider(tr('Feather'), () => o.feather, v => { o.feather = v; changed() }, { min: 0, max: 50, step: 0.5, def: 0, unit: 'px' }),
+        toggle(tr('Hard edges'), () => o.hard, v => { o.hard = v; changed() }),
+        toggle(tr('Invert alpha'), () => o.invert, v => { o.invert = v; changed() }),
         h('div', { class: 'g2' },
-          btn('Make opaque', () => { o.lv[3] = 255; o.lv[4] = 255; changed(); app.emit('panel') }),
-          btn('Reset', () => { if (target) { Object.assign(o, { ...ALPHA0, lv: [...ALPHA0.lv] }); changed() } app.emit('panel') })),
+          btn(tr('Make opaque'), () => { o.lv[3] = 255; o.lv[4] = 255; changed(); app.emit('panel') }),
+          btn(tr('Reset'), () => { if (target) { Object.assign(o, { ...ALPHA0, lv: [...ALPHA0.lv] }); changed() } app.emit('panel') })),
         h('div', { class: 'g2' },
-          h('button', { disabled: !pending, onclick: () => { cancel(); app.emit('panel') } }, 'Cancel'),
-          h('button', { class: 'pri', disabled: !pending, onclick: () => { commit(); app.emit('panel'); toast('Layer alpha applied') } }, 'Apply')))
+          h('button', { disabled: !pending, onclick: () => { cancel(); app.emit('panel') } }, tr('Cancel')),
+          h('button', { class: 'pri', disabled: !pending, onclick: () => { commit(); app.emit('panel'); toast(tr('Layer alpha applied')) } }, tr('Apply'))))
     }
   }
 }

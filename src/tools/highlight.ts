@@ -9,6 +9,7 @@ import { btn, hint, sec, seg, select, slider, toggle } from '../ui/controls'
 import { colorPanel, drawBrushCursor, jobBox, stabilizer } from './common'
 import { selectSubject } from './select'
 import { colorWheel } from '../ui/color'
+import { tr } from '../i18n'
 
 type Shape = 'brush' | 'rect' | 'ellipse'
 
@@ -33,7 +34,7 @@ export function highlightTools(app: App): Tool[] {
   const stab = stabilizer(() => app.settings.stabilizer || 0)
 
   const hlLayer = () => {
-    const l = app.ensurePaintLayer('highlight', 'Highlight')
+    const l = app.ensurePaintLayer('highlight', tr('Highlight'))
     if (l) l.blend = ho.marker ? 'multiply' : 'source-over'
     return l
   }
@@ -50,18 +51,18 @@ export function highlightTools(app: App): Tool[] {
   }
   const fillSelection = () => {
     const doc = app.doc!
-    if (!doc.selection) { toast('Select something first, for example with Object or Subject in Select'); return }
+    if (!doc.selection) { toast(tr('Select something first, for example with Object or Subject in Select')); return }
     const l = hlLayer()
     if (!l) return
     fillOn(l, x => {
       const t = copyCanvas(doc.selection!)
       const tx = ctx2d(t); tx.globalCompositeOperation = 'source-in'; tx.fillStyle = rgba(app.fg, ho.opacity); tx.fillRect(0, 0, t.width, t.height)
       x.drawImage(t, 0, 0)
-    }, 'Highlight selection')
+    }, tr('Highlight selection'))
   }
 
   const highlight: Tool = {
-    id: 'highlight', label: 'Highlight', icon: 'hl',
+    id: 'highlight', label: tr('Highlight'), icon: 'hl',
     cursor: () => (ho.shape === 'brush' ? 'none' : 'crosshair'),
     brush: () => ho.shape !== 'brush' ? null : {
       getSize: () => bo.size, setSize: v => { bo.size = v }, getOpacity: () => ho.opacity, setOpacity: v => { ho.opacity = v },
@@ -72,7 +73,7 @@ export function highlightTools(app: App): Tool[] {
         const l = hlLayer()
         if (!l) return
         bo.color = app.fg; bo.opacity = ho.opacity; bo.hardness = 1 - Math.min(1, ho.soft / 30)
-        stroke = new Stroke(app.doc!, l, 'paint', bo, app.hist!, null, 'Highlight')
+        stroke = new Stroke(app.doc!, l, 'paint', bo, app.hist!, null, tr('Highlight'))
         app.stroke = stroke
         stroke.begin(p.x, p.y, p.p)
         stab.start(p.x, p.y, p.p)
@@ -90,25 +91,25 @@ export function highlightTools(app: App): Tool[] {
       const A = a, B = b
       a = b = null
       if (!l) return
-      fillOn(l, x => { shapePath(x, ho.shape, A, B); x.fillStyle = rgba(app.fg, ho.opacity); x.fill() }, 'Highlight')
+      fillOn(l, x => { shapePath(x, ho.shape, A, B); x.fillStyle = rgba(app.fg, ho.opacity); x.fill() }, tr('Highlight'))
     },
     overlay(x, v) { if (a && b) dragOverlay(x, v, ho.shape, a, b); else if (ho.shape === 'brush') drawBrushCursor(x, v, bo.size) },
     panel: () => h('div', { class: 'ib' },
-      sec('Highlight'),
-      seg([['brush', 'Brush'], ['rect', 'Rectangle'], ['ellipse', 'Ellipse']], () => ho.shape, v => { ho.shape = v as Shape; app.view.updateCursor() }),
-      ho.shape === 'brush' ? slider('Size', () => bo.size, v => (bo.size = v), { min: 2, max: 600 }) : null,
-      slider('Opacity', () => Math.round(ho.opacity * 100), v => (ho.opacity = v / 100), { min: 5, max: 100, def: 35 }),
-      slider('Softness', () => ho.soft, v => (ho.soft = v), { min: 0, max: 30, def: 0 }),
-      toggle('Marker style (keeps text readable)', () => ho.marker, v => { ho.marker = v; const l = app.doc?.active; if (l?.kind === 'highlight') { l.blend = v ? 'multiply' : 'source-over'; app.doc!.changed() } }),
-      btn('Highlight the selection', fillSelection, 'wide'),
-      sec('Colour'), colorPanel(app))
+      sec(tr('Highlight')),
+      seg([['brush', tr('Brush')], ['rect', tr('Rectangle')], ['ellipse', tr('Ellipse')]], () => ho.shape, v => { ho.shape = v as Shape; app.view.updateCursor() }),
+      ho.shape === 'brush' ? slider(tr('Size'), () => bo.size, v => (bo.size = v), { min: 2, max: 600 }) : null,
+      slider(tr('Opacity'), () => Math.round(ho.opacity * 100), v => (ho.opacity = v / 100), { min: 5, max: 100, def: 35 }),
+      slider(tr('Softness'), () => ho.soft, v => (ho.soft = v), { min: 0, max: 30, def: 0 }),
+      toggle(tr('Marker style (keeps text readable)'), () => ho.marker, v => { ho.marker = v; const l = app.doc?.active; if (l?.kind === 'highlight') { l.blend = v ? 'multiply' : 'source-over'; app.doc!.changed() } }),
+      btn(tr('Highlight the selection'), fillSelection, 'wide'),
+      sec(tr('Colour')), colorPanel(app))
   }
 
   const so = { dim: 0.6, soft: 24, shape: 'ellipse' as Shape }
   const spot = (draw: (x: CanvasRenderingContext2D) => void) => {
     const doc = app.doc!
     const before = snapshot(doc)
-    const l = makeLayer('highlight', 'Spotlight', doc.w, doc.h)
+    const l = makeLayer('highlight', tr('Spotlight'), doc.w, doc.h)
     const x = ctx2d(l.canvas!)
     x.fillStyle = `rgba(0,0,0,${so.dim})`
     x.fillRect(0, 0, doc.w, doc.h)
@@ -116,11 +117,11 @@ export function highlightTools(app: App): Tool[] {
     x.filter = so.soft ? `blur(${so.soft}px)` : 'none'
     draw(x)
     doc.add(l, doc.activeId)
-    app.hist!.structural('Spotlight', before)
+    app.hist!.structural(tr('Spotlight'), before)
     doc.structure()
   }
   const spotlight: Tool = {
-    id: 'spotlight', label: 'Spotlight', icon: 'spot',
+    id: 'spotlight', label: tr('Spotlight'), icon: 'spot',
     cursor: () => 'crosshair',
     down(p) { a = { x: p.x, y: p.y }; b = a },
     move(p, pressed) { if (pressed && a) b = { x: p.x, y: p.y } },
@@ -131,17 +132,17 @@ export function highlightTools(app: App): Tool[] {
       spot(x => { shapePath(x, so.shape, A, B); x.fill() })
     },
     overlay(x, v) { if (a && b) dragOverlay(x, v, so.shape, a, b) },
-    panel: () => h('div', { class: 'ib' }, sec('Spotlight'),
-      hint('Drag over the area to keep bright. Everything around it is dimmed.'),
-      seg([['ellipse', 'Ellipse'], ['rect', 'Rectangle']], () => so.shape, v => (so.shape = v as Shape)),
-      slider('Dim', () => Math.round(so.dim * 100), v => (so.dim = v / 100), { min: 5, max: 95, def: 60 }),
-      slider('Softness', () => so.soft, v => (so.soft = v), { min: 0, max: 200, def: 24 }),
-      btn('Spotlight the selection', () => {
+    panel: () => h('div', { class: 'ib' }, sec(tr('Spotlight')),
+      hint(tr('Drag over the area to keep bright. Everything around it is dimmed.')),
+      seg([['ellipse', tr('Ellipse')], ['rect', tr('Rectangle')]], () => so.shape, v => (so.shape = v as Shape)),
+      slider(tr('Dim'), () => Math.round(so.dim * 100), v => (so.dim = v / 100), { min: 5, max: 95, def: 60 }),
+      slider(tr('Softness'), () => so.soft, v => (so.soft = v), { min: 0, max: 200, def: 24 }),
+      btn(tr('Spotlight the selection'), () => {
         const s = app.doc?.selection
-        if (!s) { toast('Select something first'); return }
+        if (!s) { toast(tr('Select something first')); return }
         spot(x => x.drawImage(s, 0, 0))
       }, 'wide'),
-      hint('Change the dimming later with the layer opacity.'))
+      hint(tr('Change the dimming later with the layer opacity.')))
   }
 
   const oo: OutlineOpts = { source: '', width: 8, color: '#ffffff', style: 'solid', position: 'outside', glow: 0, round: true }
@@ -151,15 +152,15 @@ export function highlightTools(app: App): Tool[] {
     let alpha: HTMLCanvasElement | null = null
     if (source === 'canvas') src = 'canvas'
     else if (source === 'selection') {
-      if (!doc.selection) { toast('Select something first'); return }
+      if (!doc.selection) { toast(tr('Select something first')); return }
       src = 'selection'; alpha = copyCanvas(doc.selection)
     } else {
       const l = doc.active
-      if (!l || !l.canvas || l.kind === 'outline' || l.kind === 'adjust') { toast('Select the layer to outline first'); return }
+      if (!l || !l.canvas || l.kind === 'outline' || l.kind === 'adjust') { toast(tr('Select the layer to outline first')); return }
       src = l.id
     }
-    await app.hist!.op('Add outline', () => {
-      const l = makeLayer('outline', 'Outline', doc.w, doc.h)
+    await app.hist!.op(tr('Add outline'), () => {
+      const l = makeLayer('outline', tr('Outline'), doc.w, doc.h)
       l.outline = { ...oo, source: src }
       l.maskAI = alpha
       const at = src !== 'canvas' && src !== 'selection' ? src : undefined
@@ -167,35 +168,35 @@ export function highlightTools(app: App): Tool[] {
     })
   }
   const outline: Tool = {
-    id: 'outline', label: 'Outline', icon: 'outline',
+    id: 'outline', label: tr('Outline'), icon: 'outline',
     panel() {
       const doc = app.doc!
       const cur = doc.active?.kind === 'outline' ? doc.active : null
       const o = cur?.outline || oo
       let snap: any = null
       const ch = (fn: () => void) => () => { if (cur && !snap) snap = snapshot(doc); fn(); if (cur) { touch(cur); doc.changed() } }
-      const end = () => { if (snap) { app.hist!.structural('Edit outline', snap); snap = null } }
+      const end = () => { if (snap) { app.hist!.structural(tr('Edit outline'), snap); snap = null } }
       const controls = [
-        slider('Thickness', () => o.width, v => ch(() => (o.width = v))(), { min: 1, max: 200, unit: 'px', onEnd: end }),
-        seg([['outside', 'Outside'], ['center', 'Centre'], ['inside', 'Inside']], () => o.position, v => { ch(() => (o.position = v as any))(); end() }, 'Position'),
-        seg([['solid', 'Solid'], ['dashed', 'Dashed']], () => o.style, v => { ch(() => (o.style = v as any))(); end() }, 'Style'),
-        seg([['round', 'Rounded'], ['sharp', 'Sharp']], () => (o.round ? 'round' : 'sharp'), v => { ch(() => (o.round = v === 'round'))(); end() }, 'Corners'),
-        slider('Glow', () => o.glow, v => ch(() => (o.glow = v))(), { min: 0, max: 100, unit: 'px', def: 0, onEnd: end }),
-        sec('Colour'),
+        slider(tr('Thickness'), () => o.width, v => ch(() => (o.width = v))(), { min: 1, max: 200, unit: 'px', onEnd: end }),
+        seg([['outside', tr('Outside')], ['center', tr('Centre')], ['inside', tr('Inside')]], () => o.position, v => { ch(() => (o.position = v as any))(); end() }, tr('Position')),
+        seg([['solid', tr('Solid')], ['dashed', tr('Dashed')]], () => o.style, v => { ch(() => (o.style = v as any))(); end() }, tr('Style')),
+        seg([['round', tr('Rounded')], ['sharp', tr('Sharp')]], () => (o.round ? 'round' : 'sharp'), v => { ch(() => (o.round = v === 'round'))(); end() }, tr('Corners')),
+        slider(tr('Glow'), () => o.glow, v => ch(() => (o.glow = v))(), { min: 0, max: 100, unit: 'px', def: 0, onEnd: end }),
+        sec(tr('Colour')),
         colorWheel({ hex: o.color, alpha: 1 }, (s, fin) => { ch(() => (o.color = s.hex))(); if (fin) end() })
       ]
-      if (cur) return h('div', { class: 'ib' }, sec('Edit outline'), hint('Changes apply to the selected outline layer.'), ...controls, btn('New outline', () => { doc.activeId = doc.layers.find(l => l.kind === 'image')?.id || doc.activeId; app.emit('layers') }, 'wide'))
+      if (cur) return h('div', { class: 'ib' }, sec(tr('Edit outline')), hint(tr('Changes apply to the selected outline layer.')), ...controls, btn(tr('New outline'), () => { doc.activeId = doc.layers.find(l => l.kind === 'image')?.id || doc.activeId; app.emit('layers') }, 'wide'))
       return h('div', { class: 'ib' },
-        sec('Outline'),
-        hint('Outlines follow the real edge of the subject. Remove the background or select an object first.'),
+        sec(tr('Outline')),
+        hint(tr('Outlines follow the real edge of the subject. Remove the background or select an object first.')),
         h('div', { class: 'g2' },
-          h('button', { class: 'pri', onclick: () => createOutline('layer') }, 'Outline layer'),
-          btn('Outline selection', () => createOutline('selection'))),
+          h('button', { class: 'pri', onclick: () => createOutline('layer') }, tr('Outline layer')),
+          btn(tr('Outline selection'), () => createOutline('selection'))),
         h('div', { class: 'g2' },
-          h('button', { onclick: async () => { await selectSubject(app); if (app.doc?.selection) createOutline('selection') } }, icon('sparkle'), 'Find subject'),
-          btn('Image border', () => createOutline('canvas'))),
+          h('button', { onclick: async () => { await selectSubject(app); if (app.doc?.selection) createOutline('selection') } }, icon('sparkle'), tr('Find subject')),
+          btn(tr('Image border'), () => createOutline('canvas'))),
         jobBox(app),
-        sec('Look'), ...controls)
+        sec(tr('Look')), ...controls)
     }
   }
   return [highlight, spotlight, outline]

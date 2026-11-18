@@ -1,6 +1,6 @@
 import type { App } from '../app'
 import { GROUPS, groupOf } from '../tools/types'
-import { h, icon, logo, tip, toast, confirmBox } from './dom'
+import { autoFit, h, icon, logo, tip, toast, confirmBox } from './dom'
 import { newImageDialog } from './newimage'
 import { addMask, applyMask, deleteMask, duplicate, groupLayer, invertMask, layersPanel, mergeDown, mergeVisible, newAdjust, newFolder, removeLayer, toggleMask, ungroup } from './layers'
 import { FILTERS, openFilter } from '../tools/filters'
@@ -17,6 +17,7 @@ import { jobBox } from '../tools/common'
 import { groupKey, noteTool, psDock, psOptions, psStrip, saiBar, saiColor, saiNavigator, saiSizes, saiTools } from './styles'
 import { checkForUpdates } from './update'
 import { flipChosen } from '../tools/multi'
+import { tr, tn, tx } from '../i18n'
 
 export function buildShell(app: App, root: HTMLElement) {
   const run: Record<string, () => void> = {
@@ -31,11 +32,11 @@ export function buildShell(app: App, root: HTMLElement) {
     cut: async () => {
       const d = app.doc
       if (!d) return
-      if (!d.selection) { toast('Make a selection first'); return }
+      if (!d.selection) { toast(tr('Make a selection first')); return }
       const l = app.activeRaster()
       if (!l) return
       await app.copy()
-      deletePixels(app, 'Cut')
+      deletePixels(app, tr('Cut'))
     },
     fullscreen: () => app.toggleFullscreen(),
     newLayer: () => app.emit('new-layer'),
@@ -74,7 +75,7 @@ export function buildShell(app: App, root: HTMLElement) {
     },
     paste: () => app.pasteLayer(),
     selectAll: () => app.doc && selectAll(app),
-    deselect: () => app.doc?.selection && applySelection(app, null, 'new', 'Deselect'),
+    deselect: () => app.doc?.selection && applySelection(app, null, 'new', tr('Deselect')),
     invert: () => app.doc && invert(app),
     delete: () => {
       const d = app.doc
@@ -85,7 +86,7 @@ export function buildShell(app: App, root: HTMLElement) {
       if (!a) return
       const n = d.layers.length
       removeLayer(app)
-      if (d.layers.length < n) toast(`Deleted ${a.name}`, { action: 'Undo', onAction: () => app.undo() })
+      if (d.layers.length < n) toast(tr('Deleted {0}', a.name), { action: tr('Undo'), onAction: () => app.undo() })
     },
     zoomIn: () => app.view.zoomStep(1),
     zoomOut: () => app.view.zoomStep(-1),
@@ -108,10 +109,10 @@ export function buildShell(app: App, root: HTMLElement) {
     flattenImg: () => {
       const d = app.doc
       if (!d) return
-      app.hist!.op('Flatten image', () => {
+      app.hist!.op(tr('Flatten image'), () => {
         const c = flatten(d)
         const base = d.layers.find(l => l.kind === 'image') || d.layers[0]
-        base.canvas = c; base.mask = null; base.maskAI = null; base.visible = true; base.opacity = 1; base.blend = 'source-over'; base.clip = false; base.kind = 'image'; base.name = 'Image'
+        base.canvas = c; base.mask = null; base.maskAI = null; base.visible = true; base.opacity = 1; base.blend = 'source-over'; base.clip = false; base.kind = 'image'; base.name = tr('Image')
         base.parent = null; base.fx = null; base.fxCache = null
         base.dirty = true
         d.layers = [base]; d.activeId = base.id
@@ -156,33 +157,37 @@ export function buildShell(app: App, root: HTMLElement) {
 
   const dname = h('span', { class: 'dname' })
   const status = h('span', { class: 'status' }, h('i', { class: 'dot' }), h('span'))
-  const zoomLbl = tip(h('button', { class: 'zoom', onclick: () => app.view.fit(true) }, '100%'), 'Fit to screen')
-  const ib = (ic: string, label: string, act: string) => tip(h('button', { class: 'ic', onclick: () => run[act]() }, icon(ic)), label)
-  const undoB = ib('undo', 'Undo', 'undo'), redoB = ib('redo', 'Redo', 'redo')
-  const cmpB = ib('compare', 'Before and after', 'compare')
-  const exportB = h('button', { class: 'pri', style: { marginLeft: '4px' }, onclick: () => run.export() }, 'Export')
+  const zoomLbl = tip(h('button', { class: 'zoom', 'data-fit': 2, onclick: () => app.view.fit(true) }, '100%'), tr('Fit to screen'))
+  const ib = (ic: string, label: string, act: string, fit?: number) => tip(h('button', { class: 'ic', 'data-fit': fit, onclick: () => run[act]() }, icon(ic)), label)
+  const undoB = ib('undo', tr('Undo'), 'undo'), redoB = ib('redo', tr('Redo'), 'redo')
+  const cmpB = ib('compare', tr('Before and after'), 'compare', 3)
+  const exportB = h('button', { class: 'pri', style: { marginLeft: '4px' }, onclick: () => run.export() }, tr('Export'))
   const top = h('header', { id: 'top' },
-    h('div', { class: 'brand' }, logo(), 'CocoaShot'),
-    menu('File', () => [['New image', 'newImage', 'plus'], ['Open image', 'open', 'open'], ['Open project', 'openProject', 'folder'], ['New image from clipboard', 'newPaste', 'image'], '-', ['Save project', 'save', 'save'], ['Save project as', 'saveAs'], ['Export image', 'export', 'download'], '-', ['Close image', 'close', 'x']]),
-    menu('Edit', [['Undo', 'undo', 'undo'], ['Redo', 'redo', 'redo'], '-', ['Cut', 'cut', 'cut'], ['Copy', 'copy', 'copy'], ['Paste as layer', 'paste'], ['Paste as new image', 'newPaste', 'image'], ['Delete', 'delete', 'trash'], '-', ['Select all', 'selectAll'], ['Deselect', 'deselect'], ['Invert selection', 'invert'], '-', ['Settings', 'settings', 'gear']]),
-    menu('Image', [['Resize', 'resize', 'resize'], ['Crop to selection', 'cropSel', 'crop'], ['Free transform', 'transform', 'transform'], ['Distort', 'distort'], ['Warp', 'warp'], '-', ['Rotate left', 'rotl', 'rotl'], ['Rotate right', 'rotr', 'rotr'], ['Flip image horizontally', 'fliph', 'fliph'], ['Flip image vertically', 'flipv', 'flipv'], '-', ['Flatten image', 'flattenImg', 'layers']]),
-    menu('Layer', [['New layer', 'newLayer', 'plus'], ['New folder', 'newFolder', 'folder'], ['New adjustment layer', 'newAdjust', 'sliders'], ['Duplicate layer', 'dupLayer', 'copy'], ['Delete layer', 'delLayer', 'trash'], '-', ['Merge down', 'mergeDown'], ['Merge visible', 'mergeVisible'], ['Put in folder', 'groupLayer'], ['Remove folder, keep layers', 'ungroup'], '-', ['Add mask', 'addMask', 'mask'], ['Mask from selection', 'maskFromSel'], ['Disable or enable mask', 'toggleMask'], ['Invert mask', 'invertMask'], ['Apply mask', 'applyMask'], ['Delete mask', 'deleteMask'], '-', ['Layer effects', 'effects', 'fx'], ['Flip horizontally', 'flipLayerH', 'fliph'], ['Flip vertically', 'flipLayerV', 'flipv'], ['Free transform', 'transform', 'transform'], ['Distort', 'distort'], ['Warp', 'warp'], ['Edit layer alpha', 'editAlpha', 'alpha'], ['Levels', 'levels', 'levels'], '-', ['Flatten image', 'flattenImg', 'layers']]),
-    menu('Filter', () => {
+    h('div', { class: 'brand' }, logo(), h('span', { 'data-fit': 7 }, 'CocoaShot')),
+    menu(tr('File'), () => [[tr('New image'), 'newImage', 'plus'], [tr('Open image'), 'open', 'open'], [tr('Open project'), 'openProject', 'folder'], [tr('New image from clipboard'), 'newPaste', 'image'], '-', [tr('Save project'), 'save', 'save'], [tr('Save project as'), 'saveAs'], [tr('Export image'), 'export', 'download'], '-', [tr('Close image'), 'close', 'x']]),
+    menu(tr('Edit'), [[tr('Undo'), 'undo', 'undo'], [tr('Redo'), 'redo', 'redo'], '-', [tr('Cut'), 'cut', 'cut'], [tr('Copy'), 'copy', 'copy'], [tr('Paste as layer'), 'paste'], [tr('Paste as new image'), 'newPaste', 'image'], [tr('Delete'), 'delete', 'trash'], '-', [tr('Select all'), 'selectAll'], [tr('Deselect'), 'deselect'], [tr('Invert selection'), 'invert'], '-', [tr('Settings'), 'settings', 'gear']]),
+    menu(tr('Image'), [[tr('Resize'), 'resize', 'resize'], [tr('Crop to selection'), 'cropSel', 'crop'], [tr('Free transform'), 'transform', 'transform'], [tr('Distort'), 'distort'], [tr('Warp'), 'warp'], '-', [tr('Rotate left'), 'rotl', 'rotl'], [tr('Rotate right'), 'rotr', 'rotr'], [tr('Flip image horizontally'), 'fliph', 'fliph'], [tr('Flip image vertically'), 'flipv', 'flipv'], '-', [tr('Flatten image'), 'flattenImg', 'layers']]),
+    menu(tr('Layer'), [[tr('New layer'), 'newLayer', 'plus'], [tr('New folder'), 'newFolder', 'folder'], [tr('New adjustment layer'), 'newAdjust', 'sliders'], [tr('Duplicate layer'), 'dupLayer', 'copy'], [tr('Delete layer'), 'delLayer', 'trash'], '-', [tr('Merge down'), 'mergeDown'], [tr('Merge visible'), 'mergeVisible'], [tr('Put in folder'), 'groupLayer'], [tr('Remove folder, keep layers'), 'ungroup'], '-', [tr('Add mask'), 'addMask', 'mask'], [tr('Mask from selection'), 'maskFromSel'], [tr('Disable or enable mask'), 'toggleMask'], [tr('Invert mask'), 'invertMask'], [tr('Apply mask'), 'applyMask'], [tr('Delete mask'), 'deleteMask'], '-', [tr('Layer effects'), 'effects', 'fx'], [tr('Flip horizontally'), 'flipLayerH', 'fliph'], [tr('Flip vertically'), 'flipLayerV', 'flipv'], [tr('Free transform'), 'transform', 'transform'], [tr('Distort'), 'distort'], [tr('Warp'), 'warp'], [tr('Edit layer alpha'), 'editAlpha', 'alpha'], [tr('Levels'), 'levels', 'levels'], '-', [tr('Flatten image'), 'flattenImg', 'layers']]),
+    menu(tr('Filter'), () => {
       const out: ([string, string, string?] | '-')[] = []
       let cat = ''
       for (const f of FILTERS) { if (cat && f.cat !== cat) out.push('-'); cat = f.cat; out.push([f.label, 'filter:' + f.id]) }
       return out
     }),
-    menu('Select', [['Select all', 'selectAll'], ['Deselect', 'deselect'], ['Invert selection', 'invert'], '-', ['Cut', 'cut', 'cut'], ['Copy', 'copy', 'copy'], ['Delete pixels', 'delete', 'trash']]),
-    menu('View', () => [['Zoom in', 'zoomIn', 'plus'], ['Zoom out', 'zoomOut', 'minus'], ['Fit to screen', 'fit', 'fit'], ['Actual pixels', 'actual'], ['Before and after', 'compare', 'compare'], '-', ['Rotate view left', 'viewRotL', 'rotl'], ['Rotate view right', 'viewRotR', 'rotr'], ['Reset rotation', 'viewRot0'], ['Flip view', 'viewFlip', 'fliph'], '-', [app.fullscreen || document.fullscreenElement ? 'Exit full screen' : 'Full screen', 'fullscreen', 'fullscreen'], ['Show or hide panels', 'panels'], ['Show or hide tools', 'toggleLeft'], ['Show or hide properties', 'toggleRight'], ['Restore default layout', 'resetLayout']]),
-    menu('Help', () => [['Quick guide', 'help', 'help'], ...(native ? [['Check for updates', 'updates', 'update'] as [string, string, string]] : []), ['About CocoaShot', 'about']]),
+    menu(tr('Select'), [[tr('Select all'), 'selectAll'], [tr('Deselect'), 'deselect'], [tr('Invert selection'), 'invert'], '-', [tr('Cut'), 'cut', 'cut'], [tr('Copy'), 'copy', 'copy'], [tr('Delete pixels'), 'delete', 'trash']]),
+    menu(tr('View'), () => [[tr('Zoom in'), 'zoomIn', 'plus'], [tr('Zoom out'), 'zoomOut', 'minus'], [tr('Fit to screen'), 'fit', 'fit'], [tr('Actual pixels'), 'actual'], [tr('Before and after'), 'compare', 'compare'], '-', [tr('Rotate view left'), 'viewRotL', 'rotl'], [tr('Rotate view right'), 'viewRotR', 'rotr'], [tr('Reset rotation'), 'viewRot0'], [tr('Flip view'), 'viewFlip', 'fliph'], '-', [app.fullscreen || document.fullscreenElement ? tr('Exit full screen') : tr('Full screen'), 'fullscreen', 'fullscreen'], [tr('Show or hide panels'), 'panels'], [tr('Show or hide tools'), 'toggleLeft'], [tr('Show or hide properties'), 'toggleRight'], [tr('Restore default layout'), 'resetLayout']]),
+    menu(tr('Help'), () => [[tr('Quick guide'), 'help', 'help'], ...(native ? [[tr('Check for updates'), 'updates', 'update'] as [string, string, string]] : []), [tr('About CocoaShot'), 'about']]),
     h('span', { class: 'sep' }), dname, status, h('span', { class: 'sp' }),
-    h('span', { class: 'topc' }, ib('open', 'Open image', 'open'), ib('save', 'Save project', 'save'), h('span', { class: 'sep' }), undoB, redoB, h('span', { class: 'sep' }),
-      ib('minus', 'Zoom out', 'zoomOut'), zoomLbl, ib('plus', 'Zoom in', 'zoomIn'), ib('fit', 'Fit to screen', 'fit'), cmpB, ib('gear', 'Settings', 'settings')), exportB)
+    h('span', { class: 'topc', 'data-fit': 8 }, ib('open', tr('Open image'), 'open', 4), ib('save', tr('Save project'), 'save', 4), h('span', { class: 'sep', 'data-fit': 4 }), undoB, redoB, h('span', { class: 'sep', 'data-fit': 2 }),
+      ib('minus', tr('Zoom out'), 'zoomOut', 2), zoomLbl, ib('plus', tr('Zoom in'), 'zoomIn', 2), ib('fit', tr('Fit to screen'), 'fit', 3), cmpB, ib('gear', tr('Settings'), 'settings', 3)), exportB)
+  // When the window is narrow the status, then the shortcut icons (they repeat menu items) give way, the menus close
+  // up, and only then does the image name shrink; the brand name and the last icons go last.
+  status.dataset.fit = '1'
+  const fitTop = autoFit(top, 8)
 
   const tools = h('div', { id: 'tools' })
   const layersBox = h('div', { id: 'layersBox' })
-  const toolsHead = h('div', { class: 'ph' }, 'Tools')
+  const toolsHead = h('div', { class: 'ph' }, tr('Tools'))
   const left = h('aside', { id: 'left' })
   const tabs = h('div', { class: 'tabs' })
   const insp = h('div', { class: 'ib', id: 'insp' })
@@ -239,11 +244,11 @@ export function buildShell(app: App, root: HTMLElement) {
       const b = h('div', { class: 'dtab' + (on ? ' on' : ''), role: 'tab', 'aria-selected': on ? 'true' : 'false', onclick: () => app.activate(d), title: d.name },
         h('span', { class: 'dn' }, d.name), d.modified ? h('i', { class: 'dot busy' }) : null,
         on ? h('span', { class: 'mute dz' }, Math.round(app.view.zoom * 100) + '%') : null,
-        tip(h('button', { class: 'dx', onclick: (e: Event) => { e.stopPropagation(); app.closeDoc(d) } }, icon('x')), 'Close'))
+        tip(h('button', { class: 'dx', onclick: (e: Event) => { e.stopPropagation(); app.closeDoc(d) } }, icon('x')), tr('Close')))
       b.addEventListener('auxclick', e => { if ((e as MouseEvent).button === 1) app.closeDoc(d) })
       docTabs.append(b)
     }
-    if (app.docs.length) docTabs.append(tip(h('button', { class: 'dx add', onclick: () => run.open() }, icon('plus')), 'Open image'))
+    if (app.docs.length) docTabs.append(tip(h('button', { class: 'dx add', onclick: () => run.open() }, icon('plus')), tr('Open image')))
   }
   app.on('tabs', renderTabs)
   app.on('zoom', renderTabs)
@@ -284,15 +289,15 @@ export function buildShell(app: App, root: HTMLElement) {
   let lastActive = ''
   const renderInsp = () => {
     tabs.innerHTML = ''
-    tabs.append(h('button', { class: tab === 'props' ? 'on' : '', onclick: () => showTab('props') }, 'Properties'), h('button', { class: tab === 'hist' ? 'on' : '', onclick: () => showTab('hist') }, 'History'))
+    tabs.append(h('button', { class: tab === 'props' ? 'on' : '', onclick: () => showTab('props') }, tr('Properties')), h('button', { class: tab === 'hist' ? 'on' : '', onclick: () => showTab('hist') }, tr('History')))
     const sc = insp.scrollTop
     insp.innerHTML = ''
-    if (!app.doc) { insp.appendChild(h('p', { class: 'hint' }, 'Open an image to start.')); return }
+    if (!app.doc) { insp.appendChild(h('p', { class: 'hint' }, tr('Open an image to start.'))); return }
     lastActive = app.doc.activeId
     if (tab === 'hist') {
       const hs = app.hist!
       const list = h('div', { class: 'hist' })
-      list.appendChild(h('button', { class: hs.past.length === 0 ? 'on' : '', onclick: () => hs.jump(-1) }, 'Opened ' + app.doc.name))
+      list.appendChild(h('button', { class: hs.past.length === 0 ? 'on' : '', onclick: () => hs.jump(-1) }, tr('Opened {0}', app.doc.name)))
       hs.past.forEach((e, i) => list.appendChild(h('button', { class: i === hs.past.length - 1 ? 'on' : '', onclick: () => hs.jump(i) }, e.label)))
       ;[...hs.future].reverse().forEach((e, i) => list.appendChild(h('button', { class: 'fut', onclick: () => hs.jump(hs.past.length + i) }, e.label)))
       insp.appendChild(list)
@@ -314,7 +319,7 @@ export function buildShell(app: App, root: HTMLElement) {
     const show = !!app.doc && bgTool && !!(l?.mask || app.doc.layers.some(x => x.mask))
     float.hidden = !show
     if (!show) { if (app.view.maskView !== 'normal') { app.view.maskView = 'normal'; app.view.draw() } return }
-    for (const [v, t] of [['normal', 'Transparent'], ['mask', 'Mask'], ['overlay', 'Overlay']] as const)
+    for (const [v, t] of [['normal', tr('Transparent')], ['mask', tr('Mask')], ['overlay', tr('Overlay')]] as const)
       float.appendChild(h('button', { class: app.view.maskView === v ? 'on' : '', onclick: () => { app.view.maskView = v; app.view.draw(); renderFloat(); renderInsp() } }, t))
   }
 
@@ -324,16 +329,16 @@ export function buildShell(app: App, root: HTMLElement) {
     start.hidden = !!app.doc
     if (app.doc) return
     start.innerHTML = ''
-    const drop = h('div', { class: 'drop', onclick: () => run.open() }, h('div', {}, icon('image', 'i'), h('div', { style: { marginTop: '8px' } }, 'Drop an image here'), h('div', { class: 'hint', style: { marginTop: '2px' } }, 'PNG, JPG, WEBP, AVIF, HEIC, BMP, TIFF, GIF, PSD, SVG, ICO, TGA')))
+    const drop = h('div', { class: 'drop', onclick: () => run.open() }, h('div', {}, icon('image', 'i'), h('div', { style: { marginTop: '8px' } }, tr('Drop an image here')), h('div', { class: 'hint', style: { marginTop: '2px' } }, 'PNG, JPG, WEBP, AVIF, HEIC, BMP, TIFF, GIF, PSD, SVG, ICO, TGA')))
     ;(drop.querySelector('svg') as SVGElement).style.cssText = 'width:22px;height:22px;margin:0 auto;color:var(--mute)'
     const rec = h('div', { class: 'rec' })
     const card = h('div', { class: 'card' },
-      h('div', {}, h('h1', logo(), 'CocoaShot'), h('p', { class: 'hint', style: { fontSize: '13.5px', marginTop: '6px' } }, 'Open an image or start a blank one. Everything stays on this computer.')),
+      h('div', {}, h('h1', logo(), 'CocoaShot'), h('p', { class: 'hint', style: { fontSize: '13.5px', marginTop: '6px' } }, tr('Open an image or start a blank one. Everything stays on this computer.'))),
       h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
-        h('button', { class: 'pri big', onclick: () => run.open() }, 'Open image'),
-        h('button', { class: 'big', onclick: () => run.newImage() }, 'New image'),
-        h('button', { class: 'big', onclick: () => run.newPaste() }, 'Paste from clipboard'),
-        h('button', { class: 'big', onclick: () => run.openProject() }, 'Open project')),
+        h('button', { class: 'pri big', onclick: () => run.open() }, tr('Open image')),
+        h('button', { class: 'big', onclick: () => run.newImage() }, tr('New image')),
+        h('button', { class: 'big', onclick: () => run.newPaste() }, tr('Paste from clipboard')),
+        h('button', { class: 'big', onclick: () => run.openProject() }, tr('Open project'))),
       drop, rec)
     start.appendChild(card)
     if (native) {
@@ -341,26 +346,26 @@ export function buildShell(app: App, root: HTMLElement) {
       const items = !got ? [] : got instanceof ArrayBuffer ? [{ id: 'legacy', data: got }] : got
       if (items.length && !app.doc) {
         const n = items.length
-        rec.before(h('div', { class: 'job' }, h('div', { class: 'fr' }, h('span', n > 1 ? `Unsaved work on ${n} images from your last session can be recovered.` : 'Unsaved work from your last session can be recovered.'),
+        rec.before(h('div', { class: 'job' }, h('div', { class: 'fr' }, h('span', n > 1 ? tr('Unsaved work on {0} images from your last session can be recovered.', n) : tr('Unsaved work from your last session can be recovered.')),
           h('span', { style: { display: 'flex', gap: '6px' } },
-            h('button', { onclick: () => native!.clearRecovery().then(renderStart) }, 'Discard'),
+            h('button', { onclick: () => native!.clearRecovery().then(renderStart) }, tr('Discard')),
             h('button', { class: 'pri', onclick: async () => {
               for (const it of items) {
                 try {
-                  const d = await loadProject(it.data, 'Recovered.cocoashot')
+                  const d = await loadProject(it.data, tr('Recovered') + '.cocoashot')
                   d.modified = true
                   // Keep the copy on disk until the image is saved or closed, under the same name.
                   if (it.id !== 'legacy') d.rid = it.id
                   app.setDoc(d)
                   if (it.id === 'legacy') native!.saveRecovery(it.data as any, d.rid).then(() => native!.clearRecovery('legacy'))
-                } catch { toast('One recovered image could not be read', { err: true }) }
+                } catch { toast(tr('One recovered image could not be read'), { err: true }) }
               }
-            } }, n > 1 ? 'Recover all' : 'Recover')))))
+            } }, n > 1 ? tr('Recover all') : tr('Recover'))))))
       }
       const list: RecentItem[] = await native.recent()
       if (list.length) {
-        rec.appendChild(h('div', { class: 'ph', style: { padding: '0 0 6px' } }, 'Recent'))
-        for (const r of list.slice(0, 6)) rec.appendChild(h('button', { onclick: async () => { const f = await native!.readPath(r.path); if (f) app.openFile(f); else toast('That file has moved or been deleted') } },
+        rec.appendChild(h('div', { class: 'ph', style: { padding: '0 0 6px' } }, tr('Recent')))
+        for (const r of list.slice(0, 6)) rec.appendChild(h('button', { onclick: async () => { const f = await native!.readPath(r.path); if (f) app.openFile(f); else toast(tr('That file has moved or been deleted')) } },
           h('span', { class: 'thumb chk', style: { width: '44px', height: '32px' } }, r.thumb ? h('img', { src: r.thumb, style: { maxWidth: '100%', maxHeight: '100%' } }) : icon('image')),
           h('span', { class: 'sp', style: { textAlign: 'left' } }, r.name), h('span', { class: 'mute', style: { fontSize: '12px' } }, new Date(r.at).toLocaleDateString())))
       }
@@ -370,14 +375,14 @@ export function buildShell(app: App, root: HTMLElement) {
   const renderFoot = () => {
     foot.innerHTML = ''
     const d = app.doc
-    if (d) foot.append(h('span', `${d.w} × ${d.h} px`), h('span', `${d.layers.length} layer${d.layers.length > 1 ? 's' : ''}`), h('span', Math.round(app.view.zoom * 100) + '%'))
+    if (d) foot.append(h('span', `${d.w} × ${d.h} px`), h('span', tn(d.layers.length, '{0} layer', '{0} layers')), h('span', Math.round(app.view.zoom * 100) + '%'))
     if (app.job) foot.append(h('span', { style: { display: 'flex', alignItems: 'center', gap: '6px' } }, h('i', { class: 'dot busy' }), app.job.label + (app.job.progress != null ? ` ${Math.round(app.job.progress * 100)}%` : '')))
-    foot.append(h('span', { class: 'sp' }), h('span', { style: { display: 'flex', alignItems: 'center', gap: '6px' } }, h('i', { class: 'dot' }), 'Processing on this device'))
+    foot.append(h('span', { class: 'sp' }), h('span', { style: { display: 'flex', alignItems: 'center', gap: '6px' } }, h('i', { class: 'dot' }), tr('Processing on this device')))
   }
   const renderTop = () => {
     const d = app.doc
     dname.textContent = d ? d.name : ''
-    ;(status.lastChild as HTMLElement).textContent = d ? (d.modified ? 'Edited' : d.projectPath ? 'Saved' : 'Not saved') : ''
+    ;(status.lastChild as HTMLElement).textContent = d ? (d.modified ? tr('Edited') : d.projectPath ? tr('Saved') : tr('Not saved')) : ''
     status.hidden = !d
     ;(status.firstChild as HTMLElement).className = 'dot' + (d?.modified ? ' busy' : '')
     undoB.toggleAttribute('disabled', !app.canUndo())
@@ -385,6 +390,7 @@ export function buildShell(app: App, root: HTMLElement) {
     exportB.toggleAttribute('disabled', !d)
     cmpB.classList.toggle('on', app.view.compare === 'split')
     zoomLbl.textContent = Math.round(app.view.zoom * 100) + '%'
+    fitTop()
   }
 
   app.on('tool', () => { renderTools(); renderInsp(); renderFloat() })

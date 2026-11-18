@@ -5,6 +5,7 @@ import { touch } from '../core/compose'
 import { shapeBounds, transformShape } from '../core/shapes'
 import { alphaOf, bboxOfAlpha, canvas, copyCanvas, ctx2d, type Rect } from '../core/util'
 import { toast } from '../ui/dom'
+import { tr, tn } from '../i18n'
 
 /** The layers picked in the Layers panel or the image (Ctrl- or Shift-click), plus the active one. Bottom to top. */
 export function chosenLayers(doc: Doc): Layer[] {
@@ -46,7 +47,7 @@ export function boundsOf(doc: Doc, t: { pixels: Layer[]; shapes: Layer[] }): Rec
 /** A label for the chosen layers: the folder's or layer's name, or how many layers. */
 export function chosenName(doc: Doc) {
   const list = chosenLayers(doc)
-  return list.length === 1 ? list[0].name : `${list.length} layers`
+  return list.length === 1 ? list[0].name : tn(list.length, '{0} layer', '{0} layers')
 }
 
 /**
@@ -62,11 +63,11 @@ export function flipChosen(app: App, horiz: boolean) {
   const name = chosenName(doc)
   const a = doc.active
   const single = !isMulti(doc)
-  if (single && a && shownLocked(doc, a)) { toast(`${a.name} is locked`); return }
+  if (single && a && shownLocked(doc, a)) { toast(tr('{0} is locked', a.name)); return }
   const t = transformable(doc)
   const selPart = single && !!doc.selection && t.pixels.length === 1 && t.pixels[0] === a
   const box = selPart ? bboxOfAlpha(alphaOf(doc.selection!), doc.w, doc.h) : boundsOf(doc, t)
-  if (!box || (!t.pixels.length && !t.shapes.length)) { toast(`${name} has nothing to flip`); return }
+  if (!box || (!t.pixels.length && !t.shapes.length)) { toast(tr('{0} has nothing to flip', name)); return }
   const cx = box.x + box.w / 2, cy = box.y + box.h / 2
   const m = new DOMMatrix().translate(cx, cy).scale(horiz ? -1 : 1, horiz ? 1 : -1).translate(-cx, -cy)
   const mirrored = (src: HTMLCanvasElement) => {
@@ -106,7 +107,7 @@ export function flipChosen(app: App, horiz: boolean) {
       touch(l)
     }
   }
-  hist.structural((horiz ? 'Flip horizontally: ' : 'Flip vertically: ') + (selPart ? 'selection' : name), before)
+  hist.structural(tr(horiz ? 'Flip horizontally: {0}' : 'Flip vertically: {0}', selPart ? tr('selection') : name), before)
   doc.structure()
   if (selPart) doc.emit('selection')
 }
