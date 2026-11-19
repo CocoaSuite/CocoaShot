@@ -60,7 +60,7 @@ export async function decodeImage(name: string, data: ArrayBuffer): Promise<{ ca
 export type ExportFormat = 'png' | 'jpg' | 'webp' | 'avif' | 'tiff' | 'bmp' | 'psd' | 'pdf' | 'ico'
 export const FORMATS: [ExportFormat, string][] = [['png', 'PNG'], ['jpg', 'JPG'], ['webp', 'WEBP'], ['avif', 'AVIF'], ['tiff', 'TIFF'], ['bmp', 'BMP'], ['psd', tr('PSD (layers)')], ['pdf', 'PDF'], ['ico', tr('ICO (icon)')]]
 export const EXT: Record<ExportFormat, string> = { png: 'png', jpg: 'jpg', webp: 'webp', avif: 'avif', tiff: 'tif', bmp: 'bmp', psd: 'psd', pdf: 'pdf', ico: 'ico' }
-export interface ExportOpts { format: ExportFormat; quality: number; w: number; h: number; transparent: boolean; matte: string; srgb: boolean; maxCompress: boolean; hiddenAlpha?: boolean }
+export interface ExportOpts { format: ExportFormat; quality: number; w: number; h: number; transparent: boolean; matte: string; srgb: boolean; maxCompress: boolean; hiddenAlpha?: boolean; alphaFrom?: string; alphaInvert?: boolean }
 
 const blob = (c: HTMLCanvasElement, type: string, q?: number) => new Promise<Blob>((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error(tr('Encoding failed')))), type, q))
 
@@ -88,12 +88,37 @@ export async function encode(c: HTMLCanvasElement, o: ExportOpts, doc?: Doc): Pr
   if (o.format === 'avif') return encodeAvif(src, o.quality)
   if (o.format === 'ico') return encodeIco(src)
   const d = getData(src)
-  const hide = !!o.hiddenAlpha && !flat
-  if (o.format === 'tiff') return hide ? encodeTiffHidden(d) : new Uint8Array(UTIF.encodeImage(d.data.buffer, d.width, d.height))
-  return encodeBmp(d, hide)
+  if (o.format === 'tiff') return new Uint8Array(UTIF.encodeImage(d.data.buffer, d.width, d.height))
+  return encodeBmp(d)
 }
 
 /** hidden: the alpha bytes are written but the header has no alpha mask, so viewers show the image opaque. */
+/** Formats that can carry a hidden alpha mask: straight RGBA written without a canvas, so colour under low alpha survives. */
+export const HIDDEN_ALPHA: ExportFormat[] = ['png', 'tiff', 'bmp']
+
+export function encodeRaw(d: { data: Uint8ClampedArray; width: number; height: number }, o: ExportOpts): Uint8Array {
+  if (o.format === 'tiff') return encodeTiffHidden(d)
+  if (o.format === 'bmp') return encodeBmp(d as ImageData, true)
+  return encodePngRaw(d, o.maxCompress ? 9 : 6, o.srgb)
+}
+
+/** Straight (non-premultiplied) RGBA PNG. Game engines read this alpha as a mask, e.g. Roblox tint masks. */
+export function encodePngRaw(d: { data: Uint8ClampedArray; width: number; height: number }, level = 6, srgb = true): Uint8Array {
+  const w = d.width, h = d.height, row = w * 4
+  const raw = new Uint8Array((row + 1) * h)
+  for (let y = 0; y < h; y++) {
+    const o = y * (row + 1), s = y * row
+    raw[o] = 1
+    for (let i = 0; i < row; i++) raw[o + 1 + i] = d.data[s + i] - (i >= 4 ? d.data[s + i - 4] : 0)
+  }
+  const ihdr = new Uint8Array(13), v = new DataView(ihdr.buffer)
+  v.setUint32(0, w); v.setUint32(4, h); ihdr.set([8, 6, 0, 0, 0], 8)
+  const cs = [{ type: 'IHDR', data: ihdr }]
+  if (srgb) cs.push({ type: 'sRGB', data: new Uint8Array([0]) })
+  cs.push({ type: 'IDAT', data: zlibSync(raw, { level: level as any }) }, { type: 'IEND', data: new Uint8Array(0) })
+  return build(cs)
+}
+
 /** Uncompressed RGBA TIFF whose 4th sample is marked "unspecified" (ExtraSamples 0): the alpha is stored but viewers show the image opaque. */
 export function encodeTiffHidden(d: { data: Uint8ClampedArray; width: number; height: number }): Uint8Array {
   const w = d.width, h = d.height, n = w * h * 4, tags = 14, data = 8 + 2 + tags * 12 + 4 + 24
