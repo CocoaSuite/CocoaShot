@@ -60,7 +60,7 @@ export async function decodeImage(name: string, data: ArrayBuffer): Promise<{ ca
 export type ExportFormat = 'png' | 'jpg' | 'webp' | 'avif' | 'tiff' | 'bmp' | 'psd' | 'pdf' | 'ico'
 export const FORMATS: [ExportFormat, string][] = [['png', 'PNG'], ['jpg', 'JPG'], ['webp', 'WEBP'], ['avif', 'AVIF'], ['tiff', 'TIFF'], ['bmp', 'BMP'], ['psd', tr('PSD (layers)')], ['pdf', 'PDF'], ['ico', tr('ICO (icon)')]]
 export const EXT: Record<ExportFormat, string> = { png: 'png', jpg: 'jpg', webp: 'webp', avif: 'avif', tiff: 'tif', bmp: 'bmp', psd: 'psd', pdf: 'pdf', ico: 'ico' }
-export interface ExportOpts { format: ExportFormat; quality: number; w: number; h: number; transparent: boolean; matte: string; srgb: boolean; maxCompress: boolean }
+export interface ExportOpts { format: ExportFormat; quality: number; w: number; h: number; transparent: boolean; matte: string; srgb: boolean; maxCompress: boolean; hiddenAlpha?: boolean }
 
 const blob = (c: HTMLCanvasElement, type: string, q?: number) => new Promise<Blob>((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error(tr('Encoding failed')))), type, q))
 
@@ -88,18 +88,43 @@ export async function encode(c: HTMLCanvasElement, o: ExportOpts, doc?: Doc): Pr
   if (o.format === 'avif') return encodeAvif(src, o.quality)
   if (o.format === 'ico') return encodeIco(src)
   const d = getData(src)
-  if (o.format === 'tiff') return new Uint8Array(UTIF.encodeImage(d.data.buffer, d.width, d.height))
-  return encodeBmp(d)
+  const hide = !!o.hiddenAlpha && !flat
+  if (o.format === 'tiff') return hide ? encodeTiffHidden(d) : new Uint8Array(UTIF.encodeImage(d.data.buffer, d.width, d.height))
+  return encodeBmp(d, hide)
 }
 
-export function encodeBmp(d: ImageData): Uint8Array {
+/** hidden: the alpha bytes are written but the header has no alpha mask, so viewers show the image opaque. */
+/** Uncompressed RGBA TIFF whose 4th sample is marked "unspecified" (ExtraSamples 0): the alpha is stored but viewers show the image opaque. */
+export function encodeTiffHidden(d: { data: Uint8ClampedArray; width: number; height: number }): Uint8Array {
+  const w = d.width, h = d.height, n = w * h * 4, tags = 14, data = 8 + 2 + tags * 12 + 4 + 24
+  const b = new ArrayBuffer(data + n), v = new DataView(b)
+  v.setUint16(0, 0x4949, true); v.setUint16(2, 42, true); v.setUint32(4, 8, true)
+  v.setUint16(8, tags, true)
+  const ext = data - 24
+  let p = 10
+  const tag = (id: number, type: number, count: number, val: number) => {
+    v.setUint16(p, id, true); v.setUint16(p + 2, type, true); v.setUint32(p + 4, count, true)
+    if (type === 3 && count === 1) v.setUint16(p + 8, val, true); else v.setUint32(p + 8, val, true)
+    p += 12
+  }
+  tag(256, 4, 1, w); tag(257, 4, 1, h); tag(258, 3, 4, ext); tag(259, 3, 1, 1); tag(262, 3, 1, 2)
+  tag(273, 4, 1, data); tag(277, 3, 1, 4); tag(278, 4, 1, h); tag(279, 4, 1, n)
+  tag(282, 5, 1, ext + 8); tag(283, 5, 1, ext + 16); tag(284, 3, 1, 1); tag(296, 3, 1, 2); tag(338, 3, 1, 0)
+  v.setUint32(p, 0, true)
+  for (let i = 0; i < 4; i++) v.setUint16(ext + i * 2, 8, true)
+  v.setUint32(ext + 8, 72, true); v.setUint32(ext + 12, 1, true); v.setUint32(ext + 16, 72, true); v.setUint32(ext + 20, 1, true)
+  new Uint8Array(b, data).set(d.data)
+  return new Uint8Array(b)
+}
+
+export function encodeBmp(d: ImageData, hidden = false): Uint8Array {
   const w = d.width, h = d.height, row = w * 4, size = 122 + row * h
   const b = new ArrayBuffer(size), v = new DataView(b)
   v.setUint16(0, 0x4d42, true); v.setUint32(2, size, true); v.setUint32(10, 122, true)
   v.setUint32(14, 108, true); v.setInt32(18, w, true); v.setInt32(22, -h, true)
   v.setUint16(26, 1, true); v.setUint16(28, 32, true); v.setUint32(30, 3, true); v.setUint32(34, row * h, true)
   v.setUint32(38, 2835, true); v.setUint32(42, 2835, true)
-  v.setUint32(54, 0x00ff0000, true); v.setUint32(58, 0x0000ff00, true); v.setUint32(62, 0x000000ff, true); v.setUint32(66, 0xff000000, true)
+  v.setUint32(54, 0x00ff0000, true); v.setUint32(58, 0x0000ff00, true); v.setUint32(62, 0x000000ff, true); v.setUint32(66, hidden ? 0 : 0xff000000, true)
   v.setUint32(70, 0x73524742, true)
   const p = new Uint8Array(b, 122)
   for (let i = 0; i < w * h; i++) { p[i * 4] = d.data[i * 4 + 2]; p[i * 4 + 1] = d.data[i * 4 + 1]; p[i * 4 + 2] = d.data[i * 4]; p[i * 4 + 3] = d.data[i * 4 + 3] }

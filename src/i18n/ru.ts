@@ -735,6 +735,7 @@ export const RU: Record<string, string> = {
   'Exports a flattened copy. Save project keeps layers, masks and text editable.': 'Экспортирует сведённую копию. «Сохранить проект» оставляет слои, маски и текст редактируемыми.',
   'Format': 'Формат',
   'Keep transparent pixels': 'Сохранить прозрачность',
+  'Hide alpha channel (stored, but shown opaque)': 'Скрытый альфа-канал (сохраняется, но не виден)',
   'Smallest file (slower)': 'Минимальный файл (медленнее)',
   'Tag as sRGB colour': 'Пометить как sRGB',
   'File name': 'Имя файла',
