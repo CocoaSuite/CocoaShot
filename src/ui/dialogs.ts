@@ -1,7 +1,9 @@
 import type { App } from '../app'
 import type { Doc } from '../core/doc'
 import { flatten } from '../core/compose'
-import { encode, EXT, ExportFormat, ExportOpts, FORMATS } from '../core/io'
+import { encode, encodeRaw, EXT, ExportFormat, ExportOpts, FORMATS, HIDDEN_ALPHA } from '../core/io'
+import { composeList } from '../core/compose'
+import { alphaOf } from '../core/util'
 import { job } from '../core/jobs'
 import { canvas, ctx2d, getData, putData, mkID } from '../core/util'
 import { native, downloadLocal, isMac } from '../native'
@@ -60,7 +62,11 @@ export function exportDialog(app: App) {
         h('label', { style: { display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '11px', color: 'var(--mute)' } }, tr('Scale'),
           h('select', { onchange: (e: Event) => { const k = +(e.target as HTMLSelectElement).value; o.w = Math.round(doc.w * k); o.h = Math.round(doc.h * k); draw(); estimate() } },
             [0.25, 0.5, 1, 2].map(k => h('option', { value: k, selected: Math.abs(o.w / doc.w - k) < 0.001 }, k * 100 + '%')))))),
-      canAlpha && toggle(tr('Keep transparent pixels'), () => o.transparent, v => { o.transparent = v; estimate() }),
+      canAlpha && toggle(tr('Keep transparent pixels'), () => o.transparent, v => { o.transparent = v; draw(); estimate() }),
+      HIDDEN_ALPHA.includes(o.format) && toggle(tr('Hidden alpha mask'), () => !!o.hiddenAlpha, v => { o.hiddenAlpha = v; draw() }),
+      HIDDEN_ALPHA.includes(o.format) && o.hiddenAlpha && hint(tr('Colour is saved fully opaque everywhere; the alpha channel only carries the mask (for example a Roblox tint mask). A layer used as the mask is left out of the colour: white shows, black hides.')),
+      HIDDEN_ALPHA.includes(o.format) && o.hiddenAlpha && select(tr('Alpha from'), alphaSources(doc), () => o.alphaFrom || 'image', v => (o.alphaFrom = v)),
+      HIDDEN_ALPHA.includes(o.format) && o.hiddenAlpha && toggle(tr('Invert alpha'), () => !!o.alphaInvert, v => (o.alphaInvert = v)),
       o.format === 'png' && toggle(tr('Smallest file (slower)'), () => o.maxCompress, v => (o.maxCompress = v)),
       o.format === 'png' && toggle(tr('Tag as sRGB colour'), () => o.srgb, v => (o.srgb = v)),
       (!canAlpha || !o.transparent) && h('div', { class: 'fr' }, h('label', tr('Background')), h('input', { type: 'color', value: o.matte, onchange: (e: Event) => { o.matte = (e.target as HTMLInputElement).value; estimate() } })),
@@ -103,7 +109,39 @@ export function exportDialog(app: App) {
 }
 
 /** Encodes a flattened image and writes it (desktop) or downloads it (browser). */
+function alphaSources(doc: Doc): [string, string][] {
+  const out: [string, string][] = [['image', tr('Image transparency')]]
+  if (doc.selection) out.push(['selection', tr('Selection')])
+  for (const l of [...doc.layers].reverse()) if (l.kind !== 'group' && l.kind !== 'adjust') out.push([l.id, tr('Layer: {0}', l.name)])
+  return out
+}
+
+/** Opaque colour plus a separate alpha mask, as straight RGBA. */
+function hiddenAlphaData(doc: Doc, flat: HTMLCanvasElement, o: ExportOpts): ImageData {
+  const src = o.alphaFrom || 'image', ml = src !== 'image' && src !== 'selection' ? doc.layer(src) : null
+  let colour = flat
+  if (ml) { const was = ml.visible; ml.visible = false; try { colour = flatten(doc) } finally { ml.visible = was } }
+  const c = canvas(doc.w, doc.h), x = ctx2d(c)
+  x.fillStyle = o.matte; x.fillRect(0, 0, doc.w, doc.h); x.drawImage(colour, 0, 0)
+  const d = getData(c), n = doc.w * doc.h
+  let a: ArrayLike<number> | null = null
+  if (src === 'image') { const f = getData(flat).data; const t = new Uint8Array(n); for (let i = 0; i < n; i++) t[i] = f[i * 4 + 3]; a = t }
+  else if (src === 'selection') a = doc.selection && doc.selection.width === doc.w && doc.selection.height === doc.h ? alphaOf(doc.selection) : null
+  else if (ml) {
+    const m = getData(composeList(doc, [ml])).data, t = new Uint8Array(n)
+    for (let i = 0; i < n; i++) { const p = i * 4; t[i] = Math.round((0.2126 * m[p] + 0.7152 * m[p + 1] + 0.0722 * m[p + 2]) * m[p + 3] / 255) }
+    a = t
+  }
+  for (let i = 0; i < n; i++) { const v = a ? a[i] : 255; d.data[i * 4 + 3] = o.alphaInvert ? 255 - v : v }
+  return d
+}
+
 export async function writeExport(app: App, doc: Doc, flat: HTMLCanvasElement, o: ExportOpts, path: string | null, file: string, quiet = false) {
+  if (o.hiddenAlpha && HIDDEN_ALPHA.includes(o.format)) {
+    let d = hiddenAlphaData(doc, flat, o)
+    if (o.w !== doc.w || o.h !== doc.h) d = mkID(await job('lanczos', { data: d.data, w: doc.w, h: doc.h, dw: o.w, dh: o.h }, [d.data.buffer]), o.w, o.h)
+    return save(encodeRaw(d, o))
+  }
   let c = flat
   if (o.format !== 'psd' && o.format !== 'ico' && (o.w !== doc.w || o.h !== doc.h)) {
     const d = getData(flat)
@@ -111,12 +149,14 @@ export async function writeExport(app: App, doc: Doc, flat: HTMLCanvasElement, o
     c = canvas(o.w, o.h)
     putData(c, mkID(out, o.w, o.h))
   }
-  const bytes = await encode(c, o, doc)
+  return save(await encode(c, o, doc))
+  async function save(bytes: Uint8Array) {
   if (native && path) {
     const p = path
     await native.writePath(p, bytes)
     if (!quiet) toast(tr('Exported {0}', file), { action: tr('Show in folder'), onAction: () => native!.showInFolder(p) })
   } else { downloadLocal(file, bytes); if (!quiet) toast(tr('Exported {0}', file)) }
+  }
 }
 
 /** Exports the current image to the export folder without asking, under a name that is free (actions). */

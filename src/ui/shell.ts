@@ -13,6 +13,9 @@ import { native, RecentItem } from '../native'
 import { applySelection, deletePixels, invert, selectAll } from '../tools/select'
 import { rotate90, flip } from '../core/transform'
 import { snapshot } from '../core/doc'
+import { blackToAlpha } from '../core/px'
+import { alphaOf, getData, putData } from '../core/util'
+import { touch } from '../core/compose'
 import { loadProject } from '../core/io'
 import { flattenDoc } from '../core/actions'
 import { jobBox } from '../tools/common'
@@ -64,6 +67,17 @@ export function buildShell(app: App, root: HTMLElement) {
     deleteMask: () => app.doc && deleteMask(app),
     delLayer: () => app.doc && removeLayer(app),
     editAlpha: () => app.setTool('alpha'),
+    blackToAlpha: () => {
+      const l = app.activeRaster(), doc = app.doc
+      if (!l?.canvas || !doc || !app.hist) return
+      app.hist.flush()
+      const base = getData(l.canvas), { width: w, height: hh } = base
+      const sel = doc.selection && doc.selection.width === w && doc.selection.height === hh ? alphaOf(doc.selection) : null
+      putData(l.canvas, new ImageData(blackToAlpha(base.data, sel), w, hh), 0, 0)
+      touch(l)
+      app.hist.raster(tr('Black to transparency'), l, 'canvas', { x: 0, y: 0, w, h: hh }, base)
+      doc.changed()
+    },
     levels: () => app.setTool('levels'),
     curves: () => app.doc && app.setTool('curves'),
     gmap: () => app.doc && app.setTool('gmap'),
@@ -186,7 +200,7 @@ export function buildShell(app: App, root: HTMLElement) {
     menu(tr('File'), () => [[tr('New image'), 'newImage', 'plus'], [tr('Open image'), 'open', 'open'], [tr('Open project'), 'openProject', 'folder'], [tr('New image from clipboard'), 'newPaste', 'image'], '-', [tr('Save project'), 'save', 'save'], [tr('Save project as'), 'saveAs'], [tr('Export image'), 'export', 'download'], '-', [app.recording ? tr('Stop recording') : tr('Actions'), app.recording ? 'stopRec' : 'actions', 'actions'], '-', [tr('Close image'), 'close', 'x']]),
     menu(tr('Edit'), [[tr('Undo'), 'undo', 'undo'], [tr('Redo'), 'redo', 'redo'], '-', [tr('Cut'), 'cut', 'cut'], [tr('Copy'), 'copy', 'copy'], [tr('Paste as layer'), 'paste'], [tr('Paste as new image'), 'newPaste', 'image'], [tr('Delete'), 'delete', 'trash'], '-', [tr('Select all'), 'selectAll'], [tr('Deselect'), 'deselect'], [tr('Invert selection'), 'invert'], '-', [tr('Settings'), 'settings', 'gear']]),
     menu(tr('Image'), [[tr('Resize'), 'resize', 'resize'], [tr('Crop to selection'), 'cropSel', 'crop'], [tr('Expand canvas'), 'expand', 'expand'], [tr('Redact'), 'redact', 'redact'], [tr('Free transform'), 'transform', 'transform'], [tr('Distort'), 'distort'], [tr('Warp'), 'warp'], '-', [tr('Rotate left'), 'rotl', 'rotl'], [tr('Rotate right'), 'rotr', 'rotr'], [tr('Flip image horizontally'), 'fliph', 'fliph'], [tr('Flip image vertically'), 'flipv', 'flipv'], '-', [tr('Flatten image'), 'flattenImg', 'layers']]),
-    menu(tr('Layer'), [[tr('New layer'), 'newLayer', 'plus'], [tr('New folder'), 'newFolder', 'folder'], [tr('New adjustment layer'), 'newAdjust', 'sliders'], [tr('Duplicate layer'), 'dupLayer', 'copy'], [tr('Delete layer'), 'delLayer', 'trash'], '-', [tr('Merge down'), 'mergeDown'], [tr('Merge visible'), 'mergeVisible'], [tr('Put in folder'), 'groupLayer'], [tr('Remove folder, keep layers'), 'ungroup'], '-', [tr('Add mask'), 'addMask', 'mask'], [tr('Mask from selection'), 'maskFromSel'], [tr('Disable or enable mask'), 'toggleMask'], [tr('Invert mask'), 'invertMask'], [tr('Apply mask'), 'applyMask'], [tr('Delete mask'), 'deleteMask'], '-', [tr('Layer effects'), 'effects', 'fx'], [tr('Flip horizontally'), 'flipLayerH', 'fliph'], [tr('Flip vertically'), 'flipLayerV', 'flipv'], [tr('Free transform'), 'transform', 'transform'], [tr('Distort'), 'distort'], [tr('Warp'), 'warp'], [tr('Edit layer alpha'), 'editAlpha', 'alpha'], [tr('Levels'), 'levels', 'levels'], [tr('Curves'), 'curves', 'curves'], [tr('Gradient map'), 'gmap', 'gmap'], '-', [tr('Flatten image'), 'flattenImg', 'layers']]),
+    menu(tr('Layer'), [[tr('New layer'), 'newLayer', 'plus'], [tr('New folder'), 'newFolder', 'folder'], [tr('New adjustment layer'), 'newAdjust', 'sliders'], [tr('Duplicate layer'), 'dupLayer', 'copy'], [tr('Delete layer'), 'delLayer', 'trash'], '-', [tr('Merge down'), 'mergeDown'], [tr('Merge visible'), 'mergeVisible'], [tr('Put in folder'), 'groupLayer'], [tr('Remove folder, keep layers'), 'ungroup'], '-', [tr('Add mask'), 'addMask', 'mask'], [tr('Mask from selection'), 'maskFromSel'], [tr('Disable or enable mask'), 'toggleMask'], [tr('Invert mask'), 'invertMask'], [tr('Apply mask'), 'applyMask'], [tr('Delete mask'), 'deleteMask'], '-', [tr('Layer effects'), 'effects', 'fx'], [tr('Flip horizontally'), 'flipLayerH', 'fliph'], [tr('Flip vertically'), 'flipLayerV', 'flipv'], [tr('Free transform'), 'transform', 'transform'], [tr('Distort'), 'distort'], [tr('Warp'), 'warp'], [tr('Edit layer alpha'), 'editAlpha', 'alpha'], [tr('Black to transparency'), 'blackToAlpha'], [tr('Levels'), 'levels', 'levels'], [tr('Curves'), 'curves', 'curves'], [tr('Gradient map'), 'gmap', 'gmap'], '-', [tr('Flatten image'), 'flattenImg', 'layers']]),
     menu(tr('Filter'), () => {
       const out: ([string, string, string?] | '-')[] = []
       let cat = ''
