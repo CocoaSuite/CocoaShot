@@ -850,6 +850,7 @@ export const RU: Record<string, string> = {
   'Delete layer': 'Удалить слой',
   'New adjustment layer': 'Корректирующий слой',
   'Edit layer alpha': 'Изменить альфу слоя',
+  'Black to transparency': 'Чёрный в прозрачность',
   'Mode': 'Режим',
   'Layer opacity': 'Непрозрачность слоя',
   'Lock layer': 'Закрепить слой',

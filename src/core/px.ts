@@ -389,6 +389,20 @@ export function editAlpha(alpha: Uint8Array | Uint8ClampedArray, w: number, h: n
   return out
 }
 
+/** Black to transparency: brightness becomes alpha and colour is un-premultiplied, so black vanishes and glows keep their hue. limit (selection alpha) blends the change in. */
+export function blackToAlpha(d: Uint8ClampedArray, limit?: Uint8Array | Uint8ClampedArray | null): Uint8ClampedArray<ArrayBuffer> {
+  const out = new Uint8ClampedArray(d)
+  for (let i = 0, p = 0; p < d.length; i++, p += 4) {
+    const k = limit ? limit[i] / 255 : 1
+    if (!k) continue
+    const m = Math.max(d[p], d[p + 1], d[p + 2])
+    const s = m ? 255 / m : 0
+    for (let c = 0; c < 3; c++) out[p + c] = Math.round(d[p + c] + (d[p + c] * s - d[p + c]) * k)
+    out[p + 3] = Math.round(d[p + 3] + (d[p + 3] * m / 255 - d[p + 3]) * k)
+  }
+  return out
+}
+
 /** Squared Euclidean distance transform (Felzenszwalb and Huttenlocher). f holds 0 at seeds and a large number elsewhere; it is replaced in place. */
 export function edt2(f: Float32Array, w: number, h: number) {
   const n = Math.max(w, h)

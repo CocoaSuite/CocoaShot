@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { boxBlur, morph, contours, flood, inpaint, resizeLanczos, homography, histogramStats, maskPipeline } from '../src/core/px.ts'
+import { boxBlur, morph, contours, flood, inpaint, resizeLanczos, homography, histogramStats, maskPipeline, blackToAlpha } from '../src/core/px.ts'
 
 test('box blur keeps a flat image flat', () => {
   const a = new Float32Array(100).fill(0.5)
@@ -100,4 +100,10 @@ test('alpha edits apply levels, hard edges, invert and selection limits', () => 
   assert.deepEqual([...editAlpha(a, 4, 1, { ...ALPHA0, hard: true })], [0, 0, 255, 255])
   assert.deepEqual([...editAlpha(a, 4, 1, { ...ALPHA0, lv: [0, 128, 1, 0, 255] })], [0, 128, 255, 255])
   assert.deepEqual([...editAlpha(a, 4, 1, { ...ALPHA0, lv: [0, 255, 1, 255, 255] }, new Uint8Array([255, 0, 255, 0]))], [255, 64, 255, 255])
+})
+
+test('black to transparency keeps hue and turns black clear', () => {
+  const d = new Uint8ClampedArray([0, 0, 0, 255, 255, 255, 255, 255, 128, 64, 0, 255])
+  assert.deepEqual([...blackToAlpha(d)], [0, 0, 0, 0, 255, 255, 255, 255, 255, 128, 0, 128])
+  assert.deepEqual([...blackToAlpha(d, new Uint8Array([0, 0, 0]))], [...d])
 })
